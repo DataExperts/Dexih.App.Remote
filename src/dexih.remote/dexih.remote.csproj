@@ -45,5 +45,13 @@
     <ProjectReference Include="..\..\..\Dexih.App.Operations\src\dexih.operations\dexih.operations.csproj" />
     <ProjectReference Include="..\..\..\Dexih.App.Operations\src\dexih.repository\dexih.repository.csproj" />
     <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.transforms\dexih.transforms.csproj" />
+    <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.azure\dexih.connections.azure.csproj" />
+    <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.dexih\dexih.connections.dexih.csproj" />
+    <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.excel\dexih.connections.excel.csproj" />
+    <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.flatfile\dexih.connections.flatfile.csproj" />
+    <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.ftp\dexih.connections.ftp.csproj" />
+    <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.sftp\dexih.connections.sftp.csproj" />
+    <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.sql\dexih.connections.sql.csproj" />
+    <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.webservice.restful\dexih.connections.webservice.restful.csproj" />
   </ItemGroup>
 </Project>
