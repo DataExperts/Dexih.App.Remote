@@ -1,0 +1,26 @@
+{
+    "version": "0.2.0",
+    "configurations": [{
+            "name": ".NET Core Launch (console)",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "msbuild",
+            "program": "${workspaceRoot}/bin/Debug/netcoreapp1.1/dexih.remote.dll",
+            "args": ["-u", "admin@dataexpertsgroup.com", "-p", "dexIH-1", "-w", "http://localhost:5000/", "-k", "57a0ad4d-f2d0-479a-d353-34f5ee83e4e1", "-n", "GaryMac", "-i", "123"],
+            "cwd": "${workspaceRoot}",
+            "stopAtEntry": false,
+            "externalConsole": false
+        },
+        {
+            "name": "dexih-dev",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "msbuild",
+            "program": "${workspaceRoot}/bin/Debug/netcoreapp1.1/dexih.remote.dll",
+            "args": ["-u", "admin@dataexpertsgroup.com", "-p", "dexIH-1", "-w", "https://dexih-dev.azurewebsites.net", "-k", "57a0ad4d-f2d0-479a-d353-34f5ee83e4e1", "-n", "GaryMac", "-i", "123"],
+            "cwd": "${workspaceRoot}",
+            "stopAtEntry": false,
+            "externalConsole": false
+        }
+    ]
+}

@@ -1,0 +1,49 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>dexih_remote Console Application</Description>
+    <AssemblyTitle>Data Experts Information Hub - Remote </AssemblyTitle>
+    <VersionPrefix>0.3.0</VersionPrefix>
+    <VersionSuffix>C00001</VersionSuffix>
+    <Authors>Gary</Authors>
+    <TargetFrameworks>netcoreapp2.0;net462</TargetFrameworks>
+    <AssemblyName>dexih.remote</AssemblyName>
+    <RuntimeIdentifiers>win-x64;linux-x64,osx-x64</RuntimeIdentifiers>
+    <OutputType>Exe</OutputType>
+    <PackageId>dexih.remote</PackageId>
+    <UserSecretsId>aspnet-dexih.remote-20160527083443</UserSecretsId>
+    <PreserveCompilationContext>true</PreserveCompilationContext>
+    <GenerateAssemblyTitleAttribute>false</GenerateAssemblyTitleAttribute>
+    <GenerateAssemblyDescriptionAttribute>false</GenerateAssemblyDescriptionAttribute>
+    <GenerateAssemblyConfigurationAttribute>false</GenerateAssemblyConfigurationAttribute>
+    <GenerateAssemblyCompanyAttribute>false</GenerateAssemblyCompanyAttribute>
+    <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
+    <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
+  </PropertyGroup>
+  <ItemGroup>
+    <Content Include="dexih_start.sh;dexih_unblock.ps1">
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Dexih.Utils.ManagedTasks" Version="0.1.31" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="2.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="2.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="2.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="2.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="2.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.FileExtensions" Version="2.0.0" />
+    <PackageReference Include="System.Net.WebSockets.Client" Version="4.3.1" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="1.0.0-alpha2-final" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Update=".dockerignore">
+      <DependentUpon>Dockerfile</DependentUpon>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.functions\dexih.functions.csproj" />
+    <ProjectReference Include="..\..\..\Dexih.App.Operations\src\dexih.operations\dexih.operations.csproj" />
+    <ProjectReference Include="..\..\..\Dexih.App.Operations\src\dexih.repository\dexih.repository.csproj" />
+    <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.transforms\dexih.transforms.csproj" />
+  </ItemGroup>
+</Project>
