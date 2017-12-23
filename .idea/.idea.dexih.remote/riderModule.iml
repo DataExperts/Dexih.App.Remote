@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="RIDER_MODULE" version="4">
+  <component name="NewModuleRootManager">
+    <content url="file://$MODULE_DIR$/../../../Dexih.App.Operations/src/dexih.operations" />
+    <content url="file://$MODULE_DIR$/../../../Dexih.App.Operations/src/dexih.repository" />
+    <content url="file://$MODULE_DIR$/../.." />
+    <content url="file://$MODULE_DIR$/../../../dexih.transforms/src/dexih.connections.azure" />
+    <content url="file://$MODULE_DIR$/../../../dexih.transforms/src/dexih.connections.dexih" />
+    <content url="file://$MODULE_DIR$/../../../dexih.transforms/src/dexih.connections.excel" />
+    <content url="file://$MODULE_DIR$/../../../dexih.transforms/src/dexih.connections.flatfile" />
+    <content url="file://$MODULE_DIR$/../../../dexih.transforms/src/dexih.connections.ftp" />
+    <content url="file://$MODULE_DIR$/../../../dexih.transforms/src/dexih.connections.sftp" />
+    <content url="file://$MODULE_DIR$/../../../dexih.transforms/src/dexih.connections.sql" />
+    <content url="file://$MODULE_DIR$/../../../dexih.transforms/src/dexih.connections.webservice.restful" />
+    <content url="file://$MODULE_DIR$/../../../dexih.transforms/src/dexih.functions" />
+    <content url="file://$MODULE_DIR$/../../../dexih.transforms/src/dexih.transforms" />
+    <orderEntry type="sourceFolder" forTests="false" />
+  </component>
+</module>

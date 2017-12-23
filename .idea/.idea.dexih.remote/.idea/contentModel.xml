@@ -1,0 +1,395 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ContentModelStore">
+    <e p="$USER_HOME$/Library/Caches/Rider2017.3/resharper-host/local/Transient/ReSharperHost/v11/SolutionCaches/_dexih.remote.-2005245256.00" t="ExcludeRecursive" />
+    <e p="$PROJECT_DIR$/../Dexih.App.Operations/src/dexih.operations" t="IncludeRecursive">
+      <e p="AssemblyLoader.cs" t="Include" />
+      <e p="bin" t="ExcludeRecursive" />
+      <e p="CacheManager.cs" t="Include" />
+      <e p="ColumnValidationRun.cs" t="Include" />
+      <e p="DatajobRun.cs" t="Include" />
+      <e p="DatalinkRun.cs" t="Include" />
+      <e p="dexih.operations.csproj" t="IncludeRecursive" />
+      <e p="dexih.operations.userprefs" t="Include" />
+      <e p="DownloadData.cs" t="Include" />
+      <e p="Exceptions" t="Include">
+        <e p="CacheManagerExceptions.cs" t="Include" />
+        <e p="ColumnValidationExceptions.cs" t="Include" />
+        <e p="DatajobRunExceptions.cs" t="Include" />
+        <e p="DatalinkRunExceptions.cs" t="Include" />
+        <e p="DownloadDataExceptions.cs" t="Include" />
+        <e p="RemoteDataSenderExceptions.cs" t="Include" />
+        <e p="RepositoryManagerExceptions.cs" t="Include" />
+        <e p="TransformManagerExceptions.cs" t="Include" />
+      </e>
+      <e p="Import.cs" t="Include" />
+      <e p="Message.cs" t="Include" />
+      <e p="obj" t="ExcludeRecursive">
+        <e p="Debug" t="Include">
+          <e p="netstandard2.0" t="Include">
+            <e p="dexih.operations.AssemblyInfo.cs" t="Include" />
+          </e>
+        </e>
+      </e>
+      <e p="project.lock.json" t="Include" />
+      <e p="Properties" t="Include">
+        <e p="AssemblyInfo.cs" t="Include" />
+      </e>
+      <e p="RemoteDataSender.cs" t="Include" />
+      <e p="RemoteMessage.cs" t="Include" />
+      <e p="RepositoryManager.cs" t="Include" />
+      <e p="TransformsManager.cs" t="Include" />
+    </e>
+    <e p="$PROJECT_DIR$/../Dexih.App.Operations/src/dexih.repository" t="IncludeRecursive">
+      <e p="ApplicationUser.cs" t="Include" />
+      <e p="ApplicationUserExceptions.cs" t="Include" />
+      <e p="AssemblyLoader.cs" t="Include" />
+      <e p="bin" t="ExcludeRecursive" />
+      <e p="build.log" t="Include" />
+      <e p="dexih.repository.csproj" t="IncludeRecursive" />
+      <e p="dexih_repositoryContext.cs" t="Include" />
+      <e p="DexihBaseEntity.cs" t="Include" />
+      <e p="DexihColumnBase.cs" t="Include" />
+      <e p="DexihColumnValidation.cs" t="Include" />
+      <e p="DexihConnection.cs" t="Include" />
+      <e p="DexihDatabaseType.cs" t="Include" />
+      <e p="DexihDatajob.cs" t="Include" />
+      <e p="DexihDatalink.cs" t="Include" />
+      <e p="DexihDatalinkColumn.cs" t="Include" />
+      <e p="DexihDatalinkDependency.cs" t="Include" />
+      <e p="DexihDatalinkProfile.cs" t="Include" />
+      <e p="DexihDatalinkStep.cs" t="Include" />
+      <e p="DexihDatalinkTable.cs" t="Include" />
+      <e p="DexihDatalinkTransform.cs" t="Include" />
+      <e p="DexihDatalinkTransformItem.cs" t="Include" />
+      <e p="DexihFileFormat.cs" t="Include" />
+      <e p="DexihFunctionParameter.cs" t="Include" />
+      <e p="DexihHubs.cs" t="Include" />
+      <e p="DexihHubUser.cs" t="Include" />
+      <e p="DexihHubVariable.cs" t="Include" />
+      <e p="DexihParameter.cs" t="Include" />
+      <e p="DexihProfileRule.cs" t="Include" />
+      <e p="DexihRemoteAgent.cs" t="Include" />
+      <e p="DexihSetting.cs" t="Include" />
+      <e p="DexihStandardFunction.cs" t="Include" />
+      <e p="DexihTable.cs" t="Include" />
+      <e p="DexihTableColumn.cs" t="Include" />
+      <e p="DexihTransform.cs" t="Include" />
+      <e p="DexihTrigger.cs" t="Include" />
+      <e p="DexihUpdateStrategy.cs" t="Include" />
+      <e p="EntityStatus.cs" t="Include" />
+      <e p="HubVariablesManager.cs" t="Include" />
+      <e p="obj" t="ExcludeRecursive">
+        <e p="Debug" t="Include">
+          <e p="netstandard2.0" t="Include">
+            <e p="dexih.repository.AssemblyInfo.cs" t="Include" />
+          </e>
+        </e>
+      </e>
+      <e p="project.lock.json" t="Include" />
+      <e p="Properties" t="Include">
+        <e p="AssemblyInfo.cs" t="Include" />
+      </e>
+      <e p="RepositoryExceptions.cs" t="Include" />
+      <e p="SeedData.cs" t="Include" />
+    </e>
+    <e p="$PROJECT_DIR$" t="IncludeFlat">
+      <e p="dexih.remote.sln" t="IncludeFlat" />
+      <e p="ext" t="Include" />
+      <e p="packages" t="ExcludeRecursive" />
+      <e p="src" t="Include">
+        <e p="dexih.remote" t="IncludeRecursive">
+          <e p=".dockerignore" t="Include" />
+          <e p="7za.exe" t="Include" />
+          <e p="appsettings.json" t="Include" />
+          <e p="bin" t="ExcludeRecursive" />
+          <e p="dexih.remote.csproj" t="IncludeRecursive" />
+          <e p="dexih.remote.userprefs" t="Include" />
+          <e p="dexih_start.sh" t="Include" />
+          <e p="dexih_unblock.ps1" t="Include" />
+          <e p="dexihRemote.cs" t="Include" />
+          <e p="Dockerfile" t="Include" />
+          <e p="obj" t="ExcludeRecursive">
+            <e p="Debug" t="Include">
+              <e p="net462" t="Include">
+                <e p="dexih.remote.AssemblyInfo.cs" t="Include" />
+              </e>
+              <e p="netcoreapp2.0" t="Include">
+                <e p="dexih.remote.AssemblyInfo.cs" t="Include" />
+              </e>
+            </e>
+          </e>
+          <e p="Program.cs" t="Include" />
+          <e p="Properties" t="Include">
+            <e p="AssemblyInfo.cs" t="Include" />
+            <e p="launchSettings.json" t="Include" />
+            <e p="PublishProfiles" t="Include">
+              <e p="dev-publish.ps1" t="Include" />
+              <e p="net46-publish.ps1" t="Include" />
+              <e p="net46.pubxml" t="Include" />
+              <e p="portable-publish.ps1" t="Include" />
+              <e p="portable.pubxml" t="Include" />
+              <e p="publish-module.psm1" t="Include" />
+              <e p="test-publish.ps1" t="Include" />
+              <e p="webjob-publish.ps1" t="Include" />
+              <e p="webjob.pubxml" t="Include" />
+            </e>
+          </e>
+          <e p="publish_release.ps1" t="Include" />
+          <e p="publish_release.sh" t="Include" />
+          <e p="releases" t="Include">
+            <e p="dexih.remote.linux_00012.zip" t="Include" />
+            <e p="dexih.remote.mac_00012.zip" t="Include" />
+            <e p="dexih.remote.windows.netcore_00012.zip" t="Include" />
+          </e>
+          <e p="RemoteExceptions.cs" t="Include" />
+          <e p="version.txt" t="Include" />
+        </e>
+        <e p="Dexih.Remote.Operations" t="IncludeRecursive">
+          <e p="bin" t="ExcludeRecursive" />
+          <e p="dexih.remote.operations.csproj" t="IncludeRecursive" />
+          <e p="obj" t="ExcludeRecursive">
+            <e p="Debug" t="Include">
+              <e p="netstandard2.0" t="Include">
+                <e p="dexih.remote.operations.AssemblyInfo.cs" t="Include" />
+              </e>
+            </e>
+          </e>
+          <e p="RemoteOperationException.cs" t="Include" />
+          <e p="RemoteOperations.cs" t="Include" />
+        </e>
+      </e>
+      <e p="test" t="Include" />
+    </e>
+    <e p="$PROJECT_DIR$/../dexih.transforms/src/dexih.connections.azure" t="IncludeRecursive">
+      <e p="bin" t="ExcludeRecursive" />
+      <e p="dexih.connections.azure.cs" t="Include" />
+      <e p="dexih.connections.azure.csproj" t="IncludeRecursive" />
+      <e p="dexih.connections.azure.reader.cs" t="Include" />
+      <e p="dexih.connections.flatfile.azure.cs" t="Include" />
+      <e p="obj" t="ExcludeRecursive">
+        <e p="Debug" t="Include">
+          <e p="netstandard1.3" t="Include">
+            <e p="dexih.connections.azure.AssemblyInfo.cs" t="Include" />
+          </e>
+        </e>
+      </e>
+      <e p="project.lock.json" t="Include" />
+      <e p="Properties" t="Include">
+        <e p="AssemblyInfo.cs" t="Include" />
+      </e>
+    </e>
+    <e p="$PROJECT_DIR$/../dexih.transforms/src/dexih.connections.dexih" t="IncludeRecursive">
+      <e p="bin" t="ExcludeRecursive" />
+      <e p="dexih.connections.dexih.cs" t="Include" />
+      <e p="dexih.connections.dexih.csproj" t="IncludeRecursive" />
+      <e p="dexih.connections.dexih.reader.cs" t="Include" />
+      <e p="obj" t="ExcludeRecursive">
+        <e p="Debug" t="Include">
+          <e p="netstandard1.3" t="Include">
+            <e p="dexih.connections.dexih.AssemblyInfo.cs" t="Include" />
+          </e>
+        </e>
+      </e>
+    </e>
+    <e p="$PROJECT_DIR$/../dexih.transforms/src/dexih.connections.excel" t="IncludeRecursive">
+      <e p="bin" t="ExcludeRecursive" />
+      <e p="dexih.connections.excel.cs" t="Include" />
+      <e p="dexih.connections.excel.csproj" t="IncludeRecursive" />
+      <e p="dexih.connections.excel.reader.cs" t="Include" />
+      <e p="obj" t="ExcludeRecursive">
+        <e p="Debug" t="Include">
+          <e p="netstandard1.3" t="Include">
+            <e p="dexih.connections.excel.AssemblyInfo.cs" t="Include" />
+          </e>
+        </e>
+      </e>
+    </e>
+    <e p="$PROJECT_DIR$/../dexih.transforms/src/dexih.connections.flatfile" t="IncludeRecursive">
+      <e p="bin" t="ExcludeRecursive" />
+      <e p="dexih.connections.flatfile.csproj" t="IncludeRecursive" />
+      <e p="dexih.connections.flatfile.local.cs" t="Include" />
+      <e p="obj" t="ExcludeRecursive">
+        <e p="Debug" t="Include">
+          <e p="netstandard1.3" t="Include">
+            <e p="dexih.connections.flatfile.AssemblyInfo.cs" t="Include" />
+          </e>
+        </e>
+      </e>
+      <e p="project.lock.json" t="Include" />
+      <e p="Properties" t="Include">
+        <e p="AssemblyInfo.cs" t="Include" />
+      </e>
+    </e>
+    <e p="$PROJECT_DIR$/../dexih.transforms/src/dexih.connections.ftp" t="IncludeRecursive">
+      <e p="bin" t="ExcludeRecursive" />
+      <e p="dexih.connections.flatfile.ftp.cs" t="Include" />
+      <e p="dexih.connections.ftp.csproj" t="IncludeRecursive" />
+      <e p="FtpStream.cs" t="Include" />
+      <e p="obj" t="ExcludeRecursive">
+        <e p="Debug" t="Include">
+          <e p="netstandard2.0" t="Include">
+            <e p="dexih.connections.ftp.AssemblyInfo.cs" t="Include" />
+          </e>
+        </e>
+      </e>
+    </e>
+    <e p="$PROJECT_DIR$/../dexih.transforms/src/dexih.connections.sftp" t="IncludeRecursive">
+      <e p="bin" t="ExcludeRecursive" />
+      <e p="dexih.connections.flatfile.sftp.cs" t="Include" />
+      <e p="dexih.connections.sftp.csproj" t="IncludeRecursive" />
+      <e p="obj" t="ExcludeRecursive">
+        <e p="Debug" t="Include">
+          <e p="netstandard2.0" t="Include">
+            <e p="dexih.connections.sftp.AssemblyInfo.cs" t="Include" />
+          </e>
+        </e>
+      </e>
+      <e p="SftpStream.cs" t="Include" />
+    </e>
+    <e p="$PROJECT_DIR$/../dexih.transforms/src/dexih.connections.sql" t="IncludeRecursive">
+      <e p="bin" t="ExcludeRecursive" />
+      <e p="dexih.connections.sql.cs" t="Include" />
+      <e p="dexih.connections.sql.csproj" t="IncludeRecursive" />
+      <e p="dexih.connections.sql.mysql.cs" t="Include" />
+      <e p="dexih.connections.sql.postgresql.cs" t="Include" />
+      <e p="dexih.connections.sql.reader.cs" t="Include" />
+      <e p="dexih.connections.sql.sqlite.cs" t="Include" />
+      <e p="dexih.connections.sql.sqlserver.cs" t="Include" />
+      <e p="obj" t="ExcludeRecursive">
+        <e p="Debug" t="Include">
+          <e p="netstandard2.0" t="Include">
+            <e p="dexih.connections.sql.AssemblyInfo.cs" t="Include" />
+          </e>
+        </e>
+      </e>
+      <e p="project.lock.json" t="Include" />
+      <e p="Properties" t="Include">
+        <e p="AssemblyInfo.cs" t="Include" />
+      </e>
+    </e>
+    <e p="$PROJECT_DIR$/../dexih.transforms/src/dexih.connections.webservice.restful" t="IncludeRecursive">
+      <e p="bin" t="ExcludeRecursive" />
+      <e p="dexih.connections.webservice.restful.cs" t="Include" />
+      <e p="dexih.connections.webservice.restful.csproj" t="IncludeRecursive" />
+      <e p="dexih.connections.webservice.restful.reader.cs" t="Include" />
+      <e p="obj" t="ExcludeRecursive">
+        <e p="Debug" t="Include">
+          <e p="netstandard2.0" t="Include">
+            <e p="dexih.connections.webservice.restful.AssemblyInfo.cs" t="Include" />
+          </e>
+        </e>
+      </e>
+      <e p="Properties" t="Include">
+        <e p="AssemblyInfo.cs" t="Include" />
+      </e>
+    </e>
+    <e p="$PROJECT_DIR$/../dexih.transforms/src/dexih.functions" t="IncludeRecursive">
+      <e p="bin" t="ExcludeRecursive" />
+      <e p="dexih.functions.csproj" t="IncludeRecursive" />
+      <e p="Extensions.cs" t="Include" />
+      <e p="File" t="Include">
+        <e p="FileConfiguration.cs" t="Include" />
+        <e p="FileHandlerBase.cs" t="Include" />
+        <e p="FileHandlerExceptions.cs" t="Include" />
+        <e p="FileHandlerJson.cs" t="Include" />
+        <e p="FileHandlerText.cs" t="Include" />
+        <e p="FileHandlerXml.cs" t="Include" />
+      </e>
+      <e p="Flatfile.cs" t="Include" />
+      <e p="Function.cs" t="Include" />
+      <e p="FunctionExceptions.cs" t="Include" />
+      <e p="obj" t="ExcludeRecursive">
+        <e p="Debug" t="Include">
+          <e p="netstandard1.3" t="Include">
+            <e p="dexih.functions.AssemblyInfo.cs" t="Include" />
+          </e>
+        </e>
+      </e>
+      <e p="Parameter.cs" t="Include" />
+      <e p="Query" t="Include">
+        <e p="DeleteQuery.cs" t="Include" />
+        <e p="Filter.cs" t="Include" />
+        <e p="InsertQuery.cs" t="Include" />
+        <e p="QueryColumn.cs" t="Include" />
+        <e p="QueryExceptions.cs" t="Include" />
+        <e p="SelectColumn.cs" t="Include" />
+        <e p="SelectQuery.cs" t="Include" />
+        <e p="Sort.cs" t="Include" />
+        <e p="UpdateQuery.cs" t="Include" />
+      </e>
+      <e p="Retry.cs" t="Include" />
+      <e p="StandardFunctions.cs" t="Include" />
+      <e p="StandardProfiles.cs" t="Include" />
+      <e p="Table" t="Include">
+        <e p="File.cs" t="Include" />
+        <e p="Table.cs" t="Include" />
+        <e p="TableCache.cs" t="Include" />
+        <e p="TableColumn.cs" t="Include" />
+        <e p="TableColumns.cs" t="Include" />
+        <e p="TableExceptions.cs" t="Include" />
+        <e p="WebService.cs" t="Include" />
+      </e>
+      <e p="TaskTimer.cs" t="Include" />
+    </e>
+    <e p="$PROJECT_DIR$/../dexih.transforms/src/dexih.transforms" t="IncludeRecursive">
+      <e p="bin" t="ExcludeRecursive" />
+      <e p="Connection.cs" t="Include" />
+      <e p="ConnectionFlatFile.cs" t="Include" />
+      <e p="ConnectionMemory.cs" t="Include" />
+      <e p="dexih.transforms.csproj" t="IncludeRecursive" />
+      <e p="Exceptions" t="Include">
+        <e p="ConnectionExceptions.cs" t="Include" />
+        <e p="DuplicateJoinKeyException.cs" t="Include" />
+        <e p="TransformExceptions.cs" t="Include" />
+        <e p="TransformWriterExceptions.cs" t="Include" />
+      </e>
+      <e p="FileEnum.cs" t="Include" />
+      <e p="Mapping.cs" t="Include" />
+      <e p="obj" t="ExcludeRecursive">
+        <e p="Debug" t="Include">
+          <e p="netstandard1.3" t="Include">
+            <e p="dexih.transforms.AssemblyInfo.cs" t="Include" />
+          </e>
+        </e>
+      </e>
+      <e p="Poco" t="Include">
+        <e p="IPocoEnumerator.cs" t="Include" />
+        <e p="PocoAttributes.cs" t="Include" />
+        <e p="PocoCachedEnumerator.cs" t="Include" />
+        <e p="PocoEnumerator.cs" t="Include" />
+        <e p="PocoExceptions.cs" t="Include" />
+        <e p="PocoLoader.cs" t="Include" />
+        <e p="PocoMapper.cs" t="Include" />
+        <e p="PocoReader.cs" t="Include" />
+        <e p="PocoTable.cs" t="Include" />
+        <e p="PocoTableMapping.cs" t="Include" />
+      </e>
+      <e p="project.lock.json" t="Include" />
+      <e p="Properties" t="Include">
+        <e p="AssemblyInfo.cs" t="Include" />
+      </e>
+      <e p="ReaderDbDataReader.cs" t="Include" />
+      <e p="ReaderDynamic.cs" t="Include" />
+      <e p="ReaderFlatFile.cs" t="Include" />
+      <e p="ReaderMemory.cs" t="Include" />
+      <e p="ReaderRowCreator.cs" t="Include" />
+      <e p="Transform.cs" t="Include" />
+      <e p="TransformConcatinate.cs" t="Include" />
+      <e p="TransformCsvStream.cs" t="Include" />
+      <e p="TransformDelta.cs" t="Include" />
+      <e p="TransformFilter.cs" t="Include" />
+      <e p="TransformGroup.cs" t="Include" />
+      <e p="TransformJoin.cs" t="Include" />
+      <e p="TransformLookup.cs" t="Include" />
+      <e p="TransformMapping.cs" t="Include" />
+      <e p="TransformProfile.cs" t="Include" />
+      <e p="TransformQuery.cs" t="Include" />
+      <e p="TransformRows.cs" t="Include" />
+      <e p="TransformSort.cs" t="Include" />
+      <e p="TransformValidation.cs" t="Include" />
+      <e p="TransformWriter.cs" t="Include" />
+      <e p="TransformWriterResult.cs" t="Include" />
+    </e>
+  </component>
+</project>

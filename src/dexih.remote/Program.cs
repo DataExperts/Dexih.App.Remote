@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using Microsoft.Extensions.Configuration;
 using System.IO;
+using dexih.remote.operations;
 using Dexih.Utils.Crypto;
 
 namespace dexih.remote
@@ -28,7 +29,7 @@ namespace dexih.remote
             Int64[] hubKeys;
             var autoSchedules = false;
             var autoUpgrade = false;
-            var privacyLevel = DexihRemote.EPrivacyLevel.AllowDataDownload;
+            var privacyLevel = RemoteOperations.EPrivacyLevel.AllowDataDownload;
             var localDataSaveLocation = "";
 
             var logLevel = LogLevel.Information;
@@ -73,7 +74,7 @@ namespace dexih.remote
                 if (!string.IsNullOrEmpty(appSettings["AutoUpgrade"]))
                     autoUpgrade = bool.Parse(appSettings["AutoUpgrade"]);
                 if (!string.IsNullOrEmpty(appSettings["PrivacyLevel"]))
-                    privacyLevel = (DexihRemote.EPrivacyLevel) Enum.Parse(typeof(DexihRemote.EPrivacyLevel), appSettings["PrivacyLevel"]);
+                    privacyLevel = (RemoteOperations.EPrivacyLevel) Enum.Parse(typeof(RemoteOperations.EPrivacyLevel), appSettings["PrivacyLevel"]);
                 if (!string.IsNullOrEmpty(appSettings["LocalDataSaveLocation"]))
                     localDataSaveLocation = appSettings["LocalDataSaveLocation"];
 

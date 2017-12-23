@@ -1,4 +1,4 @@
-
+﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2017
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{8EAE3DB9-6473-420B-94D6-756DF381FE89}"
@@ -32,6 +32,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "dexih.connections.sql", "..\dexih.transforms\src\dexih.connections.sql\dexih.connections.sql.csproj", "{A552B2A5-CF16-4498-912A-884AF3F85055}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "dexih.connections.dexih", "..\dexih.transforms\src\dexih.connections.dexih\dexih.connections.dexih.csproj", "{EE079E4C-0564-44DB-8A93-DF2C124FBB09}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "dexih.remote.operations", "src\dexih.remote.operations\dexih.remote.operations.csproj", "{2A065189-2621-4D7A-BF07-468C9619848B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -91,6 +93,10 @@ Global
 		{EE079E4C-0564-44DB-8A93-DF2C124FBB09}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{EE079E4C-0564-44DB-8A93-DF2C124FBB09}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{EE079E4C-0564-44DB-8A93-DF2C124FBB09}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2A065189-2621-4D7A-BF07-468C9619848B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2A065189-2621-4D7A-BF07-468C9619848B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2A065189-2621-4D7A-BF07-468C9619848B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2A065189-2621-4D7A-BF07-468C9619848B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{0BB7FBAE-1842-4ADB-AA1C-52021FC41D68} = {8EAE3DB9-6473-420B-94D6-756DF381FE89}
@@ -106,5 +112,6 @@ Global
 		{CCEAFD4C-DC4A-444E-BA59-8BB077CBF2E2} = {60A319A6-A6FA-4151-89F9-6C29E551735C}
 		{A552B2A5-CF16-4498-912A-884AF3F85055} = {60A319A6-A6FA-4151-89F9-6C29E551735C}
 		{EE079E4C-0564-44DB-8A93-DF2C124FBB09} = {60A319A6-A6FA-4151-89F9-6C29E551735C}
+		{2A065189-2621-4D7A-BF07-468C9619848B} = {8EAE3DB9-6473-420B-94D6-756DF381FE89}
 	EndGlobalSection
 EndGlobal

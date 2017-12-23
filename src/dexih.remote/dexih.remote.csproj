@@ -25,7 +25,6 @@
     </Content>
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Dexih.Utils.ManagedTasks" Version="0.1.31" />
     <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="2.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="2.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="2.0.0" />
@@ -53,5 +52,6 @@
     <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.sftp\dexih.connections.sftp.csproj" />
     <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.sql\dexih.connections.sql.csproj" />
     <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.webservice.restful\dexih.connections.webservice.restful.csproj" />
+    <ProjectReference Include="..\dexih.remote.operations\dexih.remote.operations.csproj" />
   </ItemGroup>
 </Project>

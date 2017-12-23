@@ -1,0 +1,14 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Dexih.Utils.ManagedTasks" Version="0.1.33" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Dexih.App.Operations\src\dexih.operations\dexih.operations.csproj">
+      <Project>{D1BEE5EC-70AF-4947-8A4A-5076F83E69BF}</Project>
+      <Name>dexih.operations</Name>
+    </ProjectReference>
+  </ItemGroup>
+</Project>
