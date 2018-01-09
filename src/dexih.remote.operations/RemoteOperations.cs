@@ -42,10 +42,10 @@ namespace dexih.remote.operations
         private string LocalDataSaveLocation { get; }
         private readonly ManagedTasks _managedTasks;
         private readonly HttpClient _httpClient;
-        private readonly string _remoteToken;
+        private string _remoteToken;
         private readonly string _url;
 
-        public RemoteOperations(string permenantEncryptionKey, string temporaryEncryptionKey, int encryptionIterations, ILogger loggerMessages, EPrivacyLevel privacyLevel, string localDataSaveLocation, HttpClient httpClient, string remoteToken, string url)
+        public RemoteOperations(string permenantEncryptionKey, string temporaryEncryptionKey, int encryptionIterations, ILogger loggerMessages, EPrivacyLevel privacyLevel, string localDataSaveLocation, HttpClient httpClient, string url)
         {
             _permenantEncryptionKey = permenantEncryptionKey;
             _temporaryEncryptionKey = temporaryEncryptionKey;
@@ -54,7 +54,6 @@ namespace dexih.remote.operations
             PrivacyLevel = privacyLevel;
             LocalDataSaveLocation = localDataSaveLocation;
             _httpClient = httpClient;
-            _remoteToken = remoteToken;
             _url = url;
 
             _managedTasks = new ManagedTasks();
@@ -63,6 +62,11 @@ namespace dexih.remote.operations
         public IEnumerable<ManagedTask> GetActiveTasks(string category) => _managedTasks.GetActiveTasks(category);
         public IEnumerable<ManagedTask> GetTaskChanges(bool resetTaskChanges) => _managedTasks.GetTaskChanges(resetTaskChanges);
         public int TaskChangesCount() => _managedTasks.TaskChangesCount();
+        
+        public string RemoteToken
+        {
+            set { _remoteToken = value; }
+        }
         
         public Task<bool> Ping(RemoteMessage message, CancellationToken cancellationToken)
         {
@@ -1319,6 +1323,7 @@ namespace dexih.remote.operations
                     var downloadObjects = message.Value["downloadObjects"].ToObject<DownloadData.DownloadObject[]>();
                     var downloadFormat = message.Value["downloadFormat"].ToObject<DownloadData.EDownloadFormat>();
                     var zipFiles = message.Value["zipFiles"].ToObject<bool>();
+                    var remoteToken = _remoteToken;
 
                     var reference = Guid.NewGuid().ToString();
 
@@ -1336,7 +1341,7 @@ namespace dexih.remote.operations
                         //progress messages are send and forget as it is not critical that they are received.
                         using (var content = new MultipartFormDataContent())
                         {
-                            content.Add(new StringContent(_remoteToken), "RemoteToken");
+                            content.Add(new StringContent(remoteToken), "RemoteToken");
                             content.Add(new StringContent(clientId), "ClientId");
                             content.Add(new StringContent(reference), "Reference");
                             content.Add(new StringContent(cache.HubKey.ToString()), "HubKey");
@@ -1359,7 +1364,7 @@ namespace dexih.remote.operations
 
                     var startdownloadResult = _managedTasks.Add(reference, clientId, $"Download Data File", "Download", cache.HubKey, 0, null, DownloadTask, null, null, null);
                     return startdownloadResult;
-                });
+                }, cancellationToken);
             }
             catch (Exception ex)
             {

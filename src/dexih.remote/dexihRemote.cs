@@ -127,7 +127,7 @@ namespace dexih.remote
             //Login to the web server to receive an authenicated cookie.
             _httpClient = new HttpClient(handler);
             
-            _remoteOperations = new RemoteOperations(PermenantEncryptionKey, SessionEncryptionKey, encryptionIterations, LoggerMessages, PrivacyLevel, LocalDataSaveLocation, _httpClient, RemoteToken, Url);
+            _remoteOperations = new RemoteOperations(PermenantEncryptionKey, SessionEncryptionKey, encryptionIterations, LoggerMessages, PrivacyLevel, LocalDataSaveLocation, _httpClient, Url);
         }
 
         public async Task<EConnectionResult> ConnectAsync(bool silentLogin = false)
@@ -187,6 +187,8 @@ namespace dexih.remote
                 if ((bool)parsedServerResponse["success"])
                 {
                     RemoteToken = (string)parsedServerResponse["remotetoken"];
+                    _remoteOperations.RemoteToken = RemoteToken;
+                    
                     logger.LogInformation(2, "User authentication successful.");
                 }
                 else
