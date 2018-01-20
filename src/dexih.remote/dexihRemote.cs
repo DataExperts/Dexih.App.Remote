@@ -1,35 +1,20 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using System.Threading;
 using System.Diagnostics;
-using dexih.functions;
-using System.IO;
 using System.Text;
-using dexih.transforms;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
-using static dexih.transforms.TransformWriterResult;
 using System.Reflection;
-using Microsoft.Extensions.Configuration;
 using dexih.operations;
-using dexih.repository;
-using static dexih.transforms.Transform;
-using System.IO.Compression;
-using System.Globalization;
-using Dexih.Utils.ManagedTasks;
 using Dexih.Utils.Crypto;
 using Dexih.Utils.MessageHelpers;
-using Dexih.Utils.CopyProperties;
-using dexih.functions.Query;
 using dexih.remote.operations;
-using static dexih.operations.DownloadData;
 using Microsoft.AspNetCore.SignalR.Client;
-using Microsoft.AspNetCore.Sockets;
 
 namespace dexih.remote
 {
@@ -39,30 +24,20 @@ namespace dexih.remote
         
         public enum EConnectionResult
         {
-            Disconnected = 0,
-            InvalidLocation = 1,
-            InvalidCredentials = 2,
-            UnhandledException = 3
+            Connected = 0,
+            Disconnected = 1,
+            InvalidLocation = 2,
+            InvalidCredentials = 3,
+            UnhandledException = 4
         }
 
-        //default settings
-        private readonly int _maxAcknowledgeWait = 5000; //max time to send a ping back to server
-        private readonly int _responseTimeout = 10000; //max time for a query to run.
-        private readonly int _cancelDelay = 1000; //time to wait for cancel to complete
-        private readonly int _maxConcurrentTasks = 50; //strength of encryption
-
+        private readonly RemoteSettings _remoteSettings;
 
         private string Url { get; }
         private string SignalrUrl { get; }
-        private string User { get; }
-        private string Password { get; }
-        private string UserToken { get; }
-        private string ServerName { get; }
 
-        private string RemoteToken { get; set; }
+        private string SecurityToken { get; set; }
         private string SessionEncryptionKey { get; }
-        private string PermenantEncryptionKey { get; }
-        private string RemoteAgentId { get; }
 
         private LoggerFactory LoggerFactory { get; }
 
@@ -81,42 +56,24 @@ namespace dexih.remote
 
         private readonly ConcurrentBag<ResponseMessage> _sendMessageQueue = new ConcurrentBag<ResponseMessage>();
         
-        public DexihRemote(string url, string user, string userToken, string password, string serverName, string permenantEncryptionKey, string remoteAgentId, RemoteOperations.EPrivacyLevel privacyLevel, string localDataSaveLocation, LoggerFactory loggerFactory, IConfiguration systemSettings)
+        public DexihRemote(RemoteSettings remoteSettings, LoggerFactory loggerFactory)
         {
+            _remoteSettings = remoteSettings;
+            LoggerFactory = loggerFactory;
+
+            var url = remoteSettings.AppSettings.WebServer;
+            
             if (url.Substring(url.Length - 1) != "/") url += "/";
             Url = url + "api/";
 			SignalrUrl = url + "remoteagent";
 
-            User = user;
-            UserToken = userToken;
-            Password = password;
-            ServerName = serverName;
             SessionEncryptionKey = EncryptString.GenerateRandomKey();
-            PermenantEncryptionKey = permenantEncryptionKey;
-            RemoteAgentId = remoteAgentId;
-            LoggerFactory = loggerFactory;
-            var PrivacyLevel = privacyLevel;
-            var LocalDataSaveLocation = localDataSaveLocation;
 
             LoggerMessages = LoggerFactory.CreateLogger("Command");
             LoggerDatalinks = LoggerFactory.CreateLogger("Datalink");
             LoggerFactory.CreateLogger("Scheduler");
 
             var encryptionIterations = 1000;
-            
-            if (systemSettings != null)
-            {
-                if (!string.IsNullOrEmpty(systemSettings["MaxAcknowledgeWait"]))
-                    _maxAcknowledgeWait = Convert.ToInt32(systemSettings["MaxAcknowledgeWait"]);
-                if (!string.IsNullOrEmpty(systemSettings["ResponseTimeout"]))
-                    _responseTimeout = Convert.ToInt32(systemSettings["ResponseTimeout"]);
-                if (!string.IsNullOrEmpty(systemSettings["MaxConcurrentTasks"]))
-                    _maxConcurrentTasks = Convert.ToInt32(systemSettings["MaxConcurrentTasks"]);
-                if (!string.IsNullOrEmpty(systemSettings["CancelDelay"]))
-                    _cancelDelay = Convert.ToInt32(systemSettings["CancelDelay"]);
-                if (!string.IsNullOrEmpty(systemSettings["EncryptionIterations"]))
-                    encryptionIterations = Convert.ToInt32(systemSettings["EncryptionIterations"]);
-            }
             
             var cookies = new CookieContainer();
             var handler = new HttpClientHandler()
@@ -127,32 +84,40 @@ namespace dexih.remote
             //Login to the web server to receive an authenicated cookie.
             _httpClient = new HttpClient(handler);
             
-            _remoteOperations = new RemoteOperations(PermenantEncryptionKey, SessionEncryptionKey, encryptionIterations, LoggerMessages, PrivacyLevel, LocalDataSaveLocation, _httpClient, Url);
+            _remoteOperations = new RemoteOperations(_remoteSettings, SessionEncryptionKey, LoggerMessages, _httpClient, Url);
         }
 
-        public async Task<EConnectionResult> ConnectAsync(bool silentLogin = false)
+        /// <summary>
+        /// Authenticates and logs the user in
+        /// </summary>
+        /// <param name="generateUserToken">Create a new user authentication token</param>
+        /// <param name="silentLogin"></param>
+        /// <returns>The connection result, and a new user token if generated.</returns>
+        public async Task<(EConnectionResult connectionResult, string userToken)> LoginAsync(bool generateUserToken, bool silentLogin = false)
         {
-
-            var logger = LoggerFactory.CreateLogger("Connect");
+            var logger = LoggerFactory.CreateLogger("Login");
             try
             {
-                var runtimeVersion = Assembly.GetEntryAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>().InformationalVersion;
+                var runtimeVersion = Assembly.GetEntryAssembly()
+                    .GetCustomAttribute<AssemblyInformationalVersionAttribute>().InformationalVersion;
 
                 if (!silentLogin)
                 {
                     logger.LogInformation(1, "Data Experts Group - Remote Agent version {version}", runtimeVersion);
-                    logger.LogInformation(1, "Connecting as {server} to url  {url} with {user}", ServerName, Url, User);
+                    logger.LogInformation(1, "Connecting as {server} to url  {url} with {user}",
+                        _remoteSettings.AppSettings.Name, Url, _remoteSettings.AppSettings.User);
                 }
 
                 var content = new FormUrlEncodedContent(new[]
                 {
-                new KeyValuePair<string, string>("User", User),
-                new KeyValuePair<string, string>("Password", Password),
-                new KeyValuePair<string, string>("UserToken", UserToken),
-                new KeyValuePair<string, string>("ServerName", ServerName),
-                new KeyValuePair<string, string>("EncryptionKey", SessionEncryptionKey),
-                new KeyValuePair<string, string>("RemoteAgentId", RemoteAgentId),
-                new KeyValuePair<string, string>("Version", runtimeVersion)
+                    new KeyValuePair<string, string>("User", _remoteSettings.AppSettings.User),
+                    new KeyValuePair<string, string>("Password", _remoteSettings.AppSettings.Password),
+                    new KeyValuePair<string, string>("UserToken", _remoteSettings.AppSettings.UserToken),
+                    new KeyValuePair<string, string>("ServerName", _remoteSettings.AppSettings.Name),
+                    new KeyValuePair<string, string>("EncryptionKey", SessionEncryptionKey),
+                    new KeyValuePair<string, string>("RemoteAgentId", _remoteSettings.AppSettings.RemoteAgentId),
+                    new KeyValuePair<string, string>("GenerateUserToken", generateUserToken.ToString()),
+                    new KeyValuePair<string, string>("Version", runtimeVersion)
                 });
 
                 HttpResponseMessage response;
@@ -163,40 +128,59 @@ namespace dexih.remote
                 catch (HttpRequestException ex)
                 {
                     if (!silentLogin)
-                        logger.LogCritical(10, "Could not connect to the server at location: {server}, with the message: {message}", Url + "/Remote/Login", ex.Message);
-                    return EConnectionResult.InvalidLocation;
+                        logger.LogCritical(10, ex,
+                            "Could not connect to the server at location: {server}, with the message: {message}",
+                            Url + "/Remote/Login", ex.Message);
+                    return (EConnectionResult.InvalidLocation, "");
                 }
                 catch (Exception ex)
                 {
                     if (!silentLogin)
-                        logger.LogCritical(10, ex, "Internal rrror connecting to the server at location: {0}", Url + "/Remote/Login");
-                    return EConnectionResult.InvalidLocation;
+                        logger.LogCritical(10, ex, "Internal rrror connecting to the server at location: {0}",
+                            Url + "/Remote/Login");
+                    return (EConnectionResult.InvalidLocation, "");
                 }
 
-                //login to the server and receive a remotetoken which is used for future communcations.
+                //login to the server and receive a securityToken which is used for future communcations.
                 var uri = new Uri(Url);
                 var serverResponse = await response.Content.ReadAsStringAsync();
-                if(String.IsNullOrEmpty(serverResponse))
+                if (string.IsNullOrEmpty(serverResponse))
                 {
                     logger.LogCritical(3, "No response returned from server when logging in.");
-                    return EConnectionResult.InvalidLocation;
+                    return (EConnectionResult.InvalidLocation, "");
                 }
-                
+
                 var parsedServerResponse = JObject.Parse(serverResponse);
 
-                if ((bool)parsedServerResponse["success"])
+                if ((bool) parsedServerResponse["success"])
                 {
-                    RemoteToken = (string)parsedServerResponse["remotetoken"];
-                    _remoteOperations.RemoteToken = RemoteToken;
-                    
+                    SecurityToken = (string) parsedServerResponse["securityToken"];
+                    var userToken = (string) parsedServerResponse["userToken"];
+                    _remoteOperations.SecurityToken = SecurityToken;
+
                     logger.LogInformation(2, "User authentication successful.");
+                    return (EConnectionResult.Connected, userToken);
                 }
                 else
                 {
-                    logger.LogCritical(3, "User authentication failed with message: {0}.", parsedServerResponse?["message"].ToString());
-                    return EConnectionResult.InvalidCredentials;
+                    logger.LogCritical(3, "User authentication failed.  Run with the -reset flag to update the settings.  The error was message: {0}.",
+                        parsedServerResponse?["message"].ToString());
+                    return (EConnectionResult.InvalidCredentials, "");
                 }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(10, ex, "Error logging in: " + ex.Message);
+                return (EConnectionResult.UnhandledException, "");
+            }
+        }
 
+        public async Task<EConnectionResult> ListenAsync(bool silentLogin = false)
+        {
+
+            var logger = LoggerFactory.CreateLogger("Listen");
+            try
+            {
                 if (HubConnection != null)
                 {
                     logger.LogDebug(4, "Previous websocket connection open.  Attempting to close");
@@ -248,7 +232,7 @@ namespace dexih.remote
                     await HubConnection.StartAsync();
                 }
                 
-				await HubConnection.InvokeAsync<bool>("Connect", RemoteToken, cancellationToken: ct);
+				await HubConnection.InvokeAsync<bool>("Connect", SecurityToken, cancellationToken: ct);
 
                 var sender = SendMessageHandler(ct);
 
@@ -309,9 +293,9 @@ namespace dexih.remote
 
                 var returnValue = (Task)method.Invoke(_remoteOperations, new object[] { remoteMessage, commandCancel });
 
-                if (remoteMessage.RemoteToken == RemoteToken)
+                if (remoteMessage.SecurityToken == SecurityToken)
                 {
-					var timeout = remoteMessage.TimeOut ?? _responseTimeout;
+					var timeout = remoteMessage.TimeOut ?? _remoteSettings.SystemSettings.ResponseTimeout;
 
                     var checkTimeout = new Stopwatch();
                     checkTimeout.Start();
@@ -319,7 +303,7 @@ namespace dexih.remote
                     //This loop waits for task to finish with a maxtimeout of "ResponseTimeout", and send a "still running" message back every "MaxAcknowledgeWait" period.
                     while (!returnValue.IsCompleted && checkTimeout.ElapsedMilliseconds < timeout)
                     {
-                        if (await Task.WhenAny(returnValue, Task.Delay(_maxAcknowledgeWait)) == returnValue)
+                        if (await Task.WhenAny(returnValue, Task.Delay(_remoteSettings.SystemSettings.MaxAcknowledgeWait)) == returnValue)
                         {
                             break;
                         }
@@ -330,7 +314,7 @@ namespace dexih.remote
                     if (returnValue.IsCompleted == false)
                     {
                         cancellationTokenSource.Cancel();
-                        await Task.WhenAny(returnValue, Task.Delay(_cancelDelay));
+                        await Task.WhenAny(returnValue, Task.Delay(_remoteSettings.SystemSettings.CancelDelay));
                     }
 
                     ReturnValue responseMessage;
@@ -426,7 +410,7 @@ namespace dexih.remote
         {
             try
             {
-                var responseMessage = new ResponseMessage(RemoteToken, messageId, returnMessage);
+                var responseMessage = new ResponseMessage(SecurityToken, messageId, returnMessage);
                 _sendMessageQueue.Add(responseMessage);
 
                 return new ReturnValue(true);
@@ -459,7 +443,7 @@ namespace dexih.remote
                         //progress messages are send and forget as it is not critical that they are received.
                         var content = new FormUrlEncodedContent(new[]
                         {
-                            new KeyValuePair<string, string>("RemoteToken", RemoteToken),
+                            new KeyValuePair<string, string>("RemoteToken", SecurityToken),
                             new KeyValuePair<string, string>("Command", "task"),
                             new KeyValuePair<string, string>("Results", results)
                         });

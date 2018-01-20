@@ -1,41 +1,46 @@
 ﻿using Microsoft.Extensions.Logging;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using Microsoft.Extensions.Configuration;
 using System.IO;
-using dexih.remote.operations;
-using Dexih.Utils.Crypto;
+using System.Net.Http;
+using System.Runtime.InteropServices;
+using System.Threading.Tasks;
+using dexih.operations;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace dexih.remote
 {
     public class Program
     {
-        static public DexihRemote Remote { get; set; }
+        private enum ExitCode : int {
+            Success = 0,
+            InvalidSetting = 1,
+            InvalidLogin = 2,
+            Terminated = 3,
+            UnknownError = 10,
+            Upgrade = 20
+        }
+        
+        private static DexihRemote Remote { get; set; }
 
-        public static void Main(string[] args)
+        public static int Main(string[] args)
         {
             // add logging.
             var loggerFactory = new LoggerFactory();
             var logger = loggerFactory.CreateLogger("dexih.remote main");
 
-            var name = "";
-            var webServer = "";
-            var user = "";
-            var password = "";
-            var userToken = "";
-            var remoteAgentId = "";
-            var encryptionKey = EncryptString.GenerateRandomKey();
-            Int64[] hubKeys;
-            var autoSchedules = false;
-            var autoUpgrade = false;
-            var privacyLevel = RemoteOperations.EPrivacyLevel.AllowDataDownload;
-            var localDataSaveLocation = "";
-
-            var logLevel = LogLevel.Information;
-
-            IConfigurationSection logSection = null;
-            IConfigurationSection systemSettings = null;
+            IEnumerable<long> hubKeys;
+            var remoteSettings = new RemoteSettings
+            {
+                AppSettings =
+                {
+                    WebServer = "https://dexih.dataexpertsgroup.com"
+                }
+            };
 
             //check config file first for any settings.
             if (File.Exists(Directory.GetCurrentDirectory() + "/appsettings.json"))
@@ -49,159 +54,319 @@ namespace dexih.remote
                 var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
                 if (environment == "Development")
                 {
-					builder.AddUserSecrets<Program>();
+                    builder.AddUserSecrets<Program>();
                 }
 
                 var configuration = builder.Build();
-
-                var appSettings = configuration.GetSection("AppSettings");
-                
-
-                if (!string.IsNullOrEmpty(appSettings["User"]))
-                    user = appSettings["User"];
-                if (!string.IsNullOrEmpty(appSettings["WebServer"]))
-                    webServer = appSettings["WebServer"];
-                if (!string.IsNullOrEmpty(appSettings["Name"]))
-                    name = appSettings["Name"];
-                if (!string.IsNullOrEmpty(appSettings["EncryptionKey"]))
-                    encryptionKey = appSettings["EncryptionKey"];
-                if (!string.IsNullOrEmpty(appSettings["UserToken"]))
-                    userToken = appSettings["UserToken"];
-                if (!string.IsNullOrEmpty(appSettings["RemoteAgentId"]))
-                    remoteAgentId = appSettings["RemoteAgentId"];
-                if (!string.IsNullOrEmpty(appSettings["AutoSchedules"]))
-                    autoSchedules = bool.Parse(appSettings["AutoSchedules"]);
-                if (!string.IsNullOrEmpty(appSettings["AutoUpgrade"]))
-                    autoUpgrade = bool.Parse(appSettings["AutoUpgrade"]);
-                if (!string.IsNullOrEmpty(appSettings["PrivacyLevel"]))
-                    privacyLevel = (RemoteOperations.EPrivacyLevel) Enum.Parse(typeof(RemoteOperations.EPrivacyLevel), appSettings["PrivacyLevel"]);
-                if (!string.IsNullOrEmpty(appSettings["LocalDataSaveLocation"]))
-                    localDataSaveLocation = appSettings["LocalDataSaveLocation"];
-
-                logSection = configuration.GetSection("Logging");
-                systemSettings = configuration.GetSection("SystemSettings");
+                remoteSettings = configuration.Get<RemoteSettings>();
             }
 
+            var saveSettings = false;
+            var resetSettings = false;
+
             //check command line for settings.  command line overrides settings file.
-            for (var i = 0; i<args.Length; i++)
+            for (var i = 0; i < args.Length; i++)
             {
-                switch(args[i])
+                switch (args[i])
                 {
                     case "-u":
                     case "-user":
                     case "-username":
                         i++;
-                        user = args[i];
+                        remoteSettings.AppSettings.User = args[i];
                         break;
                     case "-t":
                     case "-token":
                     case "-usertoken":
                         i++;
-                        userToken = args[i];
+                        remoteSettings.AppSettings.UserToken = args[i];
                         break;
                     case "-w":
                     case "-webserver":
                         i++;
-                        webServer = args[i];
+                        remoteSettings.AppSettings.WebServer = args[i];
                         break;
                     case "-p":
                     case "-password":
                         i++;
-                        password = args[i];
+                        remoteSettings.AppSettings.Password = args[i];
                         break;
                     case "-k":
                     case "-key":
                         i++;
-                        encryptionKey = args[i];
+                        remoteSettings.AppSettings.EncryptionKey = args[i];
                         break;
                     case "-i":
                     case "-id":
                         i++;
-                        remoteAgentId = args[i];
+                        remoteSettings.AppSettings.RemoteAgentId = args[i];
                         break;
                     case "-n":
                     case "-name":
                         i++;
-                        name = args[i];
+                        remoteSettings.AppSettings.Name = args[i];
                         break;
                     case "-l":
                     case "-log":
                     case "-loglevel":
                         i++;
                         var logLevelString = args[i];
-                        var checkLogLevel = Enum.TryParse<LogLevel>(logLevelString, out logLevel);
+                        var checkLogLevel = Enum.TryParse<LogLevel>(logLevelString, out var logLevel);
                         if (!checkLogLevel)
                         {
-                            Console.WriteLine("The log level setting was not recognised.  The value was: {0}", logLevelString);
-                            return;
+                            Console.WriteLine("The log level setting was not recognised.  The value was: {0}",
+                                logLevelString);
+                            return (int)ExitCode.InvalidSetting;
                         }
+
+                        remoteSettings.Logging.LogLevel.Default = logLevel;
                         break;
                     case "-h":
                     case "-hubs":
                         i++;
                         var hubs = args[i];
                         var stringHubs = hubs.Split(',');
-                        long result;
-                        if(stringHubs.Any(c => long.TryParse(c, out result)))
+                        if (stringHubs.Any(c => long.TryParse(c, out _)))
                         {
-                            Console.WriteLine("The -s/-hubs option should be followed by a comma seperated list of the hubs the remote server should use.  The value was: {0} ", hubs);
-                            return;
+                            Console.WriteLine(
+                                "The -s/-hubs option should be followed by a comma seperated list of the hubskeys the remote server should use.  The value was: {0} ",
+                                hubs);
+                            return (int)ExitCode.InvalidSetting;
                         }
+
                         hubKeys = stringHubs.Select(long.Parse).ToArray();
                         break;
                     case "-a":
                     case "-activate":
                         i++;
-                        var checkActivateSchedules = bool.TryParse(args[i], out autoSchedules);
+                        var checkActivateSchedules = bool.TryParse(args[i], out var autoSchedules);
                         if (!checkActivateSchedules)
                         {
-                            Console.WriteLine("The -a/-activate option should be followed by \"true\" or \"false\".  The value was: {0}", args[i]);
-                            return;
+                            Console.WriteLine(
+                                "The -a/-activate option should be followed by \"true\" or \"false\".  The value was: {0}",
+                                args[i]);
+                            return (int)ExitCode.InvalidSetting;
                         }
+
+                        remoteSettings.AppSettings.AutoSchedules = autoSchedules;
                         break;
                     case "-c":
                     case "-cache":
                         i++;
                         var cacheFile = args[i];
-                        if(!File.Exists(cacheFile))
+                        if (!File.Exists(cacheFile))
                         {
-                            Console.WriteLine("The -c/-cache option is follows by a file that does not exist.  The file name is: {0}", args[i]);
-                            return;
+                            Console.WriteLine(
+                                "The -c/-cache option is follows by a file that does not exist.  The file name is: {0}",
+                                args[i]);
+                            return (int)ExitCode.InvalidSetting;
                         }
+
+                        break;
+                    case "-s":
+                    case "-save":
+                        saveSettings = true;
+                        break;
+                    case "-r":
+                    case "-reset":
+                        resetSettings = true;
+                        break;
+                    case "-up":
+                    case "-upgrade":
+                        remoteSettings.AppSettings.AutoUpgrade = true;
+                        break;
+                    case "-pr":
+                    case "-prerelease":
+                        remoteSettings.AppSettings.PreRelease = true;
                         break;
                 }
             }
 
-            //add logging in priority commandline, appsettings file or use default "Information" level.
-            if (logLevel != LogLevel.Information)
-                loggerFactory.AddConsole(logLevel);
-            else if (logSection != null)
-                loggerFactory.AddConsole(logSection);
+            if (remoteSettings.AppSettings.AutoUpgrade)
+            {
+                string downloadUrl = null;
+                Task.Run(async () =>
+                {
+                    try
+                    {
+                        using (var httpClient = new HttpClient())
+                        {
+                            httpClient.DefaultRequestHeaders.Add("User-Agent", "Dexih Remote Agent");
+                            var response =
+                                await httpClient.GetAsync(
+                                    "https://api.github.com/repos/DataExperts/Dexih.App.Remote/releases/latest");
+                            var responseText = await response.Content.ReadAsStringAsync();
+                            var jToken = JToken.Parse(responseText);
+
+
+                            foreach (var asset in jToken["assets"])
+                            {
+                                var name = ((string) asset["name"]).ToLower();
+                                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && name.Contains("windows"))
+                                {
+                                    downloadUrl = (string) asset["browser_download_url"];
+                                    break;
+                                }
+
+                                if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX) && name.Contains("osx"))
+                                {
+                                    downloadUrl = (string) asset["browser_download_url"];
+                                    break;
+                                }
+
+                                if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) && name.Contains("linux"))
+                                {
+                                    downloadUrl = (string) asset["browser_download_url"];
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogError(ex,
+                            "There was an issue getting the latest release url from github.  Error: " + ex.Message);
+                    }
+                }).Wait();
+
+                if (string.IsNullOrEmpty(downloadUrl))
+                {
+                    logger.LogError("There was an issue getting the latest release url from github.");
+                }
+                else
+                {
+                    var localVersion = "";
+                    if (File.Exists("local_version.txt"))
+                    {
+                        localVersion = File.ReadAllText("local_version.txt");
+                    }
+
+                    if (localVersion != downloadUrl)
+                    {
+                        File.WriteAllText("latest_version.txt", downloadUrl);
+                        logger.LogError("The latest release is newer than the current version, exiting so upgrade can be completed.");
+                        return (int) ExitCode.Upgrade;
+                    }
+                }
+            }
+
+        //add logging in priority commandline, appsettings file or use default "Information" level.
+        if (remoteSettings.Logging.LogLevel.Default != LogLevel.Information)
+                loggerFactory.AddConsole(remoteSettings.Logging.LogLevel.Default);
             else
-                loggerFactory.AddConsole(logLevel);
+                loggerFactory.AddConsole(remoteSettings.Logging.LogLevel.Default);
 
+            var checkSaveSettings = false;
+            
             //any critical settings not received, prompt user.
-            if (webServer == "")
+            if (resetSettings || string.IsNullOrEmpty(remoteSettings.AppSettings.WebServer))
             {
-                Console.Write("Enter the dexih web server: ");
-                webServer = Console.ReadLine();
+                checkSaveSettings = true;
+                
+                Console.Write($"Enter the dexih web server [{remoteSettings.AppSettings.WebServer}]: ");
+                var webServer = Console.ReadLine();
+                
+                if (!string.IsNullOrEmpty(webServer))
+                {
+                    remoteSettings.AppSettings.WebServer = webServer;
+                }
             }
 
-            if (remoteAgentId == "")
+            if (resetSettings || string.IsNullOrEmpty(remoteSettings.AppSettings.RemoteAgentId))
             {
-                Console.Write("Enter the unique remote agent id: ");
-                remoteAgentId = Console.ReadLine();
+                checkSaveSettings = true;
+
+                Console.Write("Enter the unique remote agent id.  Note, this works in conjunction with the UserToken to authenticate [auto-generate]: ");
+                remoteSettings.AppSettings.RemoteAgentId = Console.ReadLine();
+                
+                if (string.IsNullOrEmpty(remoteSettings.AppSettings.RemoteAgentId))
+                {
+                    remoteSettings.AppSettings.RemoteAgentId = Guid.NewGuid().ToString();
+                    Console.WriteLine($"New remote agent id is \"{remoteSettings.AppSettings.RemoteAgentId}\".");
+                }
+            }
+            
+            if (resetSettings || string.IsNullOrEmpty(remoteSettings.AppSettings.EncryptionKey))
+            {
+                checkSaveSettings = true;
+
+                if (string.IsNullOrEmpty(remoteSettings.AppSettings.EncryptionKey))
+                {
+                    Console.Write($"Enter the encryption key.  This is used to encrypt/decrypt data marked as secure. [auto-generate]: ");
+                    remoteSettings.AppSettings.EncryptionKey = Console.ReadLine();
+                    if (string.IsNullOrEmpty(remoteSettings.AppSettings.EncryptionKey))
+                    {
+                        remoteSettings.AppSettings.EncryptionKey = Dexih.Utils.Crypto.EncryptString.GenerateRandomKey();
+                        Console.WriteLine($"New encryption key \"{remoteSettings.AppSettings.EncryptionKey}\".");
+                    }
+                }
+                else
+                {
+                    string key;
+                    Console.Write($"Enter the encryption key [blank - use current, \"new\" to generate]: ");
+                    key = Console.ReadLine();
+                    if (string.IsNullOrEmpty(key) || key.ToLower() == "new")
+                    {
+                        remoteSettings.AppSettings.EncryptionKey = Dexih.Utils.Crypto.EncryptString.GenerateRandomKey();
+                        Console.WriteLine($"New encryption key \"{remoteSettings.AppSettings.EncryptionKey}\".");
+                    }
+                   
+                }
+            }
+            
+            //any critical settings not received, prompt user.
+            if (resetSettings || string.IsNullOrEmpty(remoteSettings.AppSettings.Name))
+            {
+                checkSaveSettings = true;
+                
+                Console.WriteLine($"Enter the data privacy requirement for this agent [{remoteSettings.AppSettings.PrivacyLevel.ToString()}]: ");
+                Console.WriteLine($"  1. Lock Data - No data (excluding metadata) will be received or sent to the central information hub.");
+                Console.WriteLine($"  2. Allow Upload - Data can be sent from the information hub to this agent, but not from the agent to the information hub.");
+                Console.WriteLine($"  3. Allow Upload/Download - Data can be sent/received from the information hub to this agent.");
+                var privacyLevel = Console.ReadLine();
+                
+                if (!string.IsNullOrEmpty(privacyLevel))
+                {
+                    while (privacyLevel != "1" && privacyLevel != "2" && privacyLevel != "3")
+                    {
+                        Console.Write("Enter the data privacy requirement value of 1,2,3: ");
+                        privacyLevel = Console.ReadLine();
+                    }
+
+                    remoteSettings.AppSettings.PrivacyLevel = (EPrivacyLevel) Convert.ToInt32(privacyLevel);
+                }
             }
 
-            if (string.IsNullOrEmpty(user))
+            if ((remoteSettings.AppSettings.PrivacyLevel != EPrivacyLevel.AllowDataDownload) &&
+            (resetSettings || string.IsNullOrEmpty(remoteSettings.AppSettings.LocalDataSaveLocation)))
             {
-                Console.Write("Enter the username: ");
-                user = Console.ReadLine();
+                checkSaveSettings = true;
+
+                Console.Write($"Enter the local save data location.  Previews and data downloads will be stored in this directory when the privacy settings are 1/2. [{remoteSettings.AppSettings.LocalDataSaveLocation}]: ");
+                var localDir = Console.ReadLine();
+                if (!string.IsNullOrEmpty(localDir))
+                {
+                    remoteSettings.AppSettings.LocalDataSaveLocation = localDir;
+                }
+            }
+            
+            if (resetSettings || string.IsNullOrEmpty(remoteSettings.AppSettings.User))
+            {
+                checkSaveSettings = true;
+
+                Console.Write($"Enter the login email [{remoteSettings.AppSettings.User}]: ");
+                var user = Console.ReadLine();
+                if (!string.IsNullOrEmpty(user))
+                {
+                    remoteSettings.AppSettings.User = user;
+                }
             }
 
-            if (string.IsNullOrEmpty(userToken) && string.IsNullOrEmpty(password))
+            if (resetSettings || string.IsNullOrEmpty(remoteSettings.AppSettings.UserToken))
             {
-                Console.Write("Enter the password: ");
+                checkSaveSettings = true;
+
+                Console.Write("Enter the password [leave empty to specify user token]: ");
                 ConsoleKeyInfo key;
                 var pass = "";
                 do
@@ -221,25 +386,99 @@ namespace dexih.remote
                         }
                     }
                 } while (key.Key != ConsoleKey.Enter);
-                password = pass;
+                Console.WriteLine();
+                remoteSettings.AppSettings.Password = pass;
+                
+                if (string.IsNullOrEmpty(remoteSettings.AppSettings.Password))
+                {                
+                    Console.Write("Enter the user token: ");
+                    remoteSettings.AppSettings.UserToken = Console.ReadLine();
+
+                    while(string.IsNullOrEmpty(remoteSettings.AppSettings.UserToken))
+                    {                
+                        Console.Write("No user token or password.");
+                    }
+                }
+                else
+                {
+                    // if there is a password, and reset settings has been asked, then remove the user token.
+                    if (resetSettings)
+                    {
+                        remoteSettings.AppSettings.UserToken = null;
+                    }
+                }
             }
 
-            if (name == "")
+            if (resetSettings || string.IsNullOrEmpty(remoteSettings.AppSettings.Name))
             {
-                name = Environment.MachineName;
+                checkSaveSettings = true;
+
+                Console.Write("Enter a name to describe this remote agent [blank use machine name]: ");
+                remoteSettings.AppSettings.Name = Console.ReadLine();
+                
+                if (string.IsNullOrEmpty(remoteSettings.AppSettings.Name))
+                {
+                    remoteSettings.AppSettings.Name = Environment.MachineName;
+                }
             }
+            
+            if (resetSettings || (checkSaveSettings && !saveSettings))
+            {
+                Console.Write("Would you like to save settings (enter yes or no) [no]?: ");
+                var saveResult = Console.ReadLine().ToLower();
+
+                while(!(saveResult == "yes" || saveResult == "no" || string.IsNullOrEmpty(saveResult)))
+                {                
+                    Console.Write("Would you like to save settings (enter yes or no) [no]?: ");
+                    saveResult = Console.ReadLine().ToLower();
+                }
+
+                if (saveResult == "no" || saveResult == "no" || string.IsNullOrEmpty(saveResult))
+                {
+                    saveSettings = false;
+                }
+                else if(saveResult == "yes")
+                {
+                    saveSettings = true;
+                }
+            }
+
+            Remote = new DexihRemote(remoteSettings, loggerFactory);
 
             logger.LogInformation("Connecting to server.  ctrl-c to terminate.");
 
-            Remote = new DexihRemote(webServer, user, userToken, password, name, encryptionKey, remoteAgentId, privacyLevel, localDataSaveLocation, loggerFactory, systemSettings);
-
             //use this flag so the retrying only displays once.
             var retryStarted = false;
+            var savedSettings = false;
 
             while (true)
             {
-                var connectResult = Remote.ConnectAsync(retryStarted).Result;
+                var generateToken = !string.IsNullOrEmpty(remoteSettings.AppSettings.Password) && saveSettings;
+                var loginResult = Remote.LoginAsync(generateToken, retryStarted).Result;
 
+                var connectResult = loginResult.connectionResult;
+
+                if (connectResult == DexihRemote.EConnectionResult.Connected)
+                {
+                    if (!savedSettings && saveSettings)
+                    {
+                        remoteSettings.AppSettings.UserToken = loginResult.userToken;
+                        
+                        var appSettingsFile = Directory.GetCurrentDirectory() + "/appsettings.json";
+                        File.WriteAllText(appSettingsFile, JsonConvert.SerializeObject(remoteSettings, Formatting.Indented));
+                        logger.LogInformation("The appsettings.json file has been updated with the current settings.");
+
+                        if (!string.IsNullOrEmpty(remoteSettings.AppSettings.Password))
+                        {
+                            logger.LogWarning("The password is not saved to the appsettings.json file.  Create a RemoteId/UserToken combination to authenticate without a password.");
+                        }
+
+                        savedSettings = true;
+                    }
+
+                    connectResult = Remote.ListenAsync(retryStarted).Result;
+                }
+                
                 if (connectResult == DexihRemote.EConnectionResult.Disconnected)
                 {
                     if (!retryStarted)
@@ -249,7 +488,7 @@ namespace dexih.remote
                 if (connectResult == DexihRemote.EConnectionResult.InvalidCredentials)
                 {
                     logger.LogWarning("Invalid credentials... terminating service.");
-                    break;
+                    return (int)ExitCode.InvalidLogin;
                 }
                 if (connectResult == DexihRemote.EConnectionResult.InvalidLocation)
                 {
@@ -265,7 +504,10 @@ namespace dexih.remote
                 }
                 retryStarted = true;
             }
-
+            
+            return (int)ExitCode.Terminated;
         }
+    
+    
     }
 }

@@ -26,14 +26,7 @@ namespace dexih.remote.operations
     public class RemoteOperations
     {
         
-        public enum EPrivacyLevel
-        {
-            LockData = 0, //no data can be transferred between the remote/web server
-            AllowDataUpload = 1, //only data upload between the remote/web server
-            AllowDataDownload = 2 //data upload/download allowed between remote/web server.
-        }
-        
-        
+       
         private readonly string _permenantEncryptionKey;
         private readonly string _temporaryEncryptionKey;
         private readonly int _encryptionIterations = 1000; //strength of encryption
@@ -42,17 +35,17 @@ namespace dexih.remote.operations
         private string LocalDataSaveLocation { get; }
         private readonly ManagedTasks _managedTasks;
         private readonly HttpClient _httpClient;
-        private string _remoteToken;
+        private string _securityToken;
         private readonly string _url;
 
-        public RemoteOperations(string permenantEncryptionKey, string temporaryEncryptionKey, int encryptionIterations, ILogger loggerMessages, EPrivacyLevel privacyLevel, string localDataSaveLocation, HttpClient httpClient, string url)
+        public RemoteOperations(RemoteSettings remoteSettings, string temporaryEncryptionKey, ILogger loggerMessages, HttpClient httpClient, string url)
         {
-            _permenantEncryptionKey = permenantEncryptionKey;
+            _permenantEncryptionKey = remoteSettings.AppSettings.EncryptionKey;
             _temporaryEncryptionKey = temporaryEncryptionKey;
-            _encryptionIterations = encryptionIterations;
+            _encryptionIterations = remoteSettings.SystemSettings.EncryptionIteractions;
             LoggerMessages = loggerMessages;
-            PrivacyLevel = privacyLevel;
-            LocalDataSaveLocation = localDataSaveLocation;
+            PrivacyLevel = remoteSettings.AppSettings.PrivacyLevel;
+            LocalDataSaveLocation = remoteSettings.AppSettings.LocalDataSaveLocation;
             _httpClient = httpClient;
             _url = url;
 
@@ -63,9 +56,9 @@ namespace dexih.remote.operations
         public IEnumerable<ManagedTask> GetTaskChanges(bool resetTaskChanges) => _managedTasks.GetTaskChanges(resetTaskChanges);
         public int TaskChangesCount() => _managedTasks.TaskChangesCount();
         
-        public string RemoteToken
+        public string SecurityToken
         {
-            set { _remoteToken = value; }
+            set => _securityToken = value;
         }
         
         public Task<bool> Ping(RemoteMessage message, CancellationToken cancellationToken)
@@ -797,6 +790,7 @@ namespace dexih.remote.operations
                     return data;
                 }
 
+                if (!Directory.Exists(LocalDataSaveLocation)) Directory.CreateDirectory(LocalDataSaveLocation);
                 var saveFileName = LocalDataSaveLocation + "/dexihpreview_" + Guid.NewGuid() + ".csv";
                 File.WriteAllText(saveFileName, data.GetCsv());
 
@@ -852,6 +846,7 @@ namespace dexih.remote.operations
                     return transform.CacheTable;
                }
                
+               if (!Directory.Exists(LocalDataSaveLocation)) Directory.CreateDirectory(LocalDataSaveLocation);
                var fileName = LocalDataSaveLocation + "/dexihpreview_" + Guid.NewGuid() + ".csv";
                File.WriteAllText(fileName, transform.CacheTable.GetCsv());
 
@@ -908,7 +903,8 @@ namespace dexih.remote.operations
 
                     return transform.CacheTable;
                }
-               
+
+               if (!Directory.Exists(LocalDataSaveLocation)) Directory.CreateDirectory(LocalDataSaveLocation);
                var fileName = LocalDataSaveLocation + "/dexihpreview_" + Guid.NewGuid() + ".csv";
                File.WriteAllText(fileName, transform.CacheTable.GetCsv());
 
@@ -1016,6 +1012,7 @@ namespace dexih.remote.operations
                     }
                     else
                     {
+                        if (!Directory.Exists(LocalDataSaveLocation)) Directory.CreateDirectory(LocalDataSaveLocation);
                         var fileName = LocalDataSaveLocation + "/dexihpreview_" + Guid.NewGuid() + ".csv";
                         File.WriteAllText(fileName, data.GetCsv());
 
@@ -1206,7 +1203,7 @@ namespace dexih.remote.operations
                 //progress messages are send and forget as it is not critical that they are received.
                 var content = new FormUrlEncodedContent(new[]
                 {
-                    new KeyValuePair<string, string>("RemoteToken", _remoteToken),
+                    new KeyValuePair<string, string>("SecurityToken", _securityToken),
                     new KeyValuePair<string, string>("FileReference", fileReference),
                 });
 
@@ -1280,7 +1277,7 @@ namespace dexih.remote.operations
                     //progress messages are send and forget as it is not critical that they are received.
                     using (var content = new MultipartFormDataContent())
                     {
-                        content.Add(new StringContent(_remoteToken), "RemoteToken");
+                        content.Add(new StringContent(_securityToken), "SecurityToken");
                         content.Add(new StringContent(clientId), "ClientId");
                         content.Add(new StringContent(reference), "Reference");
                         content.Add(new StringContent(connectionTable.hubKey.ToString()), "HubKey");
@@ -1323,7 +1320,7 @@ namespace dexih.remote.operations
                     var downloadObjects = message.Value["downloadObjects"].ToObject<DownloadData.DownloadObject[]>();
                     var downloadFormat = message.Value["downloadFormat"].ToObject<DownloadData.EDownloadFormat>();
                     var zipFiles = message.Value["zipFiles"].ToObject<bool>();
-                    var remoteToken = _remoteToken;
+                    var securityToken = _securityToken;
 
                     var reference = Guid.NewGuid().ToString();
 
@@ -1341,7 +1338,7 @@ namespace dexih.remote.operations
                         //progress messages are send and forget as it is not critical that they are received.
                         using (var content = new MultipartFormDataContent())
                         {
-                            content.Add(new StringContent(remoteToken), "RemoteToken");
+                            content.Add(new StringContent(securityToken), "SecurityToken");
                             content.Add(new StringContent(clientId), "ClientId");
                             content.Add(new StringContent(reference), "Reference");
                             content.Add(new StringContent(cache.HubKey.ToString()), "HubKey");
