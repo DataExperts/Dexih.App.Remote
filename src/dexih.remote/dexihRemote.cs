@@ -45,7 +45,7 @@ namespace dexih.remote
         private ILogger LoggerDatalinks { get; }
 
         private HubConnection HubConnection { get; set; }
-        private CookieContainer HttpCookieContainer { get; set; }
+        // private CookieContainer HttpCookieContainer { get; set; }
 
         private HttpClient _httpClient;
 
@@ -73,8 +73,6 @@ namespace dexih.remote
             LoggerDatalinks = LoggerFactory.CreateLogger("Datalink");
             LoggerFactory.CreateLogger("Scheduler");
 
-            var encryptionIterations = 1000;
-            
             var cookies = new CookieContainer();
             var handler = new HttpClientHandler()
             {
@@ -142,7 +140,6 @@ namespace dexih.remote
                 }
 
                 //login to the server and receive a securityToken which is used for future communcations.
-                var uri = new Uri(Url);
                 var serverResponse = await response.Content.ReadAsStringAsync();
                 if (string.IsNullOrEmpty(serverResponse))
                 {
@@ -163,8 +160,8 @@ namespace dexih.remote
                 }
                 else
                 {
-                    logger.LogCritical(3, "User authentication failed.  Run with the -reset flag to update the settings.  The error was message: {0}.",
-                        parsedServerResponse?["message"].ToString());
+                    logger.LogCritical(3, "User authentication failed.  Run with the -reset flag to update the settings.  The authentication message from the server was: {0}.",
+                        parsedServerResponse["message"].ToString());
                     return (EConnectionResult.InvalidCredentials, "");
                 }
             }
@@ -291,6 +288,14 @@ namespace dexih.remote
 
                 var method = typeof(RemoteOperations).GetMethod(remoteMessage.Method);
 
+                if (method == null)
+                {
+                    LoggerMessages.LogError(100, "Unknown method : " + remoteMessage.Method);
+                    var error = new ReturnValue<JToken>(false, $"Unknown method: {remoteMessage.Method}.", null);
+                    SendHttpResponseMessage(remoteMessage.MessageId, error);
+                    return;
+                }
+
                 var returnValue = (Task)method.Invoke(_remoteOperations, new object[] { remoteMessage, commandCancel });
 
                 if (remoteMessage.SecurityToken == SecurityToken)
@@ -321,14 +326,14 @@ namespace dexih.remote
 
                     if (returnValue.IsFaulted || returnValue.IsCanceled)
                     {
-                        var error = new ReturnValue<JToken>(false, $"The {remoteMessage.Method} failed.  {returnValue.Exception.Message}", returnValue.Exception);
+                        var error = new ReturnValue<JToken>(false, $"The {remoteMessage.Method} failed.  {returnValue.Exception?.Message}", returnValue.Exception);
                         responseMessage = SendHttpResponseMessage(remoteMessage.MessageId, error);
                     }
                     else if (returnValue.IsCompleted)
                     {
                         try
                         {
-                            var value = returnValue.GetType().GetProperty("Result").GetValue(returnValue);
+                            var value = returnValue.GetType().GetProperty("Result")?.GetValue(returnValue);
                             var jToken = Json.JTokenFromObject(value, SessionEncryptionKey);
                             responseMessage = SendHttpResponseMessage(remoteMessage.MessageId, new ReturnValue<JToken>(true, jToken));
                         }
@@ -378,7 +383,7 @@ namespace dexih.remote
 
                     while (_sendMessageQueue.Count > 0)
                     {
-                        var success = _sendMessageQueue.TryTake(out var message);
+                        _sendMessageQueue.TryTake(out var message);
                         messages.Add(message);
                     }
 

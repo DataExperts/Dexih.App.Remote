@@ -2,8 +2,8 @@
   <PropertyGroup>
     <Description>dexih_remote Console Application</Description>
     <AssemblyTitle>Data Experts Information Hub - Remote </AssemblyTitle>
-    <VersionPrefix>0.3.0</VersionPrefix>
-    <VersionSuffix>C00001</VersionSuffix>
+    <VersionPrefix>0.4.0-beta</VersionPrefix>
+    <VersionSuffix>00025</VersionSuffix>
     <Authors>Gary</Authors>
     <TargetFrameworks>netcoreapp2.0;net462</TargetFrameworks>
     <AssemblyName>dexih.remote</AssemblyName>
@@ -20,7 +20,7 @@
     <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
   </PropertyGroup>
   <ItemGroup>
-    <Content Include="dexih_start.sh;dexih_unblock.ps1">
+    <Content Include="dexih_start.sh;dexih_unblock.ps1;version.txt">
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
   </ItemGroup>

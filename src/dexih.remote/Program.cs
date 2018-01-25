@@ -6,6 +6,7 @@ using System.Threading;
 using Microsoft.Extensions.Configuration;
 using System.IO;
 using System.Net.Http;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using dexih.operations;
@@ -16,7 +17,7 @@ namespace dexih.remote
 {
     public class Program
     {
-        private enum ExitCode : int {
+        private enum ExitCode {
             Success = 0,
             InvalidSetting = 1,
             InvalidLogin = 2,
@@ -31,7 +32,6 @@ namespace dexih.remote
         {
             // add logging.
             var loggerFactory = new LoggerFactory();
-            var logger = loggerFactory.CreateLogger("dexih.remote main");
 
             IEnumerable<long> hubKeys;
             var remoteSettings = new RemoteSettings
@@ -175,6 +175,9 @@ namespace dexih.remote
                     case "-upgrade":
                         remoteSettings.AppSettings.AutoUpgrade = true;
                         break;
+                    case "-skipupgrade":
+                        remoteSettings.AppSettings.AutoUpgrade = false;
+                        break;
                     case "-pr":
                     case "-prerelease":
                         remoteSettings.AppSettings.PreRelease = true;
@@ -182,9 +185,15 @@ namespace dexih.remote
                 }
             }
 
+            // add the logging level output to the console.
+            loggerFactory.AddConsole(remoteSettings.Logging.LogLevel.Default);
+            var logger = loggerFactory.CreateLogger("dexih.remote main");
+
+
             if (remoteSettings.AppSettings.AutoUpgrade)
             {
                 string downloadUrl = null;
+                string latestVersion = null;
                 Task.Run(async () =>
                 {
                     try
@@ -198,6 +207,7 @@ namespace dexih.remote
                             var responseText = await response.Content.ReadAsStringAsync();
                             var jToken = JToken.Parse(responseText);
 
+                            latestVersion = (string) jToken["tag_name"];
 
                             foreach (var asset in jToken["assets"])
                             {
@@ -235,26 +245,27 @@ namespace dexih.remote
                 }
                 else
                 {
-                    var localVersion = "";
-                    if (File.Exists("local_version.txt"))
-                    {
-                        localVersion = File.ReadAllText("local_version.txt");
-                    }
+                    var localVersion = Assembly.GetEntryAssembly()
+                        .GetCustomAttribute<AssemblyInformationalVersionAttribute>().InformationalVersion;
 
-                    if (localVersion != downloadUrl)
+                    var latestBuild = latestVersion.Split('-').Last();
+                    var localBuild = localVersion.Split('-').Last();
+
+                    logger.LogWarning($"The local build is {localBuild}.");
+                    logger.LogWarning($"The latest build is {latestBuild}.");
+
+                    if (latestBuild != localBuild)
                     {
-                        File.WriteAllText("latest_version.txt", downloadUrl);
-                        logger.LogError("The latest release is newer than the current version, exiting so upgrade can be completed.");
+                        File.WriteAllText("latest_version.txt", latestVersion + "\n" + downloadUrl);
+                        logger.LogWarning($"The local version of the remote agent is v{localVersion}.");
+                        logger.LogWarning($"The latest version of the remote agent is {latestVersion}.");
+                        logger.LogWarning($"There is a newer release of the remote agent available at {downloadUrl}.");
+                        logger.LogWarning($"The application will exit so an upgrade can be completed.  To skip upgrade checks include \"-skipupgrade\" in the command line, or set AutoUpgrade=false in the appsettings.json file.");
+                        loggerFactory.Dispose();
                         return (int) ExitCode.Upgrade;
                     }
                 }
             }
-
-        //add logging in priority commandline, appsettings file or use default "Information" level.
-        if (remoteSettings.Logging.LogLevel.Default != LogLevel.Information)
-                loggerFactory.AddConsole(remoteSettings.Logging.LogLevel.Default);
-            else
-                loggerFactory.AddConsole(remoteSettings.Logging.LogLevel.Default);
 
             var checkSaveSettings = false;
             
@@ -276,7 +287,8 @@ namespace dexih.remote
             {
                 checkSaveSettings = true;
 
-                Console.Write("Enter the unique remote agent id.  Note, this works in conjunction with the UserToken to authenticate [auto-generate]: ");
+                Console.WriteLine("Enter the unique remote agent id.");
+                Console.Write("This works in conjunction with the UserToken to authenticate [auto-generate]: ");
                 remoteSettings.AppSettings.RemoteAgentId = Console.ReadLine();
                 
                 if (string.IsNullOrEmpty(remoteSettings.AppSettings.RemoteAgentId))
@@ -292,7 +304,8 @@ namespace dexih.remote
 
                 if (string.IsNullOrEmpty(remoteSettings.AppSettings.EncryptionKey))
                 {
-                    Console.Write($"Enter the encryption key.  This is used to encrypt/decrypt data marked as secure. [auto-generate]: ");
+                    Console.WriteLine($"Enter the encryption key.");
+                    Console.Write($"This is used to encrypt/decrypt data marked as secure. [auto-generate]: ");
                     remoteSettings.AppSettings.EncryptionKey = Console.ReadLine();
                     if (string.IsNullOrEmpty(remoteSettings.AppSettings.EncryptionKey))
                     {
@@ -342,7 +355,8 @@ namespace dexih.remote
             {
                 checkSaveSettings = true;
 
-                Console.Write($"Enter the local save data location.  Previews and data downloads will be stored in this directory when the privacy settings are 1/2. [{remoteSettings.AppSettings.LocalDataSaveLocation}]: ");
+                Console.WriteLine($"Enter the local save data location.");
+                Console.Write($"Data will be stored in this directory when the privacy settings are 1/2. [{remoteSettings.AppSettings.LocalDataSaveLocation}]: ");
                 var localDir = Console.ReadLine();
                 if (!string.IsNullOrEmpty(localDir))
                 {
@@ -505,7 +519,7 @@ namespace dexih.remote
                 retryStarted = true;
             }
             
-            return (int)ExitCode.Terminated;
+            // return (int)ExitCode.Terminated;
         }
     
     
