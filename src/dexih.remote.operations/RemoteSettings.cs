@@ -1,4 +1,7 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using System.Net.Sockets;
+using System.Net.WebSockets;
+using Microsoft.AspNetCore.Sockets;
+using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 
@@ -51,6 +54,7 @@ namespace dexih.operations
         public int EncryptionIteractions { get; set; } = 1000;
         public int MaxPreviewDuration { get; set; } = 10000;
         public int MaxConcurrentTasks { get; set; } = 50;
+        public TransportType SocketTransportType { get; set; } = TransportType.WebSockets;
     }
 
     public class LoggingSection

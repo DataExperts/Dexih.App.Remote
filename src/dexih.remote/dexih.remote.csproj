@@ -55,4 +55,9 @@
     <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.webservice.restful\dexih.connections.webservice.restful.csproj" />
     <ProjectReference Include="..\dexih.remote.operations\dexih.remote.operations.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <Reference Include="Microsoft.AspNetCore.Sockets.Http, Version=1.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60">
+      <HintPath>..\..\..\..\.nuget\packages\microsoft.aspnetcore.sockets.http\1.0.0-alpha2-final\lib\netstandard2.0\Microsoft.AspNetCore.Sockets.Http.dll</HintPath>
+    </Reference>
+  </ItemGroup>
 </Project>

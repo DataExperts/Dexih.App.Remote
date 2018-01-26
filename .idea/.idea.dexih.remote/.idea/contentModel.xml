@@ -38,6 +38,7 @@
       <e p="RemoteDataSender.cs" t="Include" />
       <e p="RemoteMessage.cs" t="Include" />
       <e p="RepositoryManager.cs" t="Include" />
+      <e p="SharedData.cs" t="Include" />
       <e p="TransformsManager.cs" t="Include" />
     </e>
     <e p="$PROJECT_DIR$/../Dexih.App.Operations/src/dexih.repository" t="IncludeRecursive">
@@ -79,6 +80,7 @@
       <e p="DexihUpdateStrategy.cs" t="Include" />
       <e p="EntityStatus.cs" t="Include" />
       <e p="HubVariablesManager.cs" t="Include" />
+      <e p="Microsoft.EntityFrameworkCore" t="Include" />
       <e p="obj" t="ExcludeRecursive">
         <e p="Debug" t="Include">
           <e p="netstandard2.0" t="Include">
@@ -103,12 +105,15 @@
           <e p="7za.exe" t="Include" />
           <e p="appsettings.json" t="Include" />
           <e p="bin" t="ExcludeRecursive" />
+          <e p="build_release.sh" t="Include" />
+          <e p="deploy_release.sh" t="Include" />
           <e p="dexih.remote.csproj" t="IncludeRecursive" />
           <e p="dexih.remote.userprefs" t="Include" />
           <e p="dexih_start.sh" t="Include" />
           <e p="dexih_unblock.ps1" t="Include" />
           <e p="dexihRemote.cs" t="Include" />
           <e p="Dockerfile" t="Include" />
+          <e p="latest_version.txt" t="Include" />
           <e p="obj" t="ExcludeRecursive">
             <e p="Debug" t="Include">
               <e p="net462" t="Include">
@@ -136,11 +141,43 @@
             </e>
           </e>
           <e p="publish_release.ps1" t="Include" />
-          <e p="publish_release.sh" t="Include" />
           <e p="releases" t="Include">
+            <e p="dexih.remote.linux_0.4.0-beta-00021.zip" t="Include" />
+            <e p="dexih.remote.linux_0.4.0-beta-00022.zip" t="Include" />
+            <e p="dexih.remote.linux_0.4.0-beta-00023.zip" t="Include" />
+            <e p="dexih.remote.linux_0.4.0-beta-00024.zip" t="Include" />
+            <e p="dexih.remote.linux_0.4.0-beta-00025.zip" t="Include" />
+            <e p="dexih.remote.linux_0.4.0-beta-00028.zip" t="Include" />
             <e p="dexih.remote.linux_00012.zip" t="Include" />
+            <e p="dexih.remote.linux_00014.zip" t="Include" />
+            <e p="dexih.remote.linux_00015.zip" t="Include" />
+            <e p="dexih.remote.linux_00016.zip" t="Include" />
+            <e p="dexih.remote.linux_00017.zip" t="Include" />
+            <e p="dexih.remote.linux_v0.4.0-beta-00020.zip" t="Include" />
             <e p="dexih.remote.mac_00012.zip" t="Include" />
+            <e p="dexih.remote.mac_00014.zip" t="Include" />
+            <e p="dexih.remote.mac_00015.zip" t="Include" />
+            <e p="dexih.remote.osx_0.4.0-beta-00021.zip" t="Include" />
+            <e p="dexih.remote.osx_0.4.0-beta-00022.zip" t="Include" />
+            <e p="dexih.remote.osx_0.4.0-beta-00023.zip" t="Include" />
+            <e p="dexih.remote.osx_0.4.0-beta-00024.zip" t="Include" />
+            <e p="dexih.remote.osx_0.4.0-beta-00025.zip" t="Include" />
+            <e p="dexih.remote.osx_0.4.0-beta-00028.zip" t="Include" />
+            <e p="dexih.remote.osx_00016.zip" t="Include" />
+            <e p="dexih.remote.osx_00017.zip" t="Include" />
+            <e p="dexih.remote.osx_v0.4.0-beta-00020.zip" t="Include" />
             <e p="dexih.remote.windows.netcore_00012.zip" t="Include" />
+            <e p="dexih.remote.windows.netcore_00014.zip" t="Include" />
+            <e p="dexih.remote.windows.netcore_00015.zip" t="Include" />
+            <e p="dexih.remote.windows_0.4.0-beta-00021.zip" t="Include" />
+            <e p="dexih.remote.windows_0.4.0-beta-00022.zip" t="Include" />
+            <e p="dexih.remote.windows_0.4.0-beta-00023.zip" t="Include" />
+            <e p="dexih.remote.windows_0.4.0-beta-00024.zip" t="Include" />
+            <e p="dexih.remote.windows_0.4.0-beta-00025.zip" t="Include" />
+            <e p="dexih.remote.windows_0.4.0-beta-00028.zip" t="Include" />
+            <e p="dexih.remote.windows_00016.zip" t="Include" />
+            <e p="dexih.remote.windows_00017.zip" t="Include" />
+            <e p="dexih.remote.windows_v0.4.0-beta-00020.zip" t="Include" />
           </e>
           <e p="RemoteExceptions.cs" t="Include" />
           <e p="version.txt" t="Include" />
@@ -157,6 +194,7 @@
           </e>
           <e p="RemoteOperationException.cs" t="Include" />
           <e p="RemoteOperations.cs" t="Include" />
+          <e p="RemoteSettings.cs" t="Include" />
         </e>
       </e>
       <e p="test" t="Include" />

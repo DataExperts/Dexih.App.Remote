@@ -4,11 +4,17 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Dexih.Utils.ManagedTasks" Version="0.1.33" />
+    <PackageReference Include="Microsoft.AspNetCore.WebSockets" Version="2.0.1" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\Dexih.App.Operations\src\dexih.operations\dexih.operations.csproj">
       <Project>{D1BEE5EC-70AF-4947-8A4A-5076F83E69BF}</Project>
       <Name>dexih.operations</Name>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="Microsoft.AspNetCore.Sockets.Common.Http, Version=1.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60">
+      <HintPath>..\..\..\..\.nuget\packages\microsoft.aspnetcore.sockets.common.http\1.0.0-alpha2-final\lib\netstandard2.0\Microsoft.AspNetCore.Sockets.Common.Http.dll</HintPath>
+    </Reference>
   </ItemGroup>
 </Project>

@@ -15,6 +15,8 @@ using Dexih.Utils.Crypto;
 using Dexih.Utils.MessageHelpers;
 using dexih.remote.operations;
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.AspNetCore.Sockets;
+using TransportType = Microsoft.AspNetCore.Sockets.TransportType;
 
 namespace dexih.remote
 {
@@ -200,6 +202,7 @@ namespace dexih.remote
                         .WithTransport(transportType)
                         .Build();
 
+                    
                     con.On<RemoteMessage>("Command", async (message) =>
                     {
                         await ProcessMessage(message);
@@ -207,7 +210,7 @@ namespace dexih.remote
 
                     con.Closed += e =>
                     {
-                        logger.LogError("Connection close with error: {0}", e);
+                        logger.LogError("SignalR connection closed with error: {0}", e);
                         ts.Cancel();
                         return Task.CompletedTask;
                     };
@@ -216,7 +219,7 @@ namespace dexih.remote
                 }
 
 
-                HubConnection = BuildHubConnection(Microsoft.AspNetCore.Sockets.TransportType.WebSockets);
+                HubConnection = BuildHubConnection(_remoteSettings.SystemSettings.SocketTransportType);
                 
                 try
                 {
@@ -224,9 +227,17 @@ namespace dexih.remote
                 }
                 catch (Exception ex)
                 {
-                    logger.LogError(10, ex, "Failed to connect with websockets.  Attempting longpolling.");
-                    HubConnection = BuildHubConnection(Microsoft.AspNetCore.Sockets.TransportType.LongPolling);
-                    await HubConnection.StartAsync();
+                    logger.LogError(10, ex, "Failed to connect with " + _remoteSettings.SystemSettings.SocketTransportType  + ".  Attempting longpolling.");
+
+                    if (_remoteSettings.SystemSettings.SocketTransportType == TransportType.WebSockets)
+                    {
+                        HubConnection = BuildHubConnection(TransportType.LongPolling);
+                        await HubConnection.StartAsync();
+                    }
+                    else
+                    {
+                        throw;
+                    }
                 }
                 
 				await HubConnection.InvokeAsync<bool>("Connect", SecurityToken, cancellationToken: ct);
@@ -448,7 +459,7 @@ namespace dexih.remote
                         //progress messages are send and forget as it is not critical that they are received.
                         var content = new FormUrlEncodedContent(new[]
                         {
-                            new KeyValuePair<string, string>("RemoteToken", SecurityToken),
+                            new KeyValuePair<string, string>("SecurityToken", SecurityToken),
                             new KeyValuePair<string, string>("Command", "task"),
                             new KeyValuePair<string, string>("Results", results)
                         });
