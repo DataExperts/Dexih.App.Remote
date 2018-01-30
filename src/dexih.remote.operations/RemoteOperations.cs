@@ -440,7 +440,7 @@ namespace dexih.remote.operations
                         OriginatorId = clientId,
                         Name = $"Datajob: {dbDatajob.Name}.",
                         Category = "Datajob",
-                        CatagoryKey = dbDatajob.DatajobKey,
+                        CategoryKey = dbDatajob.DatajobKey,
                         HubKey = dbDatajob.HubKey,
                         Data = datajobRun.WriterResult,
                         Action = DatajobRunTask,

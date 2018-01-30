@@ -3,7 +3,7 @@
     <TargetFramework>netstandard2.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Dexih.Utils.ManagedTasks" Version="0.1.33" />
+    <PackageReference Include="Dexih.Utils.ManagedTasks" Version="0.1.41" />
     <PackageReference Include="Microsoft.AspNetCore.WebSockets" Version="2.0.1" />
   </ItemGroup>
   <ItemGroup>
