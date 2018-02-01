@@ -1020,7 +1020,7 @@ namespace dexih.remote.operations
                 }
                 else
                 {
-                    throw new RemoteSecurityException("The profile results could not be found on existing managed data points.");
+                    throw new RemoteSecurityException("The profile results could not be found on existing managed connections.");
                 }
             }
             catch (Exception ex)
