@@ -3,7 +3,7 @@
     <Description>dexih_remote Console Application</Description>
     <AssemblyTitle>Data Experts Information Hub - Remote </AssemblyTitle>
     <VersionPrefix>0.4.0-beta</VersionPrefix>
-    <VersionSuffix>00025</VersionSuffix>
+    <VersionSuffix>00034</VersionSuffix>
     <Authors>Gary</Authors>
     <TargetFrameworks>netcoreapp2.0;net462</TargetFrameworks>
     <AssemblyName>dexih.remote</AssemblyName>

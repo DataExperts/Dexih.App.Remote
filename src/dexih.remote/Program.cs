@@ -33,7 +33,6 @@ namespace dexih.remote
             // add logging.
             var loggerFactory = new LoggerFactory();
 
-            IEnumerable<long> hubKeys;
             var remoteSettings = new RemoteSettings
             {
                 AppSettings =
@@ -121,21 +120,6 @@ namespace dexih.remote
 
                         remoteSettings.Logging.LogLevel.Default = logLevel;
                         break;
-                    case "-h":
-                    case "-hubs":
-                        i++;
-                        var hubs = args[i];
-                        var stringHubs = hubs.Split(',');
-                        if (stringHubs.Any(c => long.TryParse(c, out _)))
-                        {
-                            Console.WriteLine(
-                                "The -s/-hubs option should be followed by a comma seperated list of the hubskeys the remote server should use.  The value was: {0} ",
-                                hubs);
-                            return (int)ExitCode.InvalidSetting;
-                        }
-
-                        hubKeys = stringHubs.Select(long.Parse).ToArray();
-                        break;
                     case "-a":
                     case "-activate":
                         i++;
@@ -201,11 +185,23 @@ namespace dexih.remote
                         using (var httpClient = new HttpClient())
                         {
                             httpClient.DefaultRequestHeaders.Add("User-Agent", "Dexih Remote Agent");
-                            var response =
-                                await httpClient.GetAsync(
-                                    "https://api.github.com/repos/DataExperts/Dexih.App.Remote/releases/latest");
-                            var responseText = await response.Content.ReadAsStringAsync();
-                            var jToken = JToken.Parse(responseText);
+                            JToken jToken;
+                            if (remoteSettings.AppSettings.PreRelease)
+                            {
+                                // this api gets all releases.
+                                var response = await httpClient.GetAsync("https://api.github.com/repos/DataExperts/Dexih.App.Remote/releases");
+                                var responseText = await response.Content.ReadAsStringAsync();
+                                var releases = JArray.Parse(responseText);
+                                // the first release will be the latest.
+                                jToken = releases[0];
+                            }
+                            else
+                            {
+                                // this api gets the latest release, excluding prereleases.
+                                var response = await httpClient.GetAsync("https://api.github.com/repos/DataExperts/Dexih.App.Remote/releases/latest");
+                                var responseText = await response.Content.ReadAsStringAsync();
+                                jToken = JToken.Parse(responseText);
+                            }
 
                             latestVersion = (string) jToken["tag_name"];
 

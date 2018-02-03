@@ -194,7 +194,7 @@ namespace dexih.remote
                 //Connect to the server.
                 //var responseCookies = handler.CookieContainer.GetCookies(uri);
 
-                HubConnection BuildHubConnection(Microsoft.AspNetCore.Sockets.TransportType transportType)
+                HubConnection BuildHubConnection(TransportType transportType)
                 {
                     var con = new HubConnectionBuilder()
                         .WithUrl(SignalrUrl)
@@ -210,7 +210,14 @@ namespace dexih.remote
 
                     con.Closed += e =>
                     {
-                        logger.LogError("SignalR connection closed with error: {0}", e);
+                        if (e == null)
+                        {
+                            logger.LogInformation("SignalR connection closed.");
+                        }
+                        else
+                        {
+                            logger.LogError("SignalR connection closed with error: {0}", e.Message);
+                        }
                         ts.Cancel();
                         return Task.CompletedTask;
                     };
@@ -232,7 +239,16 @@ namespace dexih.remote
                     if (_remoteSettings.SystemSettings.SocketTransportType == TransportType.WebSockets)
                     {
                         HubConnection = BuildHubConnection(TransportType.LongPolling);
-                        await HubConnection.StartAsync();
+
+                        try
+                        {
+                            await HubConnection.StartAsync();
+                        }
+                        catch (Exception ex2)
+                        {
+                            logger.LogError(10, ex2, "Failed to connect with LongPolling.  Exiting now.");
+                            return EConnectionResult.UnhandledException;
+                        }
                     }
                     else
                     {
@@ -240,7 +256,7 @@ namespace dexih.remote
                     }
                 }
                 
-				await HubConnection.InvokeAsync<bool>("Connect", SecurityToken, cancellationToken: ct);
+				await HubConnection.InvokeAsync("Connect", SecurityToken, cancellationToken: ct);
 
                 var sender = SendMessageHandler(ct);
 

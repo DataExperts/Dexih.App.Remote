@@ -41,6 +41,7 @@ namespace dexih.operations
         public EPrivacyLevel PrivacyLevel { get; set; } = EPrivacyLevel.AllowDataDownload;
         public string LocalDataSaveLocation { get; set; }
         public string RemoteAgentId { get; set; }
+        public string AgentSecret { get; set; }
         
         [JsonIgnore]
         public string Password { get; set; }
