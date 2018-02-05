@@ -150,7 +150,7 @@ namespace dexih.remote.operations
 				return await Task.Run(() =>
 				{
 					var dbDatalinkTransformItem = message.Value["datalinkTransformItem"].ToObject<DexihDatalinkTransformItem>();
-					var testValues = message.Value["testValues"].ToObject<object[]>();
+					var testValues = message.Value["testValues"]?.ToObject<object[]>();
 
 					var createFunction = dbDatalinkTransformItem.CreateFunctionMethod(false);
 
