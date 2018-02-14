@@ -14,8 +14,10 @@ using dexih.operations;
 using Dexih.Utils.Crypto;
 using Dexih.Utils.MessageHelpers;
 using dexih.remote.operations;
+using Dexih.Utils.ManagedTasks;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.AspNetCore.Sockets;
+using Microsoft.EntityFrameworkCore;
 using TransportType = Microsoft.AspNetCore.Sockets.TransportType;
 
 namespace dexih.remote
@@ -430,7 +432,7 @@ namespace dexih.remote
                     if (!returnValue.Success)
                     {
                         logger.LogError(1, returnValue.Exception,
-                            "A responsemessage failed to send to server.  Message" + returnValue.Message);
+                            "A response message failed to send to server.  Message" + returnValue.Message);
                     }
                 }
 
@@ -470,15 +472,19 @@ namespace dexih.remote
                     if (_remoteOperations.TaskChangesCount() > 0)
                     {
                         var managedTaskChanges = _remoteOperations.GetTaskChanges(true);
-                        var results = Json.SerializeObject(managedTaskChanges, SessionEncryptionKey);
 
                         //progress messages are send and forget as it is not critical that they are received.
-                        var content = new FormUrlEncodedContent(new[]
+
+                        var postData = new DatalinkProgress
                         {
-                            new KeyValuePair<string, string>("SecurityToken", SecurityToken),
-                            new KeyValuePair<string, string>("Command", "task"),
-                            new KeyValuePair<string, string>("Results", results)
-                        });
+                            SecurityToken = SecurityToken,
+                            Command = "task",
+                            Results = managedTaskChanges
+                        };
+                        var messagesString = Json.SerializeObject(postData, SessionEncryptionKey);
+                        var content = new StringContent(messagesString, Encoding.UTF8, "application/json");
+
+                        LoggerDatalinks.LogTrace("Send task content {0}.", messagesString);
 
                         var start = new Stopwatch();
                         start.Start();
@@ -493,7 +499,7 @@ namespace dexih.remote
 
                         if (result.Success == false)
                         {
-                            LoggerDatalinks.LogError("Update task results failed.  Return message was: {0}." + result.Message);
+                            LoggerDatalinks.LogError(result.Exception, "Update task results failed.  Return message was: {0}." + result.Message);
                         }
                     }
 
@@ -506,5 +512,12 @@ namespace dexih.remote
                 _sendDatalinkProgressBusy = false;
             }
         }
+    }
+
+    class DatalinkProgress
+    {
+        public string SecurityToken { get; set; }
+        public string Command { get; set; }
+        public IEnumerable<ManagedTask> Results { get; set; } 
     }
 }

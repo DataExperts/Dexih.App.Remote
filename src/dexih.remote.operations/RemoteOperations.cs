@@ -269,6 +269,7 @@ namespace dexih.remote.operations
 
                     void OnProgressUpdate(TransformWriterResult writerResult)
                     {
+                        Debug.Print("Progress: " + writerResult.PercentageComplete);
                         progress.Report(writerResult.PercentageComplete);
                     }
 
