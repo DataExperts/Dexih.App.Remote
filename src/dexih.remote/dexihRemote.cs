@@ -14,10 +14,12 @@ using dexih.operations;
 using Dexih.Utils.Crypto;
 using Dexih.Utils.MessageHelpers;
 using dexih.remote.operations;
+using dexih.remote.Operations.Services;
 using Dexih.Utils.ManagedTasks;
+using Microsoft.AspNetCore;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.SignalR.Client;
-using Microsoft.AspNetCore.Sockets;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using TransportType = Microsoft.AspNetCore.Sockets.TransportType;
 
 namespace dexih.remote
@@ -56,10 +58,9 @@ namespace dexih.remote
         private RemoteOperations _remoteOperations;
 
         private readonly ConcurrentDictionary<string, RemoteMessage> _responseMessages = new ConcurrentDictionary<string, RemoteMessage>(); //list of responses returned from clients.  This is updated by the hub.
-
-
         private readonly ConcurrentBag<ResponseMessage> _sendMessageQueue = new ConcurrentBag<ResponseMessage>();
-        
+        private readonly IDownloadStreams _downloadStreams = new DownloadStreams();
+
         public DexihRemote(RemoteSettings remoteSettings, LoggerFactory loggerFactory)
         {
             _remoteSettings = remoteSettings;
@@ -86,7 +87,7 @@ namespace dexih.remote
             //Login to the web server to receive an authenicated cookie.
             _httpClient = new HttpClient(handler);
             
-            _remoteOperations = new RemoteOperations(_remoteSettings, SessionEncryptionKey, LoggerMessages, _httpClient, Url);
+            _remoteOperations = new RemoteOperations(_remoteSettings, SessionEncryptionKey, LoggerMessages, _httpClient, Url, _downloadStreams);
         }
 
         /// <summary>
@@ -118,6 +119,8 @@ namespace dexih.remote
                     new KeyValuePair<string, string>("ServerName", _remoteSettings.AppSettings.Name),
                     new KeyValuePair<string, string>("EncryptionKey", SessionEncryptionKey),
                     new KeyValuePair<string, string>("RemoteAgentId", _remoteSettings.AppSettings.RemoteAgentId),
+                    new KeyValuePair<string, string>("DownloadDataPort", _remoteSettings.AppSettings.DownloadPort.ToString()),
+                    new KeyValuePair<string, string>("DownloadDataUrl", _remoteSettings.AppSettings.DownloadUrl),
                     new KeyValuePair<string, string>("GenerateUserToken", generateUserToken.ToString()),
                     new KeyValuePair<string, string>("Version", runtimeVersion)
                 });
@@ -262,15 +265,25 @@ namespace dexih.remote
 
                 var sender = SendMessageHandler(ct);
 
+                
                 //set the repeating tasks
                 TimerCallback datalinkProgressCallBack = SendDatalinkProgress;
                 var datalinkProgressTimer = new Timer(datalinkProgressCallBack, null, 500, 500);
 
+                var webHost = WebHost.CreateDefaultBuilder()
+                    .UseStartup<Startup>()
+                    .ConfigureServices(s => s.AddSingleton<IDownloadStreams>(_downloadStreams))
+                    .UseUrls("http://localhost:" + _remoteSettings.AppSettings.DownloadPort)
+                    .Build();
+                
+                var webRunTask = webHost.RunAsync(ct);
+
                 // remote agent will wait here until a cancel is issued.
-                await sender;
+                await Task.WhenAny(sender, webRunTask);
                 
                 datalinkProgressTimer.Dispose();
 				await HubConnection.DisposeAsync();
+                webHost.Dispose();
 
                 return EConnectionResult.Disconnected;
             }

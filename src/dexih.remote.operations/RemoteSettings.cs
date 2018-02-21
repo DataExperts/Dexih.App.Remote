@@ -42,6 +42,8 @@ namespace dexih.operations
         public string LocalDataSaveLocation { get; set; }
         public string RemoteAgentId { get; set; }
         public string AgentSecret { get; set; }
+        public int DownloadPort { get; set; }
+        public string DownloadUrl { get; set; }
         
         [JsonIgnore]
         public string Password { get; set; }

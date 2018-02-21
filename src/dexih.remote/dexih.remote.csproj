@@ -5,7 +5,7 @@
     <VersionPrefix>0.4.0-beta</VersionPrefix>
     <VersionSuffix>00034</VersionSuffix>
     <Authors>Gary</Authors>
-    <TargetFrameworks>netcoreapp2.0;net462</TargetFrameworks>
+    <TargetFrameworks>netcoreapp2.0</TargetFrameworks>
     <AssemblyName>dexih.remote</AssemblyName>
     <RuntimeIdentifiers>win-x64;linux-x64,osx-x64</RuntimeIdentifiers>
     <OutputType>Exe</OutputType>
@@ -25,6 +25,7 @@
     </Content>
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.All" Version="2.0.5" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="2.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="2.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="2.0.0" />
@@ -56,6 +57,9 @@
     <ProjectReference Include="..\dexih.remote.operations\dexih.remote.operations.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <Reference Include="Microsoft.AspNetCore.Hosting, Version=2.0.1.0, Culture=neutral, PublicKeyToken=adb9793829ddae60">
+      <HintPath>..\..\..\..\.nuget\packages\microsoft.aspnetcore.hosting\2.0.1\lib\netstandard2.0\Microsoft.AspNetCore.Hosting.dll</HintPath>
+    </Reference>
     <Reference Include="Microsoft.AspNetCore.Sockets.Http, Version=1.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60">
       <HintPath>..\..\..\..\.nuget\packages\microsoft.aspnetcore.sockets.http\1.0.0-alpha2-final\lib\netstandard2.0\Microsoft.AspNetCore.Sockets.Http.dll</HintPath>
     </Reference>

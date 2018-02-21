@@ -10,6 +10,8 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using dexih.operations;
+using Microsoft.AspNetCore;
+using Microsoft.AspNetCore.Hosting;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
@@ -27,9 +29,10 @@ namespace dexih.remote
         }
         
         private static DexihRemote Remote { get; set; }
-
+       
         public static int Main(string[] args)
         {
+            
             // add logging.
             var loggerFactory = new LoggerFactory();
 

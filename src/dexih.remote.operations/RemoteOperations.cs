@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using dexih.functions;
 using dexih.functions.Query;
 using dexih.operations;
+using dexih.remote.Operations.Services;
 using dexih.repository;
 using dexih.transforms;
 using Dexih.Utils.CopyProperties;
@@ -36,8 +37,9 @@ namespace dexih.remote.operations
         private readonly HttpClient _httpClient;
         private string _securityToken;
         private readonly string _url;
+        private readonly IDownloadStreams _downloadStreams;
 
-        public RemoteOperations(RemoteSettings remoteSettings, string temporaryEncryptionKey, ILogger loggerMessages, HttpClient httpClient, string url)
+        public RemoteOperations(RemoteSettings remoteSettings, string temporaryEncryptionKey, ILogger loggerMessages, HttpClient httpClient, string url, IDownloadStreams downloadStreams)
         {
             _permenantEncryptionKey = remoteSettings.AppSettings.EncryptionKey;
             _temporaryEncryptionKey = temporaryEncryptionKey;
@@ -47,6 +49,7 @@ namespace dexih.remote.operations
             LocalDataSaveLocation = remoteSettings.AppSettings.LocalDataSaveLocation;
             _httpClient = httpClient;
             _url = url;
+            _downloadStreams = downloadStreams;
 
             _managedTasks = new ManagedTasks();
         }
@@ -260,17 +263,16 @@ namespace dexih.remote.operations
                 // put the download into an action and allow to complete in the scheduler.
                 async Task DatalinkRunTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken cancellationToken)
                 {
-                    progress.Report(0, "Initializing datalink...");
+                    progress.Report(0, 0, "Initializing datalink...");
 
                     await datalinkRun.Initialize(cancellationToken);
 
-                    progress.Report(0, "Compiling datalink...");
+                    progress.Report(0, 0, "Compiling datalink...");
                     datalinkRun.Build(cancellationToken);
 
                     void OnProgressUpdate(TransformWriterResult writerResult)
                     {
-                        Debug.Print("Progress: " + writerResult.PercentageComplete);
-                        progress.Report(writerResult.PercentageComplete);
+                        progress.Report(writerResult.PercentageComplete, writerResult.RowsTotal);
                     }
 
                     datalinkRun.OnProgressUpdate += OnProgressUpdate;
@@ -282,7 +284,7 @@ namespace dexih.remote.operations
                         datalinkRun.OnStatusUpdate += parentDataJobRun.DatalinkStatus;
                     }
 
-                    progress.Report(0, "Running datalink...");
+                    progress.Report(0, 0, "Running datalink...");
                     await datalinkRun.Run(cancellationToken);
 
                 }
@@ -412,7 +414,7 @@ namespace dexih.remote.operations
 
                         void OnDatajobProgressUpdate(TransformWriterResult writerResult)
                         {
-                            progress.Report(writerResult.PercentageComplete);
+                            progress.Report(writerResult.PercentageComplete, writerResult.RowsTotal);
                         }
 
                         void OnDatalinkStart(DatalinkRun datalinkRun)
@@ -426,11 +428,11 @@ namespace dexih.remote.operations
                         datajobRun.OnDatajobStatusUpdate += OnDatajobProgressUpdate;
                         datajobRun.OnDatalinkStart += OnDatalinkStart;
 
-                        progress.Report(0, "Initializing datajob...");
+                        progress.Report(0, 0, "Initializing datajob...");
 
                         await datajobRun.Initialize(ct);
 
-                        progress.Report(0, "Running datajob...");
+                        progress.Report(0, 0, "Running datajob...");
 
                         await datajobRun.Run(triggerMethod, "", ct);
                     }
@@ -1327,26 +1329,27 @@ namespace dexih.remote.operations
                     // put the download into an action and allow to complete in the scheduler.
                     async Task DownloadTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken ct)
                     {
-                        progress.Report(30, "Running data extract...");
+                        progress.Report(50, 1, "Running data extract...");
                         var downloadData = new DownloadData(_permenantEncryptionKey, message.HubVariables);
                         var downloadStream = await downloadData.GetStream(cache, downloadObjects, downloadFormat, zipFiles, cancellationToken);
                         var filename = downloadStream.FileName;
                         var stream = downloadStream.Stream;
 
-                        progress.Report(60, "Downloading data...");
+                        progress.Report(100, 2, "Download ready...");
 
-                        //progress messages are send and forget as it is not critical that they are received.
+
+                        var keys = _downloadStreams.SetDownloadStream(filename, stream);
+
                         using (var content = new MultipartFormDataContent())
                         {
                             content.Add(new StringContent(securityToken), "SecurityToken");
                             content.Add(new StringContent(clientId), "ClientId");
                             content.Add(new StringContent(reference), "Reference");
                             content.Add(new StringContent(cache.HubKey.ToString()), "HubKey");
+                            content.Add(new StringContent(keys.key), "StreamKey");
+                            content.Add(new StringContent(keys.securityKey), "StreamSecurityKey");
 
-                            var data = new StreamContent(stream);
-                            content.Add(data, "file", filename);
-
-                            var response = await _httpClient.PostAsync(_url + "Remote/SetFileStream", content, ct);
+                            var response = await _httpClient.PostAsync(_url + "Remote/DownloadReady", content, ct);
                             if (!response.IsSuccessStatusCode)
                             {
                                 throw new RemoteOperationException($"The data download did not complete as the http server returned the response {response.ReasonPhrase}.");
@@ -1357,6 +1360,33 @@ namespace dexih.remote.operations
                                 throw new RemoteOperationException($"The data download did not completed.  {returnValue.Message}", returnValue.Exception);
                             }
                         }
+                        
+
+// PREVIOUS DOWNLOAD WHICH USED UPLOAD TO CENTRAL SERVER
+//                        progress.Report(60, 2, "Downloading data...");
+//
+//                        //progress messages are send and forget as it is not critical that they are received.
+//                        using (var content = new MultipartFormDataContent())
+//                        {
+//                            content.Add(new StringContent(securityToken), "SecurityToken");
+//                            content.Add(new StringContent(clientId), "ClientId");
+//                            content.Add(new StringContent(reference), "Reference");
+//                            content.Add(new StringContent(cache.HubKey.ToString()), "HubKey");
+//
+//                            var data = new StreamContent(stream);
+//                            content.Add(data, "file", filename);
+//
+//                            var response = await _httpClient.PostAsync(_url + "Remote/SetFileStream", content, ct);
+//                            if (!response.IsSuccessStatusCode)
+//                            {
+//                                throw new RemoteOperationException($"The data download did not complete as the http server returned the response {response.ReasonPhrase}.");
+//                            }
+//                            var returnValue = Json.DeserializeObject<ReturnValue>(await response.Content.ReadAsStringAsync(), _temporaryEncryptionKey);
+//                            if (!returnValue.Success)
+//                            {
+//                                throw new RemoteOperationException($"The data download did not completed.  {returnValue.Message}", returnValue.Exception);
+//                            }
+//                        }
                     }
 
                     var startdownloadResult = _managedTasks.Add(reference, clientId, $"Download Data File", "Download", cache.HubKey, 0, null, DownloadTask, null, null, null);
