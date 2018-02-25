@@ -473,6 +473,8 @@ namespace dexih.remote
 
                 if (connectResult == DexihRemote.EConnectionResult.Connected)
                 {
+                    remoteSettings.AppSettings.IpAddress = loginResult.ipAddress;
+
                     if (!savedSettings && saveSettings)
                     {
                         remoteSettings.AppSettings.UserToken = loginResult.userToken;

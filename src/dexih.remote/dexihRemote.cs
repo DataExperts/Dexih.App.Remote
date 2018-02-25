@@ -60,6 +60,8 @@ namespace dexih.remote
         private readonly ConcurrentDictionary<string, RemoteMessage> _responseMessages = new ConcurrentDictionary<string, RemoteMessage>(); //list of responses returned from clients.  This is updated by the hub.
         private readonly ConcurrentBag<ResponseMessage> _sendMessageQueue = new ConcurrentBag<ResponseMessage>();
         private readonly IDownloadStreams _downloadStreams = new DownloadStreams();
+        private readonly IUploadStreams _uploadStreams = new UploadStreams();
+        private readonly IBufferedStreams _bufferredStreams = new BufferedStreams();
 
         public DexihRemote(RemoteSettings remoteSettings, LoggerFactory loggerFactory)
         {
@@ -87,7 +89,7 @@ namespace dexih.remote
             //Login to the web server to receive an authenicated cookie.
             _httpClient = new HttpClient(handler);
             
-            _remoteOperations = new RemoteOperations(_remoteSettings, SessionEncryptionKey, LoggerMessages, _httpClient, Url, _downloadStreams);
+            _remoteOperations = new RemoteOperations(_remoteSettings, SessionEncryptionKey, LoggerMessages, _httpClient, Url, _downloadStreams, _uploadStreams, _bufferredStreams);
         }
 
         /// <summary>
@@ -96,7 +98,7 @@ namespace dexih.remote
         /// <param name="generateUserToken">Create a new user authentication token</param>
         /// <param name="silentLogin"></param>
         /// <returns>The connection result, and a new user token if generated.</returns>
-        public async Task<(EConnectionResult connectionResult, string userToken)> LoginAsync(bool generateUserToken, bool silentLogin = false)
+        public async Task<(EConnectionResult connectionResult, string userToken, string ipAddress)> LoginAsync(bool generateUserToken, bool silentLogin = false)
         {
             var logger = LoggerFactory.CreateLogger("Login");
             try
@@ -120,7 +122,7 @@ namespace dexih.remote
                     new KeyValuePair<string, string>("EncryptionKey", SessionEncryptionKey),
                     new KeyValuePair<string, string>("RemoteAgentId", _remoteSettings.AppSettings.RemoteAgentId),
                     new KeyValuePair<string, string>("DownloadDataPort", _remoteSettings.AppSettings.DownloadPort.ToString()),
-                    new KeyValuePair<string, string>("DownloadDataUrl", _remoteSettings.AppSettings.DownloadUrl),
+                    new KeyValuePair<string, string>("ExternalDownloadUrl", _remoteSettings.AppSettings.ExternalDownloadUrl),
                     new KeyValuePair<string, string>("GenerateUserToken", generateUserToken.ToString()),
                     new KeyValuePair<string, string>("Version", runtimeVersion)
                 });
@@ -136,14 +138,14 @@ namespace dexih.remote
                         logger.LogCritical(10, ex,
                             "Could not connect to the server at location: {server}, with the message: {message}",
                             Url + "/Remote/Login", ex.Message);
-                    return (EConnectionResult.InvalidLocation, "");
+                    return (EConnectionResult.InvalidLocation, "", "");
                 }
                 catch (Exception ex)
                 {
                     if (!silentLogin)
                         logger.LogCritical(10, ex, "Internal rrror connecting to the server at location: {0}",
                             Url + "/Remote/Login");
-                    return (EConnectionResult.InvalidLocation, "");
+                    return (EConnectionResult.InvalidLocation, "", "");
                 }
 
                 //login to the server and receive a securityToken which is used for future communcations.
@@ -151,7 +153,7 @@ namespace dexih.remote
                 if (string.IsNullOrEmpty(serverResponse))
                 {
                     logger.LogCritical(3, "No response returned from server when logging in.");
-                    return (EConnectionResult.InvalidLocation, "");
+                    return (EConnectionResult.InvalidLocation, "", "");
                 }
 
                 var parsedServerResponse = JObject.Parse(serverResponse);
@@ -160,22 +162,24 @@ namespace dexih.remote
                 {
                     SecurityToken = (string) parsedServerResponse["securityToken"];
                     var userToken = (string) parsedServerResponse["userToken"];
+                    var ipAddress = (string) parsedServerResponse["ipAddress"];
+                    
                     _remoteOperations.SecurityToken = SecurityToken;
 
                     logger.LogInformation(2, "User authentication successful.");
-                    return (EConnectionResult.Connected, userToken);
+                    return (EConnectionResult.Connected, userToken, ipAddress);
                 }
                 else
                 {
                     logger.LogCritical(3, "User authentication failed.  Run with the -reset flag to update the settings.  The authentication message from the server was: {0}.",
                         parsedServerResponse["message"].ToString());
-                    return (EConnectionResult.InvalidCredentials, "");
+                    return (EConnectionResult.InvalidCredentials, "", "");
                 }
             }
             catch (Exception ex)
             {
                 logger.LogError(10, ex, "Error logging in: " + ex.Message);
-                return (EConnectionResult.UnhandledException, "");
+                return (EConnectionResult.UnhandledException, "", "");
             }
         }
 
@@ -185,94 +189,32 @@ namespace dexih.remote
             var logger = LoggerFactory.CreateLogger("Listen");
             try
             {
-                if (HubConnection != null)
-                {
-                    logger.LogDebug(4, "Previous websocket connection open.  Attempting to close");
-                    await HubConnection.DisposeAsync();
-                }
-
-                // Task listener;
-
+          
                 var ts = new CancellationTokenSource();
                 var ct = ts.Token;
 
-                //Connect to the server.
-                //var responseCookies = handler.CookieContainer.GetCookies(uri);
+                var signalrConnectionResult = await SignalRConnection(ts, ct);
 
-                HubConnection BuildHubConnection(TransportType transportType)
+                if (ct.IsCancellationRequested || signalrConnectionResult != EConnectionResult.Connected)
                 {
-                    var con = new HubConnectionBuilder()
-                        .WithUrl(SignalrUrl)
-                        .WithLoggerFactory(LoggerFactory)
-                        .WithTransport(transportType)
-                        .Build();
-
-                    
-                    con.On<RemoteMessage>("Command", async (message) =>
-                    {
-                        await ProcessMessage(message);
-                    });
-
-                    con.Closed += e =>
-                    {
-                        if (e == null)
-                        {
-                            logger.LogInformation("SignalR connection closed.");
-                        }
-                        else
-                        {
-                            logger.LogError("SignalR connection closed with error: {0}", e.Message);
-                        }
-                        ts.Cancel();
-                        return Task.CompletedTask;
-                    };
-
-                    return con;
-                }
-
-
-                HubConnection = BuildHubConnection(_remoteSettings.SystemSettings.SocketTransportType);
-                
-                try
-                {
-                    await HubConnection.StartAsync();
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(10, ex, "Failed to connect with " + _remoteSettings.SystemSettings.SocketTransportType  + ".  Attempting longpolling.");
-
-                    if (_remoteSettings.SystemSettings.SocketTransportType == TransportType.WebSockets)
-                    {
-                        HubConnection = BuildHubConnection(TransportType.LongPolling);
-
-                        try
-                        {
-                            await HubConnection.StartAsync();
-                        }
-                        catch (Exception ex2)
-                        {
-                            logger.LogError(10, ex2, "Failed to connect with LongPolling.  Exiting now.");
-                            return EConnectionResult.UnhandledException;
-                        }
-                    }
-                    else
-                    {
-                        throw;
-                    }
+                    return signalrConnectionResult;
                 }
                 
-				await HubConnection.InvokeAsync("Connect", SecurityToken, cancellationToken: ct);
-
+                // start the send message handler.
                 var sender = SendMessageHandler(ct);
-
                 
                 //set the repeating tasks
                 TimerCallback datalinkProgressCallBack = SendDatalinkProgress;
                 var datalinkProgressTimer = new Timer(datalinkProgressCallBack, null, 500, 500);
 
+                _uploadStreams.OriginUrl = _remoteSettings.AppSettings.WebServer;
+                _uploadStreams.MaxUploadSize = _remoteSettings.AppSettings.MaxUploadSize;
+                
                 var webHost = WebHost.CreateDefaultBuilder()
                     .UseStartup<Startup>()
-                    .ConfigureServices(s => s.AddSingleton<IDownloadStreams>(_downloadStreams))
+                    .ConfigureServices(s => s.AddSingleton(_downloadStreams))
+                    .ConfigureServices(s => s.AddSingleton(_uploadStreams))
+                    .ConfigureServices(s => s.AddSingleton(_bufferredStreams))
                     .UseUrls("http://localhost:" + _remoteSettings.AppSettings.DownloadPort)
                     .Build();
                 
@@ -292,6 +234,95 @@ namespace dexih.remote
                 logger.LogError(10, ex, "Error connecting to hub: " + ex.Message);
                 return EConnectionResult.UnhandledException;
             }
+        }
+
+        /// <summary>
+        /// Open a signalr connection
+        /// </summary>
+        /// <param name="ts"></param>
+        /// <param name="ct"></param>
+        /// <returns></returns>
+        private async Task<EConnectionResult> SignalRConnection(CancellationTokenSource ts, CancellationToken ct)
+        {
+            var logger = LoggerFactory.CreateLogger("SignalR");
+
+            //already a connection open then close it.
+            if (HubConnection != null)
+            {
+                logger.LogDebug(4, "Previous websocket connection open.  Attempting to close");
+                await HubConnection.DisposeAsync();
+            }
+
+            HubConnection BuildHubConnection(TransportType transportType)
+            {
+                // create a new connection that points to web server.
+                var con = new HubConnectionBuilder()
+                    .WithUrl(SignalrUrl)
+                    .WithLoggerFactory(LoggerFactory)
+                    .WithTransport(transportType)
+                    .Build();
+
+                
+                // call the "ProcessMessage" function whenever a signalr message is received.
+                con.On<RemoteMessage>("Command", async (message) =>
+                {
+                    await ProcessMessage(message);
+                });
+
+                // when closed cancel and exit
+                con.Closed += e =>
+                {
+                    if (e == null)
+                    {
+                        logger.LogInformation("SignalR connection closed.");
+                    }
+                    else
+                    {
+                        logger.LogError("SignalR connection closed with error: {0}", e.Message);
+                    }
+                    ts.Cancel();
+                    return Task.CompletedTask;
+                };
+
+                return con;
+            }
+            
+            // attempt a connection with the default transport type.
+            HubConnection = BuildHubConnection(_remoteSettings.SystemSettings.SocketTransportType);
+            
+            try
+            {
+                await HubConnection.StartAsync();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(10, ex, "Failed to connect with " + _remoteSettings.SystemSettings.SocketTransportType  + ".  Attempting longpolling.");
+
+                // if the connection failes, attempt to downgrade to longpolling.
+                if (_remoteSettings.SystemSettings.SocketTransportType == TransportType.WebSockets)
+                {
+                    HubConnection = BuildHubConnection(TransportType.LongPolling);
+
+                    try
+                    {
+                        await HubConnection.StartAsync();
+                    }
+                    catch (Exception ex2)
+                    {
+                        logger.LogError(10, ex2, "Failed to connect with LongPolling.  Exiting now.");
+                        return EConnectionResult.UnhandledException;
+                    }
+                }
+                else
+                {
+                    throw;
+                }
+            }
+
+            await HubConnection.InvokeAsync("Connect", SecurityToken, cancellationToken: ct);
+
+            return EConnectionResult.Connected;
+
         }
 
 

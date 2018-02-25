@@ -43,10 +43,14 @@ namespace dexih.operations
         public string RemoteAgentId { get; set; }
         public string AgentSecret { get; set; }
         public int DownloadPort { get; set; }
-        public string DownloadUrl { get; set; }
+        public string ExternalDownloadUrl { get; set; }
+        public long MaxUploadSize { get; set; }
         
         [JsonIgnore]
         public string Password { get; set; }
+        
+        [JsonIgnore]
+        public string IpAddress { get; set; }
     }
 
     public class SystemSettingsSection
