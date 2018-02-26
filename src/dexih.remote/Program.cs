@@ -63,8 +63,9 @@ namespace dexih.remote
                 remoteSettings = configuration.Get<RemoteSettings>();
             }
 
-            var saveSettings = false;
-            var resetSettings = false;
+            // if the first time running, then prompt user for details.
+            var saveSettings = remoteSettings.AppSettings.FirstRun;
+            var resetSettings = remoteSettings.AppSettings.FirstRun;
 
             //check command line for settings.  command line overrides settings file.
             for (var i = 0; i < args.Length; i++)

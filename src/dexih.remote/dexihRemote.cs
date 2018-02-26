@@ -215,7 +215,7 @@ namespace dexih.remote
                     .ConfigureServices(s => s.AddSingleton(_downloadStreams))
                     .ConfigureServices(s => s.AddSingleton(_uploadStreams))
                     .ConfigureServices(s => s.AddSingleton(_bufferredStreams))
-                    .UseUrls("http://localhost:" + _remoteSettings.AppSettings.DownloadPort)
+                    .UseUrls("http://*:" + _remoteSettings.AppSettings.DownloadPort)
                     .Build();
                 
                 var webRunTask = webHost.RunAsync(ct);

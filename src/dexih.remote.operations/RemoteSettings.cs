@@ -28,7 +28,7 @@ namespace dexih.operations
     
     public class AppSettingsSection
     {
-
+        public bool FirstRun { get; set; }
         public string User { get; set; }
         public string UserToken { get; set; }
         public string EncryptionKey { get; set; }
@@ -42,7 +42,7 @@ namespace dexih.operations
         public string LocalDataSaveLocation { get; set; }
         public string RemoteAgentId { get; set; }
         public string AgentSecret { get; set; }
-        public int DownloadPort { get; set; }
+        public int DownloadPort { get; set; } = 33944; //default port
         public string ExternalDownloadUrl { get; set; }
         public long MaxUploadSize { get; set; }
         
