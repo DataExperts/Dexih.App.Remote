@@ -29,36 +29,23 @@ namespace dexih.remote.operations
     {
         
        
-        private readonly string _permenantEncryptionKey;
         private readonly string _temporaryEncryptionKey;
-        private readonly int _encryptionIterations = 1000; //strength of encryption
         private ILogger LoggerMessages { get; }
-        private EPrivacyLevel PrivacyLevel { get; }
-        private string LocalDataSaveLocation { get; }
         private readonly ManagedTasks _managedTasks;
         private readonly HttpClient _httpClient;
         private string _securityToken;
         private readonly string _url;
-        private readonly IDownloadStreams _downloadStreams;
-        private readonly IUploadStreams _uploadStreams;
-        private readonly IBufferedStreams _bufferedStreams;
+        private readonly IStreams _streams;
         private readonly RemoteSettings _remoteSettings;
 
-        public RemoteOperations(RemoteSettings remoteSettings, string temporaryEncryptionKey, ILogger loggerMessages, HttpClient httpClient, string url, IDownloadStreams downloadStreams, IUploadStreams uploadStreams, IBufferedStreams bufferedStreams)
+        public RemoteOperations(RemoteSettings remoteSettings, string temporaryEncryptionKey, ILogger loggerMessages, HttpClient httpClient, string url, IStreams streams)
         {
             _remoteSettings = remoteSettings;
-            _permenantEncryptionKey = remoteSettings.AppSettings.EncryptionKey;
             _temporaryEncryptionKey = temporaryEncryptionKey;
-            _encryptionIterations = remoteSettings.SystemSettings.EncryptionIteractions;
             LoggerMessages = loggerMessages;
-            PrivacyLevel = remoteSettings.AppSettings.PrivacyLevel;
-            LocalDataSaveLocation = remoteSettings.AppSettings.LocalDataSaveLocation;
             _httpClient = httpClient;
             _url = url;
-
-            _downloadStreams = downloadStreams;
-            _uploadStreams = uploadStreams;
-            _bufferedStreams = bufferedStreams;
+            _streams = streams;
 
             _managedTasks = new ManagedTasks();
         }
@@ -74,17 +61,19 @@ namespace dexih.remote.operations
 
         private string GetDataDownloadUrl(string command, string key, string securityKey)
         {
-            string url;
-            if (!string.IsNullOrEmpty(_remoteSettings.AppSettings.ExternalDownloadUrl))
-            {
-                url = _remoteSettings.AppSettings.ExternalDownloadUrl;
-            }
-            else
-            {
-                url = "http://" + _remoteSettings.AppSettings.IpAddress + ":" + _remoteSettings.AppSettings.DownloadPort;
-            }
-            
+            var url = _remoteSettings.AppSettings.GetDownloadUrl();
             return url + "/" + command + "/" + HttpUtility.UrlEncode(key) + "/" + HttpUtility.UrlEncode(securityKey);
+        }
+
+        public TransformSettings GetTransformSettings(IEnumerable<DexihHubVariable> hubVariables)
+        {
+            var settings = new TransformSettings()
+            {
+                HubVariables = hubVariables,
+                RemoteSettings =  _remoteSettings
+            };
+
+            return settings;
         }
         
         public Task<bool> Ping(RemoteMessage message, CancellationToken cancellationToken)
@@ -138,7 +127,7 @@ namespace dexih.remote.operations
            try
            {
                 var value  = message.Value.ToObject<string>();
-                var result = EncryptString.Encrypt(value, _permenantEncryptionKey, _encryptionIterations);
+                var result = EncryptString.Encrypt(value, _remoteSettings.AppSettings.EncryptionKey, _remoteSettings.SystemSettings.EncryptionIterations);
                 return Task.FromResult(result);
            }
            catch (Exception ex)
@@ -158,7 +147,7 @@ namespace dexih.remote.operations
 			try
 			{
 				var value = message.Value.ToObject<string>();
-				var result = EncryptString.Decrypt(value, _permenantEncryptionKey, _encryptionIterations);
+				var result = EncryptString.Decrypt(value, _remoteSettings.AppSettings.EncryptionKey, _remoteSettings.SystemSettings.EncryptionIterations);
                 return Task.FromResult(result);
             }
             catch (Exception ex)
@@ -207,7 +196,7 @@ namespace dexih.remote.operations
                 var dbHub = message.Value["hub"].ToObject<DexihHub>();
                 var testValue = message.Value["testValue"].ToObject<object>();
 
-                var validationRun = new ColumnValidationRun(_permenantEncryptionKey, message.HubVariables, dbColumnValidation, dbHub);
+                var validationRun = new ColumnValidationRun(GetTransformSettings(message.HubVariables), dbColumnValidation, dbHub);
 
                 var validateCleanResult = await validationRun.ValidateClean(testValue, cancellationToken);
 
@@ -260,7 +249,7 @@ namespace dexih.remote.operations
                             throw new RemoteOperationException($"The datalink with the key {datalinkKey} was not found.");
                         }
 
-                        var datalinkRun = new DatalinkRun(_permenantEncryptionKey, message.HubVariables, LoggerMessages, dbDatalink, dbHub, "Datalink", dbDatalink.DatalinkKey, 0, TransformWriterResult.ETriggerMethod.Manual, "Started manually at " + DateTime.Now.ToString(CultureInfo.InvariantCulture), truncateTarget, resetIncremental, resetIncrementalValue, null);
+                        var datalinkRun = new DatalinkRun(GetTransformSettings(message.HubVariables), LoggerMessages, dbDatalink, dbHub, "Datalink", dbDatalink.DatalinkKey, 0, TransformWriterResult.ETriggerMethod.Manual, "Started manually at " + DateTime.Now.ToString(CultureInfo.InvariantCulture), truncateTarget, resetIncremental, resetIncrementalValue, null);
 
                         var runReturn = RunDataLink(clientId, datalinkRun, null, null);
                     }
@@ -381,7 +370,7 @@ namespace dexih.remote.operations
                             throw new Exception($"Datajob with key {datajobKey} was not found");
                         }
 
-                        var addJobResult = await AddDataJobTask(dbHub, message.HubVariables, clientId, dbDatajob, truncateTarget, resetIncremental, resetIncrementalValue, null, null, TransformWriterResult.ETriggerMethod.Manual, cancellationToken);
+                        var addJobResult = await AddDataJobTask(dbHub, GetTransformSettings(message.HubVariables), clientId, dbDatajob, truncateTarget, resetIncremental, resetIncrementalValue, null, null, TransformWriterResult.ETriggerMethod.Manual, cancellationToken);
                         if (!addJobResult)
                         {
                             throw new Exception($"Failed to start data job {dbDatajob.Name} task.");
@@ -411,14 +400,14 @@ namespace dexih.remote.operations
             }
         }
 
-		private async Task<bool> AddDataJobTask(DexihHub dbHub, IEnumerable<DexihHubVariable> hubVariables, string clientId, DexihDatajob dbDatajob, bool truncateTarget, bool resetIncremental, object resetIncrementalValue, IEnumerable<ManagedTaskSchedule> managedTaskSchedules, IEnumerable<ManagedTaskFileWatcher> fileWatchers, TransformWriterResult.ETriggerMethod triggerMethod, CancellationToken cancellationToken)
+		private async Task<bool> AddDataJobTask(DexihHub dbHub, TransformSettings transformSettings, string clientId, DexihDatajob dbDatajob, bool truncateTarget, bool resetIncremental, object resetIncrementalValue, IEnumerable<ManagedTaskSchedule> managedTaskSchedules, IEnumerable<ManagedTaskFileWatcher> fileWatchers, TransformWriterResult.ETriggerMethod triggerMethod, CancellationToken cancellationToken)
 		{
             try
             {
                 return await Task.Run<bool>(() =>
                 {
 
-                    var datajobRun = new DatajobRun(_permenantEncryptionKey, hubVariables, LoggerMessages, dbDatajob, dbHub, truncateTarget, resetIncremental, resetIncrementalValue);
+                    var datajobRun = new DatajobRun(transformSettings, LoggerMessages, dbDatajob, dbHub, truncateTarget, resetIncremental, resetIncrementalValue);
 
                     async Task DatajobScheduleTask(ManagedTask managedTask, DateTime scheduleTime, CancellationToken ct)
                     {
@@ -542,8 +531,10 @@ namespace dexih.remote.operations
                                             throw new Exception($"Failed to find the connection with the key {dbTable.ConnectionKey} for table {dbTable.Name}.");
                                         }
 
-                                        var connection = dbConnection.GetConnection(_permenantEncryptionKey, message.HubVariables);
-                                        var table = dbTable.GetTable(dbConnection.DatabaseType.Category, _permenantEncryptionKey, message.HubVariables);
+                                        var transformSetting = GetTransformSettings(message.HubVariables);
+
+                                        var connection = dbConnection.GetConnection(transformSetting);
+                                        var table = dbTable.GetTable(dbConnection.DatabaseType.Category, transformSetting);
 
                                         if (table is FlatFile flatFile && connection is ConnectionFlatFile connectionFlatFile)
                                         {
@@ -555,7 +546,7 @@ namespace dexih.remote.operations
                             }
                         }
 
-                        var addJobResult = await AddDataJobTask(dbHub, message.HubVariables, clientId, dbDatajob, truncateTarget, resetIncremental, resetIncrementalValue, triggers, paths, TransformWriterResult.ETriggerMethod.Schedule, cancellationToken);
+                        var addJobResult = await AddDataJobTask(dbHub, GetTransformSettings(message.HubVariables), clientId, dbDatajob, truncateTarget, resetIncremental, resetIncrementalValue, triggers, paths, TransformWriterResult.ETriggerMethod.Schedule, cancellationToken);
                         if (!addJobResult)
                         {
                             throw new Exception($"Failed to activate data job {dbDatajob.Name} task.");
@@ -591,7 +582,7 @@ namespace dexih.remote.operations
            {
                 //Import the datalink metadata.
                 var dbConnection = message.Value.ToObject<DexihConnection>();
-                var connection = dbConnection.GetConnection(_permenantEncryptionKey, message.HubVariables);
+                var connection = dbConnection.GetConnection(GetTransformSettings(message.HubVariables));
                 await connection.CreateDatabase(dbConnection.DefaultDatabase, cancellationToken);
                 
                 LoggerMessages.LogInformation("Database created for : {Connection}, with name: {Name}", dbConnection.Name, dbConnection.DefaultDatabase);
@@ -611,7 +602,7 @@ namespace dexih.remote.operations
             {
                 //Import the datalink metadata.
                 var dbConnection = message.Value.ToObject<DexihConnection>();
-                var connection = dbConnection.GetConnection(_permenantEncryptionKey, message.HubVariables);
+                var connection = dbConnection.GetConnection(GetTransformSettings(message.HubVariables));
                 var connectionTest = await connection.GetDatabaseList(cancellationToken);
 
                 LoggerMessages.LogInformation("Database  connection tested for :{Connection}", dbConnection.Name);
@@ -631,7 +622,7 @@ namespace dexih.remote.operations
             try
             {
                 var dbConnection = message.Value.ToObject<DexihConnection>();
-                var connection = dbConnection.GetConnection(_permenantEncryptionKey, message.HubVariables);
+                var connection = dbConnection.GetConnection(GetTransformSettings(message.HubVariables));
 
                 //retrieve the source tables into the cache.
                 var tablesResult = await connection.GetTableList(cancellationToken);
@@ -649,7 +640,7 @@ namespace dexih.remote.operations
         {
             try
             {
-                var transformOperations = new TransformsManager(_permenantEncryptionKey, message.HubVariables);
+                var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
                 var dbConnections = message.Value["connections"].ToObject<DexihConnection[]>();
                 var dbTables = message.Value["tables"].ToObject<List<DexihTable>>();
 
@@ -662,9 +653,10 @@ namespace dexih.remote.operations
                     {
                         throw new RemoteOperationException($"The connection for the table {dbTable.Name} could not be found.");
                     }
-                    
-                    var connection = dbConnection.GetConnection(_permenantEncryptionKey, message.HubVariables);
-                    var table = dbTable.GetTable(dbConnection.DatabaseType.Category, _permenantEncryptionKey, message.HubVariables);
+
+                    var transformSettings = GetTransformSettings(message.HubVariables);
+                    var connection = dbConnection.GetConnection(transformSettings);
+                    var table = dbTable.GetTable(dbConnection.DatabaseType.Category, transformSettings);
 
                     try
                     {
@@ -697,7 +689,7 @@ namespace dexih.remote.operations
         {
             try
             {
-                var transformOperations = new TransformsManager(_permenantEncryptionKey, message.HubVariables);
+                var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
                 var dbConnections = message.Value["connections"].ToObject<DexihConnection[]>();
                 var dbTables = message.Value["tables"].ToObject<List<DexihTable>>();
                 var dropTables = message.Value["dropTables"]?.ToObject<bool>() ?? false;
@@ -712,8 +704,9 @@ namespace dexih.remote.operations
                         throw new RemoteOperationException($"The connection for the table {dbTable.Name} could not be found.");
                     }
 
-                    var connection = dbConnection.GetConnection(_permenantEncryptionKey, message.HubVariables);
-                    var table = dbTable.GetTable(dbConnection.DatabaseType.Category, _permenantEncryptionKey, message.HubVariables);
+                    var transformSettings = GetTransformSettings(message.HubVariables);
+                    var connection = dbConnection.GetConnection(transformSettings);
+                    var table = dbTable.GetTable(dbConnection.DatabaseType.Category, transformSettings);
                     try
                     {
                         await connection.CreateTable(table, dropTables, cancellationToken);
@@ -764,8 +757,9 @@ namespace dexih.remote.operations
                             throw new RemoteOperationException($"The connection for the table {dbTable.Name} could not be found.");
                         }
 
-                        var connection = dbConnection.GetConnection(_permenantEncryptionKey, message.HubVariables);
-                        var table = dbTable.GetTable(dbConnection.DatabaseType.Category, _permenantEncryptionKey, message.HubVariables);
+                        var transformSettings = GetTransformSettings(message.HubVariables);
+                        var connection = dbConnection.GetConnection(transformSettings);
+                        var table = dbTable.GetTable(dbConnection.DatabaseType.Category, transformSettings);
                         await connection.TruncateTable(table, cancellationToken);
 
                         LoggerMessages.LogTrace("Clear database table for table {table} and connection {connection} completed.", dbTable.Name, dbConnection.Name);
@@ -790,11 +784,11 @@ namespace dexih.remote.operations
             }
         }
         
-        public async Task<Table> PreviewTable(RemoteMessage message, CancellationToken cancellationToken)
+        public async Task<string> PreviewTable(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
             {
-                if (PrivacyLevel != EPrivacyLevel.AllowDataDownload && string.IsNullOrEmpty(LocalDataSaveLocation))
+                if (!_remoteSettings.AppSettings.AllowDataDownload)
                 {
                     throw new RemoteSecurityException("This remote agent's privacy settings does not allow remote data previews.");
                 }
@@ -805,22 +799,26 @@ namespace dexih.remote.operations
                 var selectQuery = message.Value["selectQuery"].ToObject<SelectQuery>();
 
                 //retrieve the source tables into the cache.
-                var transformOperations = new TransformsManager(_permenantEncryptionKey, message.HubVariables);
+                var settings = GetTransformSettings(message.HubVariables);
 
-                var data = await transformOperations.GetPreview(dbTable, dbHub, selectQuery, showRejectedData, cancellationToken);
+                var dbConnection = dbHub.DexihConnections.SingleOrDefault(c => c.ConnectionKey == dbTable.ConnectionKey && c.IsValid);
+                if (dbConnection == null)
+                {
+                    throw new TransformManagerException($"The connection with the key {dbTable.ConnectionKey} was not found.");
+                }
+                
+                var connection = dbConnection.GetConnection(settings);
+                var table = showRejectedData ? dbTable.GetRejectedTable(connection.DatabaseCategory, settings) : dbTable.GetTable(connection.DatabaseCategory, settings);
+
+                var reader = connection.GetTransformReader(table);
+                await reader.Open(0, selectQuery, cancellationToken);
+                
                 LoggerMessages.LogInformation("Preview for table: " + dbTable.Name + ".");
 
-                if (PrivacyLevel == EPrivacyLevel.AllowDataDownload)
-                {
-                    data.Data.ClearDbNullValues();
-                    return data;
-                }
+                var stream = new TransformJsonStream(reader, selectQuery.Rows);
+                var keys = _streams.SetDownloadStream("", stream);
 
-                if (!Directory.Exists(LocalDataSaveLocation)) Directory.CreateDirectory(LocalDataSaveLocation);
-                var saveFileName = LocalDataSaveLocation + "/dexihpreview_" + Guid.NewGuid() + ".csv";
-                File.WriteAllText(saveFileName, data.GetCsv());
-
-                throw new RemoteSecurityException("This remote agent's privacy settings does not allow remote data previews.  The preview data have been saved locally to the following file: " + saveFileName, null);
+                return GetDataDownloadUrl("json", keys.key, keys.securityKey);
             }
             catch (Exception ex)
             {
@@ -829,11 +827,11 @@ namespace dexih.remote.operations
             }
         }
 
-        public async Task<Table> PreviewTransform(RemoteMessage message, CancellationToken cancellationToken)
+        public async Task<string> PreviewTransform(RemoteMessage message, CancellationToken cancellationToken)
         {
            try
            {
-               if (PrivacyLevel != EPrivacyLevel.AllowDataDownload && string.IsNullOrEmpty(LocalDataSaveLocation))
+               if (!_remoteSettings.AppSettings.AllowDataDownload)
                 {
                     throw new RemoteSecurityException("This remote agent's privacy settings does not allow remote data previews.");
                 }
@@ -843,7 +841,7 @@ namespace dexih.remote.operations
                 var datalinkTransformKey = message.Value["datalinkTransformKey"]?.ToObject<long>() ?? 0;
                 var rows = message.Value["rows"]?.ToObject<long>() ?? long.MaxValue;
                 
-                var transformOperations = new TransformsManager(_permenantEncryptionKey, message.HubVariables);
+                var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
                 var runPlan = transformOperations.CreateRunPlan(dbHub, dbDatalink, datalinkTransformKey, null, false);
                 var transform = runPlan.sourceTransform;
                 var openReturn = await transform.Open(0, null, cancellationToken);
@@ -853,30 +851,11 @@ namespace dexih.remote.operations
 
                 transform.SetCacheMethod(Transform.ECacheMethod.OnDemandCache);
 				transform.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
-
-                var count = 1;
-                //loop through the transform to cache the preview data.
-                while ((await transform.ReadAsync(cancellationToken)) && count < rows && cancellationToken.IsCancellationRequested == false)
-                {
-                    count++;
-                }
-                transform.Dispose();
-
-               LoggerMessages.LogInformation("Preview for transform in datalink: {1}.", dbDatalink.Name);
-
-
-               if (PrivacyLevel == EPrivacyLevel.AllowDataDownload)
-               {
-                    transform.CacheTable.Data.ClearDbNullValues();
-
-                    return transform.CacheTable;
-               }
                
-               if (!Directory.Exists(LocalDataSaveLocation)) Directory.CreateDirectory(LocalDataSaveLocation);
-               var fileName = LocalDataSaveLocation + "/dexihpreview_" + Guid.NewGuid() + ".csv";
-               File.WriteAllText(fileName, transform.CacheTable.GetCsv());
+               var stream = new TransformJsonStream(transform, rows);
+               var keys = _streams.SetDownloadStream("", stream);
 
-               throw new RemoteSecurityException("This remote agent's privacy settings does not allow remote data previews.  The preview data have been saved locally to the following file: " + fileName, null);
+               return GetDataDownloadUrl("json", keys.key, keys.securityKey);
            }
            catch (Exception ex)
            {
@@ -886,11 +865,11 @@ namespace dexih.remote.operations
 
         }
         
-        public async Task<Table> PreviewDatalink(RemoteMessage message, CancellationToken cancellationToken)
+        public async Task<string> PreviewDatalink(RemoteMessage message, CancellationToken cancellationToken)
         {
            try
            {
-                if (PrivacyLevel != EPrivacyLevel.AllowDataDownload && string.IsNullOrEmpty(LocalDataSaveLocation))
+               if (!_remoteSettings.AppSettings.AllowDataDownload)
                 {
                     throw new RemoteSecurityException("This remote agent's privacy settings does not allow remote data previews.");
                 }
@@ -900,7 +879,7 @@ namespace dexih.remote.operations
                var selectQuery = message.Value["selectQuery"].ToObject<SelectQuery>();
                var dbDatalink = dbHub.DexihDatalinks.Single(c => c.DatalinkKey == datalinkKey);
                
-                var transformOperations = new TransformsManager(_permenantEncryptionKey, message.HubVariables);
+                var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
                 var runPlan = transformOperations.CreateRunPlan(dbHub, dbDatalink, null, null, false, selectQuery);
                 var transform = runPlan.sourceTransform;
                 var openReturn = await transform.Open(0, null, cancellationToken);
@@ -912,29 +891,11 @@ namespace dexih.remote.operations
                 transform.SetCacheMethod(Transform.ECacheMethod.OnDemandCache);
 				transform.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
 
-                var count = 1;
-                //loop through the transform to cache the preview data.
-                while ((await transform.ReadAsync(cancellationToken)) && count < selectQuery.Rows && cancellationToken.IsCancellationRequested == false)
-                {
-                    count++;
-                }
-                transform.Dispose();
+               var stream = new TransformJsonStream(transform, selectQuery.Rows);
+               var keys = _streams.SetDownloadStream("", stream);
 
-               LoggerMessages.LogInformation("Preview for transform in datalink: {1}.", dbDatalink.Name);
+               return GetDataDownloadUrl("json", keys.key, keys.securityKey);
 
-
-               if (PrivacyLevel == EPrivacyLevel.AllowDataDownload)
-               {
-                    transform.CacheTable.Data.ClearDbNullValues();
-
-                    return transform.CacheTable;
-               }
-
-               if (!Directory.Exists(LocalDataSaveLocation)) Directory.CreateDirectory(LocalDataSaveLocation);
-               var fileName = LocalDataSaveLocation + "/dexihpreview_" + Guid.NewGuid() + ".csv";
-               File.WriteAllText(fileName, transform.CacheTable.GetCsv());
-
-               throw new RemoteSecurityException("This remote agent's privacy settings does not allow remote data previews.  The preview data have been saved locally to the following file: " + fileName);
            }
            catch (Exception ex)
            {
@@ -952,8 +913,7 @@ namespace dexih.remote.operations
         /// <returns></returns>
         public async Task<string> GetRemoteData(RemoteMessage message, CancellationToken cancellationToken)
         {
-
-                if (PrivacyLevel != EPrivacyLevel.AllowDataDownload && string.IsNullOrEmpty(LocalDataSaveLocation))
+            if (!_remoteSettings.AppSettings.AllowDataDownload)
                 {
                     throw new RemoteSecurityException(
                         "This remote agent's privacy settings does not allow remote data to be accessed.");
@@ -978,13 +938,13 @@ namespace dexih.remote.operations
 //
 //                var getRemoteData = _managedTasks.Add("", $"Remote extract: {dbDatalink.Name}.", "RemoteExtract", dbDatalink.HubKey, dbDatalink.DatalinkKey, null, RemoteExtract, null, null);
 
-                var transformOperations = new TransformsManager(_permenantEncryptionKey, message.HubVariables);
+                var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
                 var runPlan = transformOperations.CreateRunPlan(dbCache.DexihHub, dbDatalink, null, null, false, selectQuery);
                 var transform = runPlan.sourceTransform;
                 var openReturn = await transform.Open(0, selectQuery, cancellationToken);
                 var csvStream = new TransformCsvStream(transform);
 
-                var keys = _downloadStreams.SetDownloadStream("csv", csvStream);
+                var keys = _streams.SetDownloadStream("csv", csvStream);
                 var url = GetDataDownloadUrl("csv", keys.key, keys.securityKey);
 
                 return url;
@@ -995,7 +955,7 @@ namespace dexih.remote.operations
         {
             try
             {
-                if (PrivacyLevel != EPrivacyLevel.AllowDataDownload && string.IsNullOrEmpty(LocalDataSaveLocation))
+                if (!_remoteSettings.AppSettings.AllowDataDownload)
                 {
                     throw new RemoteSecurityException("This remote agent's privacy settings does not allow remote data to be accessed.");
                 }
@@ -1013,7 +973,7 @@ namespace dexih.remote.operations
                 var resultsFound = false;
                 foreach (var dbConnection in dbConnections)
                 {
-                    var connection = dbConnection.GetConnection(_permenantEncryptionKey, message.HubVariables);
+                    var connection = dbConnection.GetConnection(GetTransformSettings(message.HubVariables));
 
                     var existsResult = await connection.TableExists(profileTable, cancellationToken);
                     if(existsResult)
@@ -1039,24 +999,13 @@ namespace dexih.remote.operations
 
                 if (resultsFound)
                 {
-                    if (PrivacyLevel == EPrivacyLevel.AllowDataDownload)
-                    {
-                        data.Data.ClearDbNullValues();
+                    data.Data.ClearDbNullValues();
 
-                        return data;
-                    }
-                    else
-                    {
-                        if (!Directory.Exists(LocalDataSaveLocation)) Directory.CreateDirectory(LocalDataSaveLocation);
-                        var fileName = LocalDataSaveLocation + "/dexihpreview_" + Guid.NewGuid() + ".csv";
-                        File.WriteAllText(fileName, data.GetCsv());
-
-                        throw new RemoteSecurityException("This remote agent's privacy settings does not allow remote data previews.  The preview data have been saved locally to the following file: " + fileName);
-                    }
+                    return data;
                 }
                 else
                 {
-                    throw new RemoteSecurityException("The profile results could not be found on existing managed connections.");
+                    throw new RemoteOperationException("The profile results could not be found on existing managed connections.");
                 }
             }
             catch (Exception ex)
@@ -1090,7 +1039,7 @@ namespace dexih.remote.operations
 
                 foreach (var dbConnection in dbConnections)
                 {
-                    var connection = dbConnection.GetConnection(_permenantEncryptionKey, message.HubVariables);
+                    var connection = dbConnection.GetConnection(GetTransformSettings(message.HubVariables));
                     var writerResults = await connection.GetTransformWriterResults(hubKey, referenceKeys, auditType, auditKey, runStatus, previousResult, previousSuccessResult, currentResult, startTime, rows, parentAuditKey, childItems, cancellationToken);
                     transformWriterResults.AddRange(writerResults);
                 }
@@ -1110,8 +1059,9 @@ namespace dexih.remote.operations
             var dbHub = message.Value["hub"].ToObject<DexihHub>();
             var dbTable = Json.JTokenToObject<DexihTable>(message.Value["table"], _temporaryEncryptionKey);
             var dbConnection =dbHub.DexihConnections.First();
-            var table = dbTable.GetTable(dbConnection.DatabaseType.Category, _permenantEncryptionKey, message.HubVariables);
-            var connection = (ConnectionFlatFile)dbConnection.GetConnection(_permenantEncryptionKey, message.HubVariables);
+		    var transformSettings = GetTransformSettings(message.HubVariables);
+            var table = dbTable.GetTable(dbConnection.DatabaseType.Category,  transformSettings);
+            var connection = (ConnectionFlatFile)dbConnection.GetConnection(transformSettings);
 			return (dbConnection.HubKey, connection, (FlatFile) table);
 		}
 
@@ -1208,7 +1158,7 @@ namespace dexih.remote.operations
         {
             try
             {
-                if (PrivacyLevel != EPrivacyLevel.AllowDataDownload && PrivacyLevel != EPrivacyLevel.AllowDataUpload  && string.IsNullOrEmpty(LocalDataSaveLocation))
+                if (!_remoteSettings.AppSettings.AllowDataUpload)
                 {
                     throw new RemoteSecurityException("This remote agent's privacy settings does not allow remote data to be accessed.");
                 }
@@ -1225,8 +1175,9 @@ namespace dexih.remote.operations
                     throw new RemoteOperationException("The table could not be found.");
                 }
 
-                var table = dbTable.GetTable(dbConnection.DatabaseType.Category, _permenantEncryptionKey, message.HubVariables);
-                var connection = (ConnectionFlatFile)dbConnection.GetConnection(_permenantEncryptionKey, message.HubVariables);
+                var transformSettings = GetTransformSettings(message.HubVariables);
+                var table = dbTable.GetTable(dbConnection.DatabaseType.Category, transformSettings);
+                var connection = (ConnectionFlatFile)dbConnection.GetConnection(transformSettings);
 
                 var flatFile = (FlatFile)table;
 
@@ -1297,7 +1248,7 @@ namespace dexih.remote.operations
         {
              try
             {
-                if (PrivacyLevel != EPrivacyLevel.AllowDataDownload && PrivacyLevel != EPrivacyLevel.AllowDataUpload  && string.IsNullOrEmpty(LocalDataSaveLocation))
+                if (!_remoteSettings.AppSettings.AllowDataUpload)
                 {
                     throw new RemoteSecurityException("This remote agent's privacy settings does not allow remote data to be accessed.");
                 }
@@ -1314,8 +1265,9 @@ namespace dexih.remote.operations
                     throw new RemoteOperationException("The table could not be found.");
                 }
 
-                var table = dbTable.GetTable(dbConnection.DatabaseType.Category, _permenantEncryptionKey, message.HubVariables);
-                var connection = (ConnectionFlatFile)dbConnection.GetConnection(_permenantEncryptionKey, message.HubVariables);
+                var transformSettings = GetTransformSettings(message.HubVariables);
+                var table = dbTable.GetTable(dbConnection.DatabaseType.Category, transformSettings);
+                var connection = (ConnectionFlatFile)dbConnection.GetConnection(transformSettings);
 
                 var flatFile = (FlatFile)table;
                 var fileName = message.GetParameter("FileName");
@@ -1358,7 +1310,7 @@ namespace dexih.remote.operations
                     }
                 }
 
-                var keys = _uploadStreams.SetUploadAction(ProcessTask);
+                var keys = _streams.SetUploadAction(ProcessTask);
 
                 return keys;
             }
@@ -1373,6 +1325,11 @@ namespace dexih.remote.operations
         {
             try
             {
+                if (!_remoteSettings.AppSettings.AllowDataDownload)
+                {
+                    throw new RemoteSecurityException("This remote agent's privacy settings does not allow remote data to be accessed.");
+                }
+
                 var connectionTable = GetFlatFile(message);
                 var path = message.Value["path"].ToObject<EFlatFilePath>();
                 var files = message.Value["files"].ToObject<string[]>();
@@ -1390,7 +1347,7 @@ namespace dexih.remote.operations
 
                     progress.Report(100, 2, "Files ready for download...");
 
-                    var keys = _downloadStreams.SetDownloadStream(filename, downloadStream);
+                    var keys = _streams.SetDownloadStream(filename, downloadStream);
 
                     //progress messages are send and forget as it is not critical that they are received.
                     using (var content = new MultipartFormDataContent())
@@ -1429,6 +1386,11 @@ namespace dexih.remote.operations
         {
             try
             {
+                if (!_remoteSettings.AppSettings.AllowDataDownload)
+                {
+                    throw new RemoteSecurityException("This remote agent's privacy settings does not allow remote data to be accessed.");
+                }
+
                 return await Task.Run(() =>
                 {
 
@@ -1445,14 +1407,14 @@ namespace dexih.remote.operations
                     async Task DownloadTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken ct)
                     {
                         progress.Report(50, 1, "Running data extract...");
-                        var downloadData = new DownloadData(_permenantEncryptionKey, message.HubVariables);
+                        var downloadData = new DownloadData(GetTransformSettings(message.HubVariables));
                         var downloadStream = await downloadData.GetStream(cache, downloadObjects, downloadFormat, zipFiles, cancellationToken);
                         var filename = downloadStream.FileName;
                         var stream = downloadStream.Stream;
 
                         progress.Report(100, 2, "Download ready...");
 
-                        var keys = _downloadStreams.SetDownloadStream(filename, stream);
+                        var keys = _streams.SetDownloadStream(filename, stream);
 
                         using (var content = new MultipartFormDataContent())
                         {

@@ -29,7 +29,7 @@ namespace dexih.remote
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IHostingEnvironment env, IDownloadStreams downloadStreams, IUploadStreams uploadStreams, IBufferedStreams bufferedStreams)
+        public void Configure(IApplicationBuilder app, IHostingEnvironment env, IStreams streams)
         {
             if (env.IsDevelopment())
             {
@@ -68,7 +68,7 @@ namespace dexih.remote
                         {
                             case "download":
 
-                                var downloadStream = downloadStreams.GetDownloadStream(key, securityKey);
+                                var downloadStream = streams.GetDownloadStream(key, securityKey);
 
                                 context.Response.Headers.Add("application/octet-stream", "");
                                 context.Response.Headers.Add("Content-Disposition",
@@ -81,8 +81,8 @@ namespace dexih.remote
                                 
                             case "csv" :
                                 
-                                var downloadStream2 = downloadStreams.GetDownloadStream(key, securityKey);
-                                // context.Response.Headers.Add("text/csv", "");
+                                var downloadStream2 = streams.GetDownloadStream(key, securityKey);
+                                context.Response.ContentType = "text/csv";
                                 context.Response.StatusCode = 200;
 
                                 await downloadStream2.stream.CopyToAsync(context.Response.Body);
@@ -90,30 +90,40 @@ namespace dexih.remote
 
 
                                 break;
+
+                            case "json" :
                                 
-
-                            case "reader":
-
-                                var readerStream =
-                                    await bufferedStreams.GetDownloadBuffer(key, securityKey, CancellationToken.None);
-
+                                var downloadStream3 = streams.GetDownloadStream(key, securityKey);
                                 context.Response.ContentType = "application/json";
+                                context.Response.StatusCode = 200;
 
-                                // use status code 206 more data available
-                                context.Response.StatusCode = readerStream.moreData ? 206 : 200;
-
-                                using (var writer = new StreamWriter(context.Response.Body))
-                                {
-                                    new JsonSerializer().Serialize(writer, readerStream.buffer);
-                                    await writer.FlushAsync().ConfigureAwait(false);
-                                }
+                                await downloadStream3.stream.CopyToAsync(context.Response.Body);
+                                downloadStream3.stream.Close();
 
                                 break;
+
+//                            case "reader":
+//
+//                                var readerStream =
+//                                    await streams.GetDownloadBuffer(key, securityKey, CancellationToken.None);
+//
+//                                context.Response.ContentType = "application/json";
+//
+//                                // use status code 206 more data available
+//                                context.Response.StatusCode = readerStream.moreData ? 206 : 200;
+//
+//                                using (var writer = new StreamWriter(context.Response.Body))
+//                                {
+//                                    new JsonSerializer().Serialize(writer, readerStream.buffer);
+//                                    await writer.FlushAsync().ConfigureAwait(false);
+//                                }
+//
+//                                break;
                             case "upload":
                                 var memoryStream = new MemoryStream();
                                 await context.Request.Body.CopyToAsync(memoryStream);
                                 memoryStream.Position = 0;
-                                await uploadStreams.ProcessUploadAction(key, securityKey, memoryStream);
+                                await streams.ProcessUploadAction(key, securityKey, memoryStream);
                                 var result = new ReturnValue(true);
 
                                 context.Response.ContentType = "application/json";

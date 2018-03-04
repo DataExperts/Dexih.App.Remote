@@ -15,6 +15,7 @@ using Dexih.Utils.Crypto;
 using Dexih.Utils.MessageHelpers;
 using dexih.remote.operations;
 using dexih.remote.Operations.Services;
+using dexih.repository;
 using Dexih.Utils.ManagedTasks;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Hosting;
@@ -59,9 +60,7 @@ namespace dexih.remote
 
         private readonly ConcurrentDictionary<string, RemoteMessage> _responseMessages = new ConcurrentDictionary<string, RemoteMessage>(); //list of responses returned from clients.  This is updated by the hub.
         private readonly ConcurrentBag<ResponseMessage> _sendMessageQueue = new ConcurrentBag<ResponseMessage>();
-        private readonly IDownloadStreams _downloadStreams = new DownloadStreams();
-        private readonly IUploadStreams _uploadStreams = new UploadStreams();
-        private readonly IBufferedStreams _bufferredStreams = new BufferedStreams();
+        private readonly IStreams _streams = new Streams();
 
         public DexihRemote(RemoteSettings remoteSettings, LoggerFactory loggerFactory)
         {
@@ -89,7 +88,7 @@ namespace dexih.remote
             //Login to the web server to receive an authenicated cookie.
             _httpClient = new HttpClient(handler);
             
-            _remoteOperations = new RemoteOperations(_remoteSettings, SessionEncryptionKey, LoggerMessages, _httpClient, Url, _downloadStreams, _uploadStreams, _bufferredStreams);
+            _remoteOperations = new RemoteOperations(_remoteSettings, SessionEncryptionKey, LoggerMessages, _httpClient, Url, _streams);
         }
 
         /// <summary>
@@ -113,19 +112,19 @@ namespace dexih.remote
                         _remoteSettings.AppSettings.Name, Url, _remoteSettings.AppSettings.User);
                 }
 
-                var content = new FormUrlEncodedContent(new[]
+
+                var login = new
                 {
-                    new KeyValuePair<string, string>("User", _remoteSettings.AppSettings.User),
-                    new KeyValuePair<string, string>("Password", _remoteSettings.AppSettings.Password),
-                    new KeyValuePair<string, string>("UserToken", _remoteSettings.AppSettings.UserToken),
-                    new KeyValuePair<string, string>("ServerName", _remoteSettings.AppSettings.Name),
-                    new KeyValuePair<string, string>("EncryptionKey", SessionEncryptionKey),
-                    new KeyValuePair<string, string>("RemoteAgentId", _remoteSettings.AppSettings.RemoteAgentId),
-                    new KeyValuePair<string, string>("DownloadDataPort", _remoteSettings.AppSettings.DownloadPort.ToString()),
-                    new KeyValuePair<string, string>("ExternalDownloadUrl", _remoteSettings.AppSettings.ExternalDownloadUrl),
-                    new KeyValuePair<string, string>("GenerateUserToken", generateUserToken.ToString()),
-                    new KeyValuePair<string, string>("Version", runtimeVersion)
-                });
+                    User = _remoteSettings.AppSettings.User,
+                    Password = _remoteSettings.AppSettings.Password,
+                    UserToken = _remoteSettings.AppSettings.UserToken,
+                    Version = runtimeVersion,
+                    GenerateToken = generateUserToken,
+                    RemoteSettings = _remoteSettings
+                };
+                
+                var messagesString = Json.SerializeObject(login, SessionEncryptionKey);
+                var content = new StringContent(messagesString, Encoding.UTF8, "application/json");
 
                 HttpResponseMessage response;
                 try
@@ -207,14 +206,12 @@ namespace dexih.remote
                 TimerCallback datalinkProgressCallBack = SendDatalinkProgress;
                 var datalinkProgressTimer = new Timer(datalinkProgressCallBack, null, 500, 500);
 
-                _uploadStreams.OriginUrl = _remoteSettings.AppSettings.WebServer;
-                _uploadStreams.MaxUploadSize = _remoteSettings.AppSettings.MaxUploadSize;
+                _streams.OriginUrl = _remoteSettings.AppSettings.WebServer;
+                _streams.RemoteSettings = _remoteSettings;
                 
                 var webHost = WebHost.CreateDefaultBuilder()
                     .UseStartup<Startup>()
-                    .ConfigureServices(s => s.AddSingleton(_downloadStreams))
-                    .ConfigureServices(s => s.AddSingleton(_uploadStreams))
-                    .ConfigureServices(s => s.AddSingleton(_bufferredStreams))
+                    .ConfigureServices(s => s.AddSingleton(_streams))
                     .UseUrls("http://*:" + _remoteSettings.AppSettings.DownloadPort)
                     .Build();
                 
@@ -288,7 +285,7 @@ namespace dexih.remote
             }
             
             // attempt a connection with the default transport type.
-            HubConnection = BuildHubConnection(_remoteSettings.SystemSettings.SocketTransportType);
+            HubConnection = BuildHubConnection((TransportType) _remoteSettings.SystemSettings.SocketTransportType);
             
             try
             {
@@ -299,7 +296,7 @@ namespace dexih.remote
                 logger.LogError(10, ex, "Failed to connect with " + _remoteSettings.SystemSettings.SocketTransportType  + ".  Attempting longpolling.");
 
                 // if the connection failes, attempt to downgrade to longpolling.
-                if (_remoteSettings.SystemSettings.SocketTransportType == TransportType.WebSockets)
+                if ((TransportType)_remoteSettings.SystemSettings.SocketTransportType == TransportType.WebSockets)
                 {
                     HubConnection = BuildHubConnection(TransportType.LongPolling);
 

@@ -10,6 +10,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using dexih.operations;
+using dexih.repository;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Hosting;
 using Newtonsoft.Json;
@@ -123,20 +124,6 @@ namespace dexih.remote
                         }
 
                         remoteSettings.Logging.LogLevel.Default = logLevel;
-                        break;
-                    case "-a":
-                    case "-activate":
-                        i++;
-                        var checkActivateSchedules = bool.TryParse(args[i], out var autoSchedules);
-                        if (!checkActivateSchedules)
-                        {
-                            Console.WriteLine(
-                                "The -a/-activate option should be followed by \"true\" or \"false\".  The value was: {0}",
-                                args[i]);
-                            return (int)ExitCode.InvalidSetting;
-                        }
-
-                        remoteSettings.AppSettings.AutoSchedules = autoSchedules;
                         break;
                     case "-c":
                     case "-cache":
@@ -331,36 +318,31 @@ namespace dexih.remote
             if (resetSettings || string.IsNullOrEmpty(remoteSettings.AppSettings.Name))
             {
                 checkSaveSettings = true;
-                
-                Console.WriteLine($"Enter the data privacy requirement for this agent [{remoteSettings.AppSettings.PrivacyLevel.ToString()}]: ");
-                Console.WriteLine($"  1. Lock Data - No data (excluding metadata) will be received or sent to the central information hub.");
-                Console.WriteLine($"  2. Allow Upload - Data can be sent from the information hub to this agent, but not from the agent to the information hub.");
-                Console.WriteLine($"  3. Allow Upload/Download - Data can be sent/received from the information hub to this agent.");
-                var privacyLevel = Console.ReadLine();
-                
-                if (!string.IsNullOrEmpty(privacyLevel))
+
+                Console.WriteLine($"Allow files to be uploaded through the agent (true/false): [{remoteSettings.AppSettings.AllowDataUpload}]: ");
+                var allowUpload = Console.ReadLine();
+
+                if (!string.IsNullOrEmpty(allowUpload))
                 {
-                    while (privacyLevel != "1" && privacyLevel != "2" && privacyLevel != "3")
+                    while (allowUpload != "true" && allowUpload != "false")
                     {
-                        Console.Write("Enter the data privacy requirement value of 1,2,3: ");
-                        privacyLevel = Console.ReadLine();
+                        Console.Write("Enter true/false: ");
+                        allowUpload = Console.ReadLine();
                     }
-
-                    remoteSettings.AppSettings.PrivacyLevel = (EPrivacyLevel) Convert.ToInt32(privacyLevel);
+                    remoteSettings.AppSettings.AllowDataUpload = Convert.ToBoolean(allowUpload);
                 }
-            }
 
-            if ((remoteSettings.AppSettings.PrivacyLevel != EPrivacyLevel.AllowDataDownload) &&
-            (resetSettings || string.IsNullOrEmpty(remoteSettings.AppSettings.LocalDataSaveLocation)))
-            {
-                checkSaveSettings = true;
+                Console.WriteLine($"Allow files to be downloaded through the agent (true/false): [{remoteSettings.AppSettings.AllowDataDownload}]: ");
+                var allowDownload = Console.ReadLine();
 
-                Console.WriteLine($"Enter the local save data location.");
-                Console.Write($"Data will be stored in this directory when the privacy settings are 1/2. [{remoteSettings.AppSettings.LocalDataSaveLocation}]: ");
-                var localDir = Console.ReadLine();
-                if (!string.IsNullOrEmpty(localDir))
+                if (!string.IsNullOrEmpty(allowDownload))
                 {
-                    remoteSettings.AppSettings.LocalDataSaveLocation = localDir;
+                    while (allowDownload != "true" && allowDownload != "false")
+                    {
+                        Console.Write("Enter true/false: ");
+                        allowDownload = Console.ReadLine();
+                    }
+                    remoteSettings.AppSettings.AllowDataDownload = Convert.ToBoolean(allowDownload);
                 }
             }
             
