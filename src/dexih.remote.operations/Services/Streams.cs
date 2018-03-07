@@ -27,13 +27,13 @@ namespace dexih.remote.Operations.Services
         }
 
 
-        public UploadKeys SetUploadAction(Func<Stream, Task> processAction)
+        public StreamSecurityKeys SetUploadAction(Func<Stream, Task> processAction)
         {
             var uploadObject = new UploadObject(processAction);
             var key = Guid.NewGuid().ToString();
             _uploadStreams.TryAdd(key, uploadObject);
 
-            return new UploadKeys(key, uploadObject.SecurityKey);
+            return new StreamSecurityKeys(key, uploadObject.SecurityKey);
         }
 
         public async Task ProcessUploadAction(string key, string securityKey, Stream stream)
@@ -52,7 +52,6 @@ namespace dexih.remote.Operations.Services
             {
                 throw new Exception("The upload could not complete due to mismatching security key.");
             }
-
         }
 
         private void CleanUpOldStreams(object o, EventArgs args)
@@ -74,14 +73,13 @@ namespace dexih.remote.Operations.Services
             }
         }
 
-        
-        public (string key, string securityKey) SetDownloadStream(string fileName, Stream stream)
+        public StreamSecurityKeys SetDownloadStream(string fileName, Stream stream)
         {
             var downloadObject = new DownloadObject(fileName, stream);
             var key = Guid.NewGuid().ToString();
             _downloadStreams.TryAdd(key, downloadObject);
 
-            return (key, downloadObject.SecurityKey);
+            return new StreamSecurityKeys(key, downloadObject.SecurityKey);
         }
 
         public (string fileName, Stream stream) GetDownloadStream(string key, string securityKey)
@@ -116,17 +114,6 @@ namespace dexih.remote.Operations.Services
         public Func<Stream, Task> ProcessAction { get; private set; }
     }
 
-    public class UploadKeys
-    {
-        public UploadKeys(string key, string securityKey)
-        {
-            Key = key;
-            SecurityKey = securityKey;
-        }
-        
-        public string Key { get; set; }
-        public string SecurityKey { get; set; }
-    }
     
     public class DownloadObject
     {

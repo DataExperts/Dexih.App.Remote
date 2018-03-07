@@ -3,7 +3,7 @@
     <Description>dexih_remote Console Application</Description>
     <AssemblyTitle>Data Experts Information Hub - Remote </AssemblyTitle>
     <VersionPrefix>0.4.0-beta</VersionPrefix>
-    <VersionSuffix>00042</VersionSuffix>
+    <VersionSuffix>00050</VersionSuffix>
     <Authors>Gary</Authors>
     <TargetFrameworks>netcoreapp2.0</TargetFrameworks>
     <AssemblyName>dexih.remote</AssemblyName>
@@ -63,5 +63,8 @@
     <Reference Include="Microsoft.AspNetCore.Sockets.Http, Version=1.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60">
       <HintPath>..\..\..\..\.nuget\packages\microsoft.aspnetcore.sockets.http\1.0.0-alpha2-final\lib\netstandard2.0\Microsoft.AspNetCore.Sockets.Http.dll</HintPath>
     </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="certificates" />
   </ItemGroup>
 </Project>

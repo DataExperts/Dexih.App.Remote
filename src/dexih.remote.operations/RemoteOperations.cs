@@ -6,6 +6,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
@@ -21,6 +22,8 @@ using Dexih.Utils.Crypto;
 using Dexih.Utils.ManagedTasks;
 using Dexih.Utils.MessageHelpers;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json.Linq;
+using Remotion.Linq.Parsing.Structure.IntermediateModel;
 
 namespace dexih.remote.operations
 {
@@ -59,11 +62,11 @@ namespace dexih.remote.operations
             set => _securityToken = value;
         }
 
-        private string GetDataDownloadUrl(string command, string key, string securityKey)
-        {
-            var url = _remoteSettings.AppSettings.GetDownloadUrl();
-            return url + "/" + command + "/" + HttpUtility.UrlEncode(key) + "/" + HttpUtility.UrlEncode(securityKey);
-        }
+//        private string GetDataDownloadUrl(string command, string key, string securityKey)
+//        {
+//            var url = _remoteSettings.AppSettings.GetDownloadUrl();
+//            return url + "/" + command + "/" + HttpUtility.UrlEncode(key) + "/" + HttpUtility.UrlEncode(securityKey);
+//        }
 
         public TransformSettings GetTransformSettings(IEnumerable<DexihHubVariable> hubVariables)
         {
@@ -683,7 +686,7 @@ namespace dexih.remote.operations
                 LoggerMessages.LogError(120, ex, "Error in ImportDatabaseTables: {0}", ex.Message);
                 throw;
             }
-        }
+        } 
 
         public async Task<List<DexihTable>> CreateDatabaseTables(RemoteMessage message, CancellationToken cancellationToken)
         {
@@ -784,7 +787,7 @@ namespace dexih.remote.operations
             }
         }
         
-        public async Task<string> PreviewTable(RemoteMessage message, CancellationToken cancellationToken)
+        public async Task<StreamSecurityKeys> PreviewTable(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
             {
@@ -818,7 +821,7 @@ namespace dexih.remote.operations
                 var stream = new TransformJsonStream(reader, selectQuery.Rows);
                 var keys = _streams.SetDownloadStream("", stream);
 
-                return GetDataDownloadUrl("json", keys.key, keys.securityKey);
+                return keys;
             }
             catch (Exception ex)
             {
@@ -827,7 +830,7 @@ namespace dexih.remote.operations
             }
         }
 
-        public async Task<string> PreviewTransform(RemoteMessage message, CancellationToken cancellationToken)
+        public async Task<StreamSecurityKeys> PreviewTransform(RemoteMessage message, CancellationToken cancellationToken)
         {
            try
            {
@@ -836,11 +839,11 @@ namespace dexih.remote.operations
                     throw new RemoteSecurityException("This remote agent's privacy settings does not allow remote data previews.");
                 }
 
-                var dbDatalink = message.Value["datalink"].ToObject<DexihDatalink>();
                 var dbHub = message.Value["hub"].ToObject<DexihHub>();
                 var datalinkTransformKey = message.Value["datalinkTransformKey"]?.ToObject<long>() ?? 0;
                 var rows = message.Value["rows"]?.ToObject<long>() ?? long.MaxValue;
-                
+               var dbDatalink = message.Value["datalink"].ToObject<DexihDatalink>();
+
                 var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
                 var runPlan = transformOperations.CreateRunPlan(dbHub, dbDatalink, datalinkTransformKey, null, false);
                 var transform = runPlan.sourceTransform;
@@ -855,7 +858,7 @@ namespace dexih.remote.operations
                var stream = new TransformJsonStream(transform, rows);
                var keys = _streams.SetDownloadStream("", stream);
 
-               return GetDataDownloadUrl("json", keys.key, keys.securityKey);
+               return keys;
            }
            catch (Exception ex)
            {
@@ -865,7 +868,7 @@ namespace dexih.remote.operations
 
         }
         
-        public async Task<string> PreviewDatalink(RemoteMessage message, CancellationToken cancellationToken)
+        public async Task<StreamSecurityKeys> PreviewDatalink(RemoteMessage message, CancellationToken cancellationToken)
         {
            try
            {
@@ -894,7 +897,7 @@ namespace dexih.remote.operations
                var stream = new TransformJsonStream(transform, selectQuery.Rows);
                var keys = _streams.SetDownloadStream("", stream);
 
-               return GetDataDownloadUrl("json", keys.key, keys.securityKey);
+               return keys;
 
            }
            catch (Exception ex)
@@ -919,36 +922,14 @@ namespace dexih.remote.operations
                         "This remote agent's privacy settings does not allow remote data to be accessed.");
                 }
 
-                var dbCache = Json.JTokenToObject<CacheManager>(message.Value["hub"], _temporaryEncryptionKey);
-                var selectQuery =
-                    Json.JTokenToObject<SelectQuery>(message.Value["selectQuery"], _temporaryEncryptionKey);
+            var key = (string)message.Value["key"];
+            var securityKey = (string)message.Value["securityKey"];
 
-                var datalinkKey = Convert.ToInt64(message.GetParameter("datalinkKey"));
-                var dbDatalink = dbCache.DexihHub.DexihDatalinks.Single(c => c.DatalinkKey == datalinkKey);
+            var stream = _streams.GetDownloadStream(key, securityKey);
+            
+            var streamReader = new StreamReader(stream.stream);
 
-//                var buffer = new BufferBlock<object>();
-//                var keys = _bufferedStreams.SetDownloadBuffer(buffer);
-//
-//                async Task RemoteExtract(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken ct)
-//                {
-//                    
-//                    var remoteDataSender = new RemoteDataSender(_permenantEncryptionKey, message.HubVariables, _httpClient, _url);
-//                    await remoteDataSender.SendDatalinkData(dbCache.DexihHub, dbDatalink, selectQuery, buffer, cancellationToken);
-//                }
-//
-//                var getRemoteData = _managedTasks.Add("", $"Remote extract: {dbDatalink.Name}.", "RemoteExtract", dbDatalink.HubKey, dbDatalink.DatalinkKey, null, RemoteExtract, null, null);
-
-                var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
-                var runPlan = transformOperations.CreateRunPlan(dbCache.DexihHub, dbDatalink, null, null, false, selectQuery);
-                var transform = runPlan.sourceTransform;
-                var openReturn = await transform.Open(0, selectQuery, cancellationToken);
-                var csvStream = new TransformCsvStream(transform);
-
-                var keys = _streams.SetDownloadStream("csv", csvStream);
-                var url = GetDataDownloadUrl("csv", keys.key, keys.securityKey);
-
-                return url;
-
+            return streamReader.ReadToEnd();
         }
 
         public async Task<Table> PreviewProfile(RemoteMessage message, CancellationToken cancellationToken) // (long HubKey, string Cache, long DatalinkAuditKey, bool SummaryOnly, CancellationToken cancellationToken)
@@ -1244,7 +1225,7 @@ namespace dexih.remote.operations
             }
         }
 
-        public async Task<UploadKeys> UploadFile(RemoteMessage message, CancellationToken cancellationToken)
+        public async Task<StreamSecurityKeys> UploadFile(RemoteMessage message, CancellationToken cancellationToken)
         {
              try
             {
@@ -1356,8 +1337,8 @@ namespace dexih.remote.operations
                         content.Add(new StringContent(clientId), "ClientId");
                         content.Add(new StringContent(reference), "Reference");
                         content.Add(new StringContent(connectionTable.hubKey.ToString()), "HubKey");
-                        content.Add(new StringContent(keys.key), "StreamKey");
-                        content.Add(new StringContent(keys.securityKey), "StreamSecurityKey");
+                        content.Add(new StringContent(keys.Key), "StreamKey");
+                        content.Add(new StringContent(keys.SecurityKey), "StreamSecurityKey");
 
                         var response = await _httpClient.PostAsync(_url + "Remote/DownloadReady", content, ct);
                         if (!response.IsSuccessStatusCode)
@@ -1422,8 +1403,8 @@ namespace dexih.remote.operations
                             content.Add(new StringContent(clientId), "ClientId");
                             content.Add(new StringContent(reference), "Reference");
                             content.Add(new StringContent(cache.HubKey.ToString()), "HubKey");
-                            content.Add(new StringContent(keys.key), "StreamKey");
-                            content.Add(new StringContent(keys.securityKey), "StreamSecurityKey");
+                            content.Add(new StringContent(keys.Key), "StreamKey");
+                            content.Add(new StringContent(keys.SecurityKey), "StreamSecurityKey");
 
                             var response = await _httpClient.PostAsync(_url + "Remote/DownloadReady", content, ct);
                             if (!response.IsSuccessStatusCode)

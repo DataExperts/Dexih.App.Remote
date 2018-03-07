@@ -10,11 +10,10 @@ namespace dexih.remote.Operations.Services
         string OriginUrl { get; set; }
         RemoteSettings RemoteSettings { get; set; }
 
-        UploadKeys SetUploadAction(Func<Stream, Task> processAction);
+        StreamSecurityKeys SetUploadAction(Func<Stream, Task> processAction);
         Task ProcessUploadAction(string key, string securityKey, Stream stream);
-        
-        (string key, string securityKey) SetDownloadStream(string fileName, Stream stream);
-        (string fileName, Stream stream) GetDownloadStream(string key, string securityKey);
 
+        StreamSecurityKeys SetDownloadStream(string fileName, Stream stream);
+        (string fileName, Stream stream) GetDownloadStream(string key, string securityKey);
     }
 }

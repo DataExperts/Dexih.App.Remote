@@ -13,6 +13,7 @@ using dexih.operations;
 using dexih.repository;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.EntityFrameworkCore.ValueGeneration.Internal;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
@@ -37,6 +38,10 @@ namespace dexih.remote
             // add logging.
             var loggerFactory = new LoggerFactory();
 
+            // add the logging level output to the console.
+            loggerFactory.AddConsole();
+            var logger = loggerFactory.CreateLogger("dexih.remote main");
+
             var remoteSettings = new RemoteSettings
             {
                 AppSettings =
@@ -45,24 +50,35 @@ namespace dexih.remote
                 }
             };
 
-            //check config file first for any settings.
-            if (File.Exists(Directory.GetCurrentDirectory() + "/appsettings.json"))
+            var settingsFile = Path.Combine(Directory.GetCurrentDirectory() + "/appsettings.json");
+
+            if (args.Length >= 2 && args[0] == "-appsettings")
             {
-                // Set up configuration sources.
-                var builder = new ConfigurationBuilder()
-                    .SetBasePath(Directory.GetCurrentDirectory())
-                    .AddJsonFile("appsettings.json")
-                    .AddEnvironmentVariables();
-
-                var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
-                if (environment == "Development")
-                {
-                    builder.AddUserSecrets<Program>();
-                }
-
-                var configuration = builder.Build();
-                remoteSettings = configuration.Get<RemoteSettings>();
+                settingsFile = args[1];
             }
+
+            // Set up configuration sources.
+            var builder = new ConfigurationBuilder()
+                .SetBasePath(Directory.GetCurrentDirectory());
+
+            //check config file first for any settings.
+            if (File.Exists(settingsFile))
+            {
+                builder.AddJsonFile(settingsFile);
+            }
+
+            // add environment variables second.
+            builder.AddEnvironmentVariables();
+
+            // add usersecrets when development
+            var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+            if (environment == "Development")
+            {
+                builder.AddUserSecrets<Program>();
+            }
+
+            var configuration = builder.Build();
+            remoteSettings = configuration.Get<RemoteSettings>();
 
             // if the first time running, then prompt user for details.
             var saveSettings = remoteSettings.AppSettings.FirstRun;
@@ -125,19 +141,6 @@ namespace dexih.remote
 
                         remoteSettings.Logging.LogLevel.Default = logLevel;
                         break;
-                    case "-c":
-                    case "-cache":
-                        i++;
-                        var cacheFile = args[i];
-                        if (!File.Exists(cacheFile))
-                        {
-                            Console.WriteLine(
-                                "The -c/-cache option is follows by a file that does not exist.  The file name is: {0}",
-                                args[i]);
-                            return (int)ExitCode.InvalidSetting;
-                        }
-
-                        break;
                     case "-s":
                     case "-save":
                         saveSettings = true;
@@ -155,16 +158,12 @@ namespace dexih.remote
                         break;
                     case "-pr":
                     case "-prerelease":
-                        remoteSettings.AppSettings.PreRelease = true;
+                        remoteSettings.AppSettings.AllowPreReleases = true;
                         break;
                 }
             }
 
-            // add the logging level output to the console.
-            loggerFactory.AddConsole(remoteSettings.Logging.LogLevel.Default);
-            var logger = loggerFactory.CreateLogger("dexih.remote main");
-
-
+            // check if there is a newer release.
             if (remoteSettings.AppSettings.AutoUpgrade)
             {
                 string downloadUrl = null;
@@ -177,7 +176,7 @@ namespace dexih.remote
                         {
                             httpClient.DefaultRequestHeaders.Add("User-Agent", "Dexih Remote Agent");
                             JToken jToken;
-                            if (remoteSettings.AppSettings.PreRelease)
+                            if (remoteSettings.AppSettings.AllowPreReleases)
                             {
                                 // this api gets all releases.
                                 var response = await httpClient.GetAsync("https://api.github.com/repos/DataExperts/Dexih.App.Remote/releases");
@@ -240,8 +239,8 @@ namespace dexih.remote
 
                     logger.LogWarning($"The local build is {localBuild}.");
                     logger.LogWarning($"The latest build is {latestBuild}.");
-
-                    if (latestBuild != localBuild)
+                    
+                    if (string.CompareOrdinal(latestBuild, localBuild) > 0)
                     {
                         File.WriteAllText("latest_version.txt", latestVersion + "\n" + downloadUrl);
                         logger.LogWarning($"The local version of the remote agent is v{localVersion}.");
@@ -253,7 +252,15 @@ namespace dexih.remote
                     }
                 }
             }
+            
+            loggerFactory.Dispose();
+            
+            // add logging.
+            loggerFactory = new LoggerFactory();
+            loggerFactory.AddConsole(remoteSettings.Logging.LogLevel.Default);
+            logger = loggerFactory.CreateLogger("dexih.remote main");
 
+            
             var checkSaveSettings = false;
             
             //any critical settings not received, prompt user.
@@ -505,7 +512,6 @@ namespace dexih.remote
             
             // return (int)ExitCode.Terminated;
         }
-    
     
     }
 }

@@ -37,3 +37,6 @@ echo UPLOADURL - ${UPLOADURL}
 curl --progress-bar  -o upload.txt -u gholland@dataexpertsgroup.com:$PASSWORD  -H "Content-Type: application/octet-stream" --data-binary @"${FILE}" "${UPLOADURL}"
 
 rm upload.txt
+
+echo UPLOAD DOCKER IMAGE
+docker push dexih/remote

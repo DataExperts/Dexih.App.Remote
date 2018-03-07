@@ -34,3 +34,4 @@ chmod a+x dexih.remote
 zip -r ../../../../../releases/dexih.remote.linux_${VERSION_PREFIX}-${VERSION_SUFFIX}.zip *
 popd
 
+docker build . -t dexih/remote

@@ -8,6 +8,7 @@ using System.Threading;
 using System.Diagnostics;
 using System.Text;
 using System.Collections.Concurrent;
+using System.IO;
 using Microsoft.Extensions.Logging;
 using System.Reflection;
 using dexih.operations;
@@ -208,21 +209,54 @@ namespace dexih.remote
 
                 _streams.OriginUrl = _remoteSettings.AppSettings.WebServer;
                 _streams.RemoteSettings = _remoteSettings;
-                
-                var webHost = WebHost.CreateDefaultBuilder()
-                    .UseStartup<Startup>()
-                    .ConfigureServices(s => s.AddSingleton(_streams))
-                    .UseUrls("http://*:" + _remoteSettings.AppSettings.DownloadPort)
-                    .Build();
-                
-                var webRunTask = webHost.RunAsync(ct);
 
-                // remote agent will wait here until a cancel is issued.
-                await Task.WhenAny(sender, webRunTask);
-                
+                // if direct upload/downloads are enabled, startup the upload/download web server.
+                if (_remoteSettings.AppSettings.DownloadDirectly)
+                {
+                    var useHttps = !string.IsNullOrEmpty(_remoteSettings.AppSettings.PfxCertificateFilename);
+
+                    if (File.Exists(_remoteSettings.AppSettings.PfxCertificateFilename))
+                    {
+
+                        var webHost = WebHost.CreateDefaultBuilder()
+                            .UseStartup<Startup>()
+                            .ConfigureServices(s => s.AddSingleton(_streams))
+                            .UseKestrel(options =>
+                            {
+                                options.Listen(IPAddress.Loopback, _remoteSettings.AppSettings.DownloadPort ?? 33944,
+                                    listenOptions =>
+                                    {
+                                        // if there is a cerficiate then default to https
+                                        if (useHttps)
+                                        {
+                                            listenOptions.UseHttps(_remoteSettings.AppSettings.PfxCertificateFilename,
+                                                _remoteSettings.AppSettings.PfxCertificatePassword);
+                                        }
+                                    });
+                            })
+                            .UseUrls((useHttps ? "https://*:" : "http://*:") + _remoteSettings.AppSettings.DownloadPort)
+                            .Build();
+
+                        var webRunTask = webHost.RunAsync(ct);
+
+                        // remote agent will wait here until a cancel is issued.
+                        await Task.WhenAny(sender, webRunTask);
+                        webHost.Dispose();
+                    }
+                    else
+                    {
+                        logger.LogError(10, $"The Pfx certificate {_remoteSettings.AppSettings.PfxCertificateFilename} could not be found.  This agent will not be able to upload/download data.");
+
+                        await sender;
+                    }
+                }
+                else
+                {
+                    await sender;
+                }
+
                 datalinkProgressTimer.Dispose();
-				await HubConnection.DisposeAsync();
-                webHost.Dispose();
+                await HubConnection.DisposeAsync();
 
                 return EConnectionResult.Disconnected;
             }
@@ -264,6 +298,13 @@ namespace dexih.remote
                 con.On<RemoteMessage>("Command", async (message) =>
                 {
                     await ProcessMessage(message);
+                });
+                
+                con.On("Abort", async () =>
+                {
+                    logger.LogInformation("SignalR connection aborted.");
+                    await con.DisposeAsync();
+                    ts.Cancel();
                 });
 
                 // when closed cancel and exit
