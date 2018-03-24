@@ -17,6 +17,7 @@ using dexih.operations;
 using dexih.remote.Operations.Services;
 using dexih.repository;
 using dexih.transforms;
+using dexih.transforms.Transforms;
 using Dexih.Utils.CopyProperties;
 using Dexih.Utils.Crypto;
 using Dexih.Utils.ManagedTasks;
@@ -41,6 +42,8 @@ namespace dexih.remote.operations
         private readonly IStreams _streams;
         private readonly RemoteSettings _remoteSettings;
 
+        private readonly RemoteLibraries _remoteLibraries;
+
         public RemoteOperations(RemoteSettings remoteSettings, string temporaryEncryptionKey, ILogger loggerMessages, HttpClient httpClient, string url, IStreams streams)
         {
             _remoteSettings = remoteSettings;
@@ -49,6 +52,13 @@ namespace dexih.remote.operations
             _httpClient = httpClient;
             _url = url;
             _streams = streams;
+
+            _remoteLibraries = new RemoteLibraries()
+            {
+                Functions = Functions.GetAllFunctions(),
+                Connections = Connections.GetAllConnections(),
+                Transforms = Transforms.GetAllTransforms()
+            };
 
             _managedTasks = new ManagedTasks();
         }
@@ -98,7 +108,8 @@ namespace dexih.remote.operations
                     ActiveDatajobs = _managedTasks.GetActiveTasks("Datajob"),
                     ActiveDatalinks = _managedTasks.GetActiveTasks("Datalink"),
                     PreviousDatajobs = _managedTasks.GetCompletedTasks("Datajob"),
-                    PreviousDatalinks = _managedTasks.GetCompletedTasks("Datalink")
+                    PreviousDatalinks = _managedTasks.GetCompletedTasks("Datalink"),
+                    RemoteLibraries = _remoteLibraries
                 };
 
                 return Task.FromResult(agentInformation);
@@ -110,13 +121,7 @@ namespace dexih.remote.operations
             }
         }
 
-        public class RemoteAgentStatus
-        {
-            public IEnumerable<ManagedTask> ActiveDatajobs { get; set; }
-            public IEnumerable<ManagedTask> ActiveDatalinks { get; set; }
-            public IEnumerable<ManagedTask> PreviousDatajobs { get; set; }
-            public IEnumerable<ManagedTask> PreviousDatalinks { get; set; }
-        }
+
         
         /// <summary>
         /// This encrypts a string using the remoteservers encryption key.  This is used for passwords and connection strings
@@ -169,13 +174,18 @@ namespace dexih.remote.operations
 				return await Task.Run(() =>
 				{
 					var dbDatalinkTransformItem = message.Value["datalinkTransformItem"].ToObject<DexihDatalinkTransformItem>();
+				    var dbHub = message.Value["hub"].ToObject<DexihHub>();
 					var testValues = message.Value["testValues"]?.ToObject<object[]>();
 
-					var createFunction = dbDatalinkTransformItem.CreateFunctionMethod(false);
+					var createFunction = dbDatalinkTransformItem.CreateFunctionMethod(dbHub, false);
+
+				    var outputNames = dbDatalinkTransformItem.DexihFunctionParameters
+				        .Where(c => c.Direction == DexihParameterBase.EParameterDirection.Output).Select(c => c.ParameterName).ToArray();
+
 
 					if (testValues != null)
 					{
-						var runFunctionResult = createFunction.RunFunction(testValues);
+						var runFunctionResult = createFunction.RunFunction(testValues, outputNames);
 						var outputs = createFunction.Outputs.Select(c => c.Value).ToList();
 						outputs.Insert(0, runFunctionResult);
 						return outputs;
@@ -537,7 +547,7 @@ namespace dexih.remote.operations
                                         var transformSetting = GetTransformSettings(message.HubVariables);
 
                                         var connection = dbConnection.GetConnection(transformSetting);
-                                        var table = dbTable.GetTable(dbConnection.DatabaseType.Category, transformSetting);
+                                        var table = dbTable.GetTable(connection, transformSetting);
 
                                         if (table is FlatFile flatFile && connection is ConnectionFlatFile connectionFlatFile)
                                         {
@@ -659,7 +669,7 @@ namespace dexih.remote.operations
 
                     var transformSettings = GetTransformSettings(message.HubVariables);
                     var connection = dbConnection.GetConnection(transformSettings);
-                    var table = dbTable.GetTable(dbConnection.DatabaseType.Category, transformSettings);
+                    var table = dbTable.GetTable(connection, transformSettings);
 
                     try
                     {
@@ -709,7 +719,7 @@ namespace dexih.remote.operations
 
                     var transformSettings = GetTransformSettings(message.HubVariables);
                     var connection = dbConnection.GetConnection(transformSettings);
-                    var table = dbTable.GetTable(dbConnection.DatabaseType.Category, transformSettings);
+                    var table = dbTable.GetTable(connection, transformSettings);
                     try
                     {
                         await connection.CreateTable(table, dropTables, cancellationToken);
@@ -762,7 +772,7 @@ namespace dexih.remote.operations
 
                         var transformSettings = GetTransformSettings(message.HubVariables);
                         var connection = dbConnection.GetConnection(transformSettings);
-                        var table = dbTable.GetTable(dbConnection.DatabaseType.Category, transformSettings);
+                        var table = dbTable.GetTable(connection, transformSettings);
                         await connection.TruncateTable(table, cancellationToken);
 
                         LoggerMessages.LogTrace("Clear database table for table {table} and connection {connection} completed.", dbTable.Name, dbConnection.Name);
@@ -811,7 +821,7 @@ namespace dexih.remote.operations
                 }
                 
                 var connection = dbConnection.GetConnection(settings);
-                var table = showRejectedData ? dbTable.GetRejectedTable(connection.DatabaseCategory, settings) : dbTable.GetTable(connection.DatabaseCategory, settings);
+                var table = showRejectedData ? dbTable.GetRejectedTable(connection, settings) : dbTable.GetTable(connection, settings);
 
                 var reader = connection.GetTransformReader(table);
                 await reader.Open(0, selectQuery, cancellationToken);
@@ -929,7 +939,7 @@ namespace dexih.remote.operations
             
             var streamReader = new StreamReader(stream.stream);
 
-            return streamReader.ReadToEnd();
+            return await streamReader.ReadToEndAsync();
         }
 
         public async Task<Table> PreviewProfile(RemoteMessage message, CancellationToken cancellationToken) // (long HubKey, string Cache, long DatalinkAuditKey, bool SummaryOnly, CancellationToken cancellationToken)
@@ -1041,8 +1051,8 @@ namespace dexih.remote.operations
             var dbTable = Json.JTokenToObject<DexihTable>(message.Value["table"], _temporaryEncryptionKey);
             var dbConnection =dbHub.DexihConnections.First();
 		    var transformSettings = GetTransformSettings(message.HubVariables);
-            var table = dbTable.GetTable(dbConnection.DatabaseType.Category,  transformSettings);
-            var connection = (ConnectionFlatFile)dbConnection.GetConnection(transformSettings);
+		    var connection = (ConnectionFlatFile)dbConnection.GetConnection(transformSettings);
+            var table = dbTable.GetTable(connection,  transformSettings);
 			return (dbConnection.HubKey, connection, (FlatFile) table);
 		}
 
@@ -1157,8 +1167,8 @@ namespace dexih.remote.operations
                 }
 
                 var transformSettings = GetTransformSettings(message.HubVariables);
-                var table = dbTable.GetTable(dbConnection.DatabaseType.Category, transformSettings);
                 var connection = (ConnectionFlatFile)dbConnection.GetConnection(transformSettings);
+                var table = dbTable.GetTable(connection, transformSettings);
 
                 var flatFile = (FlatFile)table;
 
@@ -1247,8 +1257,8 @@ namespace dexih.remote.operations
                 }
 
                 var transformSettings = GetTransformSettings(message.HubVariables);
-                var table = dbTable.GetTable(dbConnection.DatabaseType.Category, transformSettings);
                 var connection = (ConnectionFlatFile)dbConnection.GetConnection(transformSettings);
+                var table = dbTable.GetTable(connection, transformSettings);
 
                 var flatFile = (FlatFile)table;
                 var fileName = message.GetParameter("FileName");
@@ -1291,9 +1301,13 @@ namespace dexih.remote.operations
                     }
                 }
 
-                var keys = _streams.SetUploadAction(ProcessTask);
+                // Taks.Run get's rid of the async warning
+                return await Task.Run(() =>
+                {
+                    var keys = _streams.SetUploadAction(ProcessTask);
 
-                return keys;
+                    return keys;
+                }, cancellationToken);
             }
             catch (Exception ex)
             {
@@ -1353,8 +1367,14 @@ namespace dexih.remote.operations
                     }
                 }
 
-                var startdownloadResult = _managedTasks.Add(reference, clientId, $"Download file: {files[0]} from {path}.", "Download", connectionTable.hubKey, 0, null, DownloadTask, null, null, null);
-                return startdownloadResult;
+                // Taks.Run get's rid of the async warning
+                return await Task.Run(() =>
+                {
+                    var startdownloadResult = _managedTasks.Add(reference, clientId,
+                        $"Download file: {files[0]} from {path}.", "Download", connectionTable.hubKey, 0, null,
+                        DownloadTask, null, null, null);
+                    return startdownloadResult;
+                }, cancellationToken);
             }
             catch (Exception ex)
             {

@@ -11,6 +11,7 @@ using System.Collections.Concurrent;
 using System.IO;
 using Microsoft.Extensions.Logging;
 using System.Reflection;
+using dexih.functions;
 using dexih.operations;
 using Dexih.Utils.Crypto;
 using Dexih.Utils.MessageHelpers;
@@ -113,7 +114,6 @@ namespace dexih.remote
                         _remoteSettings.AppSettings.Name, Url, _remoteSettings.AppSettings.User);
                 }
 
-
                 var login = new
                 {
                     User = _remoteSettings.AppSettings.User,
@@ -121,7 +121,7 @@ namespace dexih.remote
                     UserToken = _remoteSettings.AppSettings.UserToken,
                     Version = runtimeVersion,
                     GenerateToken = generateUserToken,
-                    RemoteSettings = _remoteSettings
+                    RemoteSettings = _remoteSettings,
                 };
                 
                 var messagesString = Json.SerializeObject(login, SessionEncryptionKey);
