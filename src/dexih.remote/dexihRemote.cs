@@ -215,7 +215,7 @@ namespace dexih.remote
                 {
                     var useHttps = !string.IsNullOrEmpty(_remoteSettings.AppSettings.PfxCertificateFilename);
 
-                    if (File.Exists(_remoteSettings.AppSettings.PfxCertificateFilename))
+                    if (!useHttps || File.Exists(_remoteSettings.AppSettings.PfxCertificateFilename))
                     {
 
                         var webHost = WebHost.CreateDefaultBuilder()

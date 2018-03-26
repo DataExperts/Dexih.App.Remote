@@ -7,6 +7,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
 using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
@@ -22,7 +23,9 @@ using Dexih.Utils.CopyProperties;
 using Dexih.Utils.Crypto;
 using Dexih.Utils.ManagedTasks;
 using Dexih.Utils.MessageHelpers;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Remotion.Linq.Parsing.Structure.IntermediateModel;
 
@@ -919,27 +922,65 @@ namespace dexih.remote.operations
         }
 
         /// <summary>
-        /// Called by the Remote controller.  This sends data in chunks back to the remote server.
+        /// Called by the Remote controller.  Sends a data stream to the server, and returns a refernece to the stream.
         /// </summary>
         /// <param name="message"></param>
         /// <param name="cancellationToken"></param>
         /// <returns></returns>
         public async Task<string> GetRemoteData(RemoteMessage message, CancellationToken cancellationToken)
         {
-            if (!_remoteSettings.AppSettings.AllowDataDownload)
+            try
+            {
+
+                if (!_remoteSettings.AppSettings.AllowDataDownload)
                 {
                     throw new RemoteSecurityException(
                         "This remote agent's privacy settings does not allow remote data to be accessed.");
                 }
 
-            var key = (string)message.Value["key"];
-            var securityKey = (string)message.Value["securityKey"];
+                var key = (string) message.Value["key"];
+                var securityKey = (string) message.Value["securityKey"];
+                var stream = _streams.GetDownloadStream(key, securityKey);
+                var reference = Guid.NewGuid().ToString();
 
-            var stream = _streams.GetDownloadStream(key, securityKey);
-            
-            var streamReader = new StreamReader(stream.stream);
+                using (var content = new MultipartFormDataContent())
+                {
+                    content.Add(new StringContent(message.SecurityToken), "SecurityToken");
+                    // content.Add(new StringContent(null), "ClientId");
+                    content.Add(new StringContent(reference), "Reference");
+                    content.Add(new StringContent(message.HubKey.ToString()), "HubKey");
+                    content.Add(new StringContent("application/json"), "ContentType");
 
-            return await streamReader.ReadToEndAsync();
+                    var data = new StreamContent(stream.stream);
+                    content.Add(data, "file", string.IsNullOrEmpty(stream.fileName) ? "file.csv": stream.fileName);
+
+                    var response =
+                        await _httpClient.PostAsync(_url + "Remote/SetFileStream", content, cancellationToken);
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        throw new RemoteOperationException(
+                            $"The data download did not complete as the http server returned the response {response.ReasonPhrase}.");
+                    }
+
+                    var returnValue = Json.DeserializeObject<ReturnValue>(await response.Content.ReadAsStringAsync(),
+                        _temporaryEncryptionKey);
+                    if (!returnValue.Success)
+                    {
+                        throw new RemoteOperationException(
+                            $"The data download did not completed.  {returnValue.Message}", returnValue.Exception);
+                    }
+                }
+
+
+                // var streamReader = new StreamReader(stream.stream);
+
+                return reference;
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                throw;
+            }
         }
 
         public async Task<Table> PreviewProfile(RemoteMessage message, CancellationToken cancellationToken) // (long HubKey, string Cache, long DatalinkAuditKey, bool SummaryOnly, CancellationToken cancellationToken)
@@ -1344,26 +1385,30 @@ namespace dexih.remote.operations
 
                     var keys = _streams.SetDownloadStream(filename, downloadStream);
 
-                    //progress messages are send and forget as it is not critical that they are received.
-                    using (var content = new MultipartFormDataContent())
+                    var downloadMessage = new
                     {
-                        content.Add(new StringContent(_securityToken), "SecurityToken");
-                        content.Add(new StringContent(clientId), "ClientId");
-                        content.Add(new StringContent(reference), "Reference");
-                        content.Add(new StringContent(connectionTable.hubKey.ToString()), "HubKey");
-                        content.Add(new StringContent(keys.Key), "StreamKey");
-                        content.Add(new StringContent(keys.SecurityKey), "StreamSecurityKey");
+                        SecurityToken = _securityToken,
+                        ClientId = clientId,
+                        Reference = reference,
+                        HubKey = message.HubKey,
+                        StreamKey = keys.Key,
+                        StreamSecurityKey = keys.SecurityKey,
+                    };
+                    
+                    var messagesString = JsonConvert.SerializeObject(downloadMessage);
+                    var content = new StringContent(messagesString, Encoding.UTF8, "application/json");
+                    
+                    var address = _url + "Remote/DownloadReady";
+                    var response = await _httpClient.PostAsync(address, content, ct);
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        throw new RemoteOperationException($"The file download did not complete as the http server returned the response {response.ReasonPhrase}.");
+                    }
 
-                        var response = await _httpClient.PostAsync(_url + "Remote/DownloadReady", content, ct);
-                        if (!response.IsSuccessStatusCode)
-                        {
-                            throw new RemoteOperationException($"The file download did not complete as the http server returned the response {response.ReasonPhrase}.");
-                        }
-                        var returnValue = Json.DeserializeObject<ReturnValue>(await response.Content.ReadAsStringAsync(), _temporaryEncryptionKey);
-                        if (!returnValue.Success)
-                        {
-                            throw new RemoteOperationException($"The file download did not completed.  {returnValue.Message}", returnValue.Exception);
-                        }
+                    var returnValue = Json.DeserializeObject<ReturnValue>(await response.Content.ReadAsStringAsync(), _temporaryEncryptionKey);
+                    if (!returnValue.Success)
+                    {
+                        throw new RemoteOperationException($"The file download did not completed.  {returnValue.Message}", returnValue.Exception);
                     }
                 }
 
@@ -1417,25 +1462,29 @@ namespace dexih.remote.operations
 
                         var keys = _streams.SetDownloadStream(filename, stream);
 
-                        using (var content = new MultipartFormDataContent())
+                        var downloadMessage = new
                         {
-                            content.Add(new StringContent(securityToken), "SecurityToken");
-                            content.Add(new StringContent(clientId), "ClientId");
-                            content.Add(new StringContent(reference), "Reference");
-                            content.Add(new StringContent(cache.HubKey.ToString()), "HubKey");
-                            content.Add(new StringContent(keys.Key), "StreamKey");
-                            content.Add(new StringContent(keys.SecurityKey), "StreamSecurityKey");
+                            SecurityToken = securityToken,
+                            ClientId = clientId,
+                            Reference = reference,
+                            HubKey = message.HubKey,
+                            StreamKey = keys.Key,
+                            StreamSecurityKey = keys.SecurityKey,
+                        };
 
-                            var response = await _httpClient.PostAsync(_url + "Remote/DownloadReady", content, ct);
-                            if (!response.IsSuccessStatusCode)
-                            {
-                                throw new RemoteOperationException($"The data download did not complete as the http server returned the response {response.ReasonPhrase}.");
-                            }
-                            var returnValue = Json.DeserializeObject<ReturnValue>(await response.Content.ReadAsStringAsync(), _temporaryEncryptionKey);
-                            if (!returnValue.Success)
-                            {
-                                throw new RemoteOperationException($"The data download did not completed.  {returnValue.Message}", returnValue.Exception);
-                            }
+                        var messagesString = JsonConvert.SerializeObject(downloadMessage);
+                        var content = new StringContent(messagesString, Encoding.UTF8, "application/json");
+
+                        var address = _url + "Remote/DownloadReady";
+                        var response = await _httpClient.PostAsync(address, content, ct);
+                        if (!response.IsSuccessStatusCode)
+                        {
+                            throw new RemoteOperationException($"The data download did not complete as the http server returned the response {response.ReasonPhrase}.");
+                        }
+                        var returnValue = Json.DeserializeObject<ReturnValue>(await response.Content.ReadAsStringAsync(), _temporaryEncryptionKey);
+                        if (!returnValue.Success)
+                        {
+                            throw new RemoteOperationException($"The data download did not completed.  {returnValue.Message}", returnValue.Exception);
                         }
                         
 

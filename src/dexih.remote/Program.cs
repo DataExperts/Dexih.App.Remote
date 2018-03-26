@@ -168,6 +168,7 @@ namespace dexih.remote
             {
                 string downloadUrl = null;
                 string latestVersion = null;
+                var logger1 = logger;
                 Task.Run(async () =>
                 {
                     try
@@ -220,7 +221,7 @@ namespace dexih.remote
                     }
                     catch (Exception ex)
                     {
-                        logger.LogError(ex,
+                        logger1.LogError(ex,
                             "There was an issue getting the latest release url from github.  Error: " + ex.Message);
                     }
                 }).Wait();
