@@ -4,7 +4,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Dexih.Utils.ManagedTasks" Version="0.1.42" />
-    <PackageReference Include="Microsoft.AspNetCore.WebSockets" Version="2.0.1" />
+    <PackageReference Include="Microsoft.AspNetCore.WebSockets" Version="2.0.2" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\Dexih.App.Operations\src\dexih.operations\dexih.operations.csproj">
@@ -12,10 +12,5 @@
       <Name>dexih.operations</Name>
     </ProjectReference>
     <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.sql\dexih.connections.sql.csproj" />
-  </ItemGroup>
-  <ItemGroup>
-    <Reference Include="Microsoft.AspNetCore.Sockets.Common.Http, Version=1.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60">
-      <HintPath>..\..\..\..\.nuget\packages\microsoft.aspnetcore.sockets.common.http\1.0.0-alpha2-final\lib\netstandard2.0\Microsoft.AspNetCore.Sockets.Common.Http.dll</HintPath>
-    </Reference>
   </ItemGroup>
 </Project>

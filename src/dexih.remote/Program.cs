@@ -40,6 +40,7 @@ namespace dexih.remote
 
             // add the logging level output to the console.
             loggerFactory.AddConsole();
+            loggerFactory.AddDebug();
             var logger = loggerFactory.CreateLogger("dexih.remote main");
 
             var remoteSettings = new RemoteSettings
@@ -50,7 +51,7 @@ namespace dexih.remote
                 }
             };
 
-            var settingsFile = Path.Combine(Directory.GetCurrentDirectory() + "/appsettings.json");
+            var settingsFile = Path.Combine(Directory.GetCurrentDirectory(), "appsettings.json");
 
             if (args.Length >= 2 && args[0] == "-appsettings")
             {
@@ -259,6 +260,7 @@ namespace dexih.remote
             // add logging.
             loggerFactory = new LoggerFactory();
             loggerFactory.AddConsole(remoteSettings.Logging.LogLevel.Default);
+            loggerFactory.AddDebug();
             logger = loggerFactory.CreateLogger("dexih.remote main");
 
             
@@ -366,7 +368,7 @@ namespace dexih.remote
                 }
             }
 
-            if (resetSettings || string.IsNullOrEmpty(remoteSettings.AppSettings.UserToken))
+            if (resetSettings || (string.IsNullOrEmpty(remoteSettings.AppSettings.UserToken) && string.IsNullOrEmpty(remoteSettings.AppSettings.Password)))
             {
                 checkSaveSettings = true;
 
