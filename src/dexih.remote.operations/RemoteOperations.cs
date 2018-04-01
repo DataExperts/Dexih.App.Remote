@@ -210,9 +210,14 @@ namespace dexih.remote.operations
             {
                 var dbColumnValidation = message.Value["columnValidation"].ToObject<DexihColumnValidation>();
                 var dbHub = message.Value["hub"].ToObject<DexihHub>();
-                var testValue = message.Value["testValue"].ToObject<object>();
+                object testValue = null;
+                if(message.Value.Contains("testValue"))
+                {
+                    testValue = message.Value["testValue"].ToObject<object>();
+                }
 
                 var validationRun = new ColumnValidationRun(GetTransformSettings(message.HubVariables), dbColumnValidation, dbHub);
+                validationRun.DefaultValue = "<default value>";
 
                 var validateCleanResult = await validationRun.ValidateClean(testValue, cancellationToken);
 
