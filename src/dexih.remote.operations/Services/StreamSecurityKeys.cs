@@ -1,4 +1,7 @@
-﻿namespace dexih.remote.Operations.Services
+﻿using System;
+using CsvHelper.Configuration.Attributes;
+
+namespace dexih.remote.Operations.Services
 {
     public class StreamSecurityKeys
     {

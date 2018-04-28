@@ -27,7 +27,7 @@ namespace dexih.remote.Operations.Services
         }
 
 
-        public StreamSecurityKeys SetUploadAction(Func<Stream, Task> processAction)
+        public StreamSecurityKeys SetUploadAction(string name, Func<Stream, Task> processAction)
         {
             var uploadObject = new UploadObject(processAction);
             var key = Guid.NewGuid().ToString();

@@ -836,7 +836,7 @@ namespace dexih.remote.operations
                 
                 LoggerMessages.LogInformation("Preview for table: " + dbTable.Name + ".");
 
-                var stream = new TransformJsonStream(reader, selectQuery.Rows);
+                var stream = new TransformJsonStream(dbTable.Name, reader, selectQuery.Rows);
                 var keys = _streams.SetDownloadStream("", stream);
 
                 return keys;
@@ -873,7 +873,7 @@ namespace dexih.remote.operations
                 transform.SetCacheMethod(Transform.ECacheMethod.OnDemandCache);
 				transform.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
                
-               var stream = new TransformJsonStream(transform, rows);
+               var stream = new TransformJsonStream(dbDatalink.Name + " " + transform.Name, transform, rows);
                var keys = _streams.SetDownloadStream("", stream);
 
                return keys;
@@ -912,7 +912,7 @@ namespace dexih.remote.operations
                 transform.SetCacheMethod(Transform.ECacheMethod.OnDemandCache);
 				transform.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
 
-               var stream = new TransformJsonStream(transform, selectQuery.Rows);
+               var stream = new TransformJsonStream(dbDatalink.Name, transform, selectQuery.Rows);
                var keys = _streams.SetDownloadStream("", stream);
 
                return keys;
@@ -988,6 +988,7 @@ namespace dexih.remote.operations
             }
         }
 
+        
         public async Task<Table> PreviewProfile(RemoteMessage message, CancellationToken cancellationToken) // (long HubKey, string Cache, long DatalinkAuditKey, bool SummaryOnly, CancellationToken cancellationToken)
         {
             try
@@ -1001,7 +1002,7 @@ namespace dexih.remote.operations
                 var dbConnections = message.Value["connections"].ToObject<DexihConnection[]>();
                 var profileTableName = message.Value["profileTableName"].ToString();
                 var auditKey = message.Value["auditKey"].ToObject<long>();
-                var summaryOnly = message.Value["summaryOnly"].ToObject<bool>(); ;
+                var summaryOnly = message.Value["summaryOnly"].ToObject<bool>();
 
                 var profileTable = new TransformProfile().GetProfileTable(profileTableName);
 
@@ -1350,7 +1351,7 @@ namespace dexih.remote.operations
                 // Taks.Run get's rid of the async warning
                 return await Task.Run(() =>
                 {
-                    var keys = _streams.SetUploadAction(ProcessTask);
+                    var keys = _streams.SetUploadAction(fileName, ProcessTask);
 
                     return keys;
                 }, cancellationToken);

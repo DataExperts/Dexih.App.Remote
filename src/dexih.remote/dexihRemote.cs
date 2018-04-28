@@ -211,8 +211,8 @@ namespace dexih.remote
                 _streams.RemoteSettings = _remoteSettings;
 
                 // if direct upload/downloads are enabled, startup the upload/download web server.
-                if (_remoteSettings.AppSettings.DownloadDirectly)
-                {
+//                if (_remoteSettings.AppSettings.DownloadDirectly)
+//                {
                     var useHttps = !string.IsNullOrEmpty(_remoteSettings.AppSettings.PfxCertificateFilename);
 
                     if (!useHttps || File.Exists(_remoteSettings.AppSettings.PfxCertificateFilename))
@@ -249,11 +249,11 @@ namespace dexih.remote
 
                         await sender;
                     }
-                }
-                else
-                {
-                    await sender;
-                }
+//                }
+//                else
+//                {
+//                    await sender;
+//                }
 
                 datalinkProgressTimer.Dispose();
                 await HubConnection.DisposeAsync();
