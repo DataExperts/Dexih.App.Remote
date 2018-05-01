@@ -11,7 +11,6 @@ using System.Collections.Concurrent;
 using System.IO;
 using Microsoft.Extensions.Logging;
 using System.Reflection;
-using dexih.functions;
 using dexih.operations;
 using Dexih.Utils.Crypto;
 using Dexih.Utils.MessageHelpers;
@@ -19,11 +18,11 @@ using dexih.remote.operations;
 using dexih.remote.Operations.Services;
 using dexih.repository;
 using Dexih.Utils.ManagedTasks;
-using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.DependencyInjection;
-using TransportType = Microsoft.AspNetCore.Sockets.TransportType;
+using TransportType = Microsoft.AspNetCore.Http.Connections.TransportType;
 
 namespace dexih.remote
 {
@@ -217,8 +216,7 @@ namespace dexih.remote
 
                     if (!useHttps || File.Exists(_remoteSettings.AppSettings.PfxCertificateFilename))
                     {
-
-                        var webHost = WebHost.CreateDefaultBuilder()
+                        var host = new WebHostBuilder()
                             .UseStartup<Startup>()
                             .ConfigureServices(s => s.AddSingleton(_streams))
                             .UseKestrel(options =>
@@ -237,11 +235,11 @@ namespace dexih.remote
                             .UseUrls((useHttps ? "https://*:" : "http://*:") + _remoteSettings.AppSettings.DownloadPort)
                             .Build();
 
-                        var webRunTask = webHost.RunAsync(ct);
+                        var webRunTask = host.RunAsync(ct);
 
                         // remote agent will wait here until a cancel is issued.
                         await Task.WhenAny(sender, webRunTask);
-                        webHost.Dispose();
+                        host.Dispose();
                     }
                     else
                     {
@@ -319,7 +317,7 @@ namespace dexih.remote
                         logger.LogError("SignalR connection closed with error: {0}", e.Message);
                     }
                     ts.Cancel();
-                    return Task.CompletedTask;
+                    // return Task.CompletedTask;
                 };
 
                 return con;
