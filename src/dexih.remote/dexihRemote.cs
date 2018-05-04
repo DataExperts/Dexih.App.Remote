@@ -11,6 +11,7 @@ using System.Collections.Concurrent;
 using System.IO;
 using Microsoft.Extensions.Logging;
 using System.Reflection;
+using System.Security.Cryptography.X509Certificates;
 using dexih.operations;
 using Dexih.Utils.Crypto;
 using Dexih.Utils.MessageHelpers;
@@ -22,6 +23,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.DependencyInjection;
+using OfficeOpenXml.FormulaParsing.Excel.Functions.DateTime;
 using TransportType = Microsoft.AspNetCore.Http.Connections.TransportType;
 
 namespace dexih.remote
@@ -209,49 +211,150 @@ namespace dexih.remote
                 _streams.OriginUrl = _remoteSettings.AppSettings.WebServer;
                 _streams.RemoteSettings = _remoteSettings;
 
+
                 // if direct upload/downloads are enabled, startup the upload/download web server.
-//                if (_remoteSettings.AppSettings.DownloadDirectly)
-//                {
-                    var useHttps = !string.IsNullOrEmpty(_remoteSettings.AppSettings.PfxCertificateFilename);
-
-                    if (!useHttps || File.Exists(_remoteSettings.AppSettings.PfxCertificateFilename))
+                if (_remoteSettings.AppSettings.DownloadDirectly)
+                {
+                    try
                     {
-                        var host = new WebHostBuilder()
-                            .UseStartup<Startup>()
-                            .ConfigureServices(s => s.AddSingleton(_streams))
-                            .UseKestrel(options =>
+                        var useHttps = !string.IsNullOrEmpty(_remoteSettings.AppSettings.CertificateFilename);
+
+                        if (_remoteSettings.AppSettings.AutoGenerateCertificate)
+                        {
+                            if (string.IsNullOrEmpty(_remoteSettings.AppSettings.CertificateFilename))
                             {
-                                options.Listen(IPAddress.Loopback, _remoteSettings.AppSettings.DownloadPort ?? 33944,
-                                    listenOptions =>
-                                    {
-                                        // if there is a cerficiate then default to https
-                                        if (useHttps)
+                                _remoteSettings.AppSettings.CertificateFilename = "dexih.pfx";
+                            }
+
+                            var renew = false;
+
+                            if (File.Exists("dexih.pfx"))
+                            {
+                                var cert = X509Certificate.CreateFromCertFile(_remoteSettings.AppSettings
+                                    .CertificateFilename);
+                                var effectiveDate = DateTime.Parse(cert.GetEffectiveDateString());
+                                var expiresDate = DateTime.Parse(cert.GetExpirationDateString());
+
+                                // if cert expires in next 7 days, then renew.
+                                if (DateTime.Now > expiresDate.AddDays(-7))
+                                {
+                                    renew = true;
+                                }
+                            }
+                            else
+                            {
+                                renew = true;
+                            }
+
+                            if (renew)
+                            {
+                                var details = new
+                                {
+                                    Domain = _remoteSettings.AppSettings.DynamicDomain,
+                                    Password = _remoteSettings.AppSettings.CertificatePassword
+                                };
+                
+                                var messagesString = Json.SerializeObject(details, SessionEncryptionKey);
+                                var content = new StringContent(messagesString, Encoding.UTF8, "application/json");
+                                
+                                var response = await _httpClient.PostAsync(Url + "Remote/GenerateCertificate", content, ct);
+
+                                if (response.IsSuccessStatusCode)
+                                {
+                                    var certificate = await response.Content.ReadAsStringAsync();
+                                    await File.WriteAllTextAsync(_remoteSettings.AppSettings.CertificateFilename,
+                                        certificate, ct);
+                                }
+                                else
+                                {
+                                    throw new RemoteException(
+                                        $"The certificate renewal failed.  {response.ReasonPhrase}.");
+                                }
+                            }
+                        }
+
+                        if (_remoteSettings.AppSettings.EnforceHttps)
+                        {
+
+                            if (string.IsNullOrEmpty(_remoteSettings.AppSettings.CertificateFilename))
+                            {
+                                throw new RemoteException(
+                                    "The server requires https, however a CertificateFile name is not specified.");
+                            }
+
+                            if (!File.Exists(_remoteSettings.AppSettings.CertificateFilename))
+                            {
+                                throw new RemoteException(
+                                    $"The certificate with the filename {_remoteSettings.AppSettings.CertificateFilename} does not exist.");
+                            }
+
+                            var cert = X509Certificate.CreateFromCertFile(_remoteSettings.AppSettings
+                                .CertificateFilename);
+                            var effectiveDate = DateTime.Parse(cert.GetEffectiveDateString());
+                            var expiresDate = DateTime.Parse(cert.GetExpirationDateString());
+
+                            if (DateTime.Now < effectiveDate)
+                            {
+                                throw new RemoteException(
+                                    $"The certificate with the filename {_remoteSettings.AppSettings.CertificateFilename} is not valid until {effectiveDate}.");
+                            }
+
+
+                            if (DateTime.Now > expiresDate)
+                            {
+                                throw new RemoteException(
+                                    $"The certificate with the filename {_remoteSettings.AppSettings.CertificateFilename} expired on {expiresDate}.");
+                            }
+                        }
+
+
+                        if (!useHttps || File.Exists(_remoteSettings.AppSettings.CertificateFilename))
+                        {
+                            var host = new WebHostBuilder()
+                                .UseStartup<Startup>()
+                                .ConfigureServices(s => s.AddSingleton(_streams))
+                                .UseKestrel(options =>
+                                {
+                                    options.Listen(IPAddress.Loopback,
+                                        _remoteSettings.AppSettings.DownloadPort ?? 33944,
+                                        listenOptions =>
                                         {
-                                            listenOptions.UseHttps(_remoteSettings.AppSettings.PfxCertificateFilename,
-                                                _remoteSettings.AppSettings.PfxCertificatePassword);
-                                        }
-                                    });
-                            })
-                            .UseUrls((useHttps ? "https://*:" : "http://*:") + _remoteSettings.AppSettings.DownloadPort)
-                            .Build();
+                                            // if there is a cerficiate then default to https
+                                            if (useHttps)
+                                            {
+                                                listenOptions.UseHttps(_remoteSettings.AppSettings.CertificateFilename,
+                                                    _remoteSettings.AppSettings.CertificatePassword);
+                                            }
+                                        });
+                                })
+                                .UseUrls((useHttps ? "https://*:" : "http://*:") +
+                                         _remoteSettings.AppSettings.DownloadPort)
+                                .Build();
 
-                        var webRunTask = host.RunAsync(ct);
+                            var webRunTask = host.RunAsync(ct);
 
-                        // remote agent will wait here until a cancel is issued.
-                        await Task.WhenAny(sender, webRunTask);
-                        host.Dispose();
+                            // remote agent will wait here until a cancel is issued.
+                            await Task.WhenAny(sender, webRunTask);
+                            host.Dispose();
+                        }
+                        else
+                        {
+                            throw new RemoteException(
+                                $"The certificate {_remoteSettings.AppSettings.CertificateFilename} could not be found.");
+                        }
                     }
-                    else
+                    catch (Exception e)
                     {
-                        logger.LogError(10, $"The Pfx certificate {_remoteSettings.AppSettings.PfxCertificateFilename} could not be found.  This agent will not be able to upload/download data.");
-
+                        logger.LogError(10, e,
+                            $"HttpServer not started, this agent will not be able to upload/download data.");
                         await sender;
                     }
-//                }
-//                else
-//                {
-//                    await sender;
-//                }
+                }
+                else
+                {
+                    logger.LogWarning(10, $"HttpServer not started, this agent will not be able to upload/download data.");
+                    await sender;
+                }
 
                 datalinkProgressTimer.Dispose();
                 await HubConnection.DisposeAsync();
