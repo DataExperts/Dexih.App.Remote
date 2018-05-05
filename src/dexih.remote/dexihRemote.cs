@@ -100,7 +100,7 @@ namespace dexih.remote
         /// <param name="generateUserToken">Create a new user authentication token</param>
         /// <param name="silentLogin"></param>
         /// <returns>The connection result, and a new user token if generated.</returns>
-        public async Task<(EConnectionResult connectionResult, string userToken, string ipAddress)> LoginAsync(bool generateUserToken, bool silentLogin = false)
+        public async Task<(EConnectionResult connectionResult, string userToken, string ipAddress, string userHash)> LoginAsync(bool generateUserToken, bool silentLogin = false)
         {
             var logger = LoggerFactory.CreateLogger("Login");
             try
@@ -139,14 +139,14 @@ namespace dexih.remote
                         logger.LogCritical(10, ex,
                             "Could not connect to the server at location: {server}, with the message: {message}",
                             Url + "/Remote/Login", ex.Message);
-                    return (EConnectionResult.InvalidLocation, "", "");
+                    return (EConnectionResult.InvalidLocation, "", "", "");
                 }
                 catch (Exception ex)
                 {
                     if (!silentLogin)
                         logger.LogCritical(10, ex, "Internal rrror connecting to the server at location: {0}",
                             Url + "/Remote/Login");
-                    return (EConnectionResult.InvalidLocation, "", "");
+                    return (EConnectionResult.InvalidLocation, "", "", "");
                 }
 
                 //login to the server and receive a securityToken which is used for future communcations.
@@ -154,7 +154,7 @@ namespace dexih.remote
                 if (string.IsNullOrEmpty(serverResponse))
                 {
                     logger.LogCritical(3, "No response returned from server when logging in.");
-                    return (EConnectionResult.InvalidLocation, "", "");
+                    return (EConnectionResult.InvalidLocation, "", "", "");
                 }
 
                 var parsedServerResponse = JObject.Parse(serverResponse);
@@ -164,23 +164,24 @@ namespace dexih.remote
                     SecurityToken = (string) parsedServerResponse["securityToken"];
                     var userToken = (string) parsedServerResponse["userToken"];
                     var ipAddress = (string) parsedServerResponse["ipAddress"];
+                    var userHash = (string)parsedServerResponse["userHash"];
                     
                     _remoteOperations.SecurityToken = SecurityToken;
 
                     logger.LogInformation(2, "User authentication successful.");
-                    return (EConnectionResult.Connected, userToken, ipAddress);
+                    return (EConnectionResult.Connected, userToken, ipAddress, userHash);
                 }
                 else
                 {
                     logger.LogCritical(3, "User authentication failed.  Run with the -reset flag to update the settings.  The authentication message from the server was: {0}.",
                         parsedServerResponse["message"].ToString());
-                    return (EConnectionResult.InvalidCredentials, "", "");
+                    return (EConnectionResult.InvalidCredentials, "", "", "");
                 }
             }
             catch (Exception ex)
             {
                 logger.LogError(10, ex, "Error logging in: " + ex.Message);
-                return (EConnectionResult.UnhandledException, "", "");
+                return (EConnectionResult.UnhandledException, "", "", "");
             }
         }
 
@@ -224,21 +225,24 @@ namespace dexih.remote
                             if (string.IsNullOrEmpty(_remoteSettings.AppSettings.CertificateFilename))
                             {
                                 _remoteSettings.AppSettings.CertificateFilename = "dexih.pfx";
+                                useHttps = true;
                             }
 
                             var renew = false;
 
-                            if (File.Exists("dexih.pfx"))
+                            if (File.Exists(_remoteSettings.AppSettings.CertificateFilename))
                             {
-                                var cert = X509Certificate.CreateFromCertFile(_remoteSettings.AppSettings
-                                    .CertificateFilename);
-                                var effectiveDate = DateTime.Parse(cert.GetEffectiveDateString());
-                                var expiresDate = DateTime.Parse(cert.GetExpirationDateString());
-
-                                // if cert expires in next 7 days, then renew.
-                                if (DateTime.Now > expiresDate.AddDays(-7))
+                                // Create a collection object and populate it using the PFX file
+                                using (var cert = new X509Certificate2(_remoteSettings.AppSettings.CertificateFilename, _remoteSettings.AppSettings.CertificatePassword))
                                 {
-                                    renew = true;
+                                    var effectiveDate = DateTime.Parse(cert.GetEffectiveDateString());
+                                    var expiresDate = DateTime.Parse(cert.GetExpirationDateString());
+
+                                    // if cert expires in next 7 days, then renew.
+                                    if (DateTime.Now > expiresDate.AddDays(-7))
+                                    {
+                                        renew = true;
+                                    }
                                 }
                             }
                             else
@@ -261,8 +265,8 @@ namespace dexih.remote
 
                                 if (response.IsSuccessStatusCode)
                                 {
-                                    var certificate = await response.Content.ReadAsStringAsync();
-                                    await File.WriteAllTextAsync(_remoteSettings.AppSettings.CertificateFilename,
+                                    var certificate = await response.Content.ReadAsByteArrayAsync();
+                                    await File.WriteAllBytesAsync(_remoteSettings.AppSettings.CertificateFilename,
                                         certificate, ct);
                                 }
                                 else
@@ -288,23 +292,26 @@ namespace dexih.remote
                                     $"The certificate with the filename {_remoteSettings.AppSettings.CertificateFilename} does not exist.");
                             }
 
-                            var cert = X509Certificate.CreateFromCertFile(_remoteSettings.AppSettings
-                                .CertificateFilename);
-                            var effectiveDate = DateTime.Parse(cert.GetEffectiveDateString());
-                            var expiresDate = DateTime.Parse(cert.GetExpirationDateString());
-
-                            if (DateTime.Now < effectiveDate)
+                            using (var cert = new X509Certificate2(_remoteSettings.AppSettings.CertificateFilename, _remoteSettings.AppSettings.CertificatePassword))
                             {
-                                throw new RemoteException(
-                                    $"The certificate with the filename {_remoteSettings.AppSettings.CertificateFilename} is not valid until {effectiveDate}.");
+                                var effectiveDate = DateTime.Parse(cert.GetEffectiveDateString());
+                                var expiresDate = DateTime.Parse(cert.GetExpirationDateString());
+
+                                if (DateTime.Now < effectiveDate)
+                                {
+                                    throw new RemoteException(
+                                        $"The certificate with the filename {_remoteSettings.AppSettings.CertificateFilename} is not valid until {effectiveDate}.");
+                                }
+
+
+                                if (DateTime.Now > expiresDate)
+                                {
+                                    throw new RemoteException(
+                                        $"The certificate with the filename {_remoteSettings.AppSettings.CertificateFilename} expired on {expiresDate}.");
+                                }
+
                             }
 
-
-                            if (DateTime.Now > expiresDate)
-                            {
-                                throw new RemoteException(
-                                    $"The certificate with the filename {_remoteSettings.AppSettings.CertificateFilename} expired on {expiresDate}.");
-                            }
                         }
 
 
@@ -322,7 +329,7 @@ namespace dexih.remote
                                             // if there is a cerficiate then default to https
                                             if (useHttps)
                                             {
-                                                listenOptions.UseHttps(_remoteSettings.AppSettings.CertificateFilename,
+                                                listenOptions.UseHttps(Path.Combine(Directory.GetCurrentDirectory(), _remoteSettings.AppSettings.CertificateFilename),
                                                     _remoteSettings.AppSettings.CertificatePassword);
                                             }
                                         });
