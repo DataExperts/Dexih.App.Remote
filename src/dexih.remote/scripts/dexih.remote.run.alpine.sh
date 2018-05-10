@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env ash
 # This script downloads the remote agent binaries and runs the remote agent.
 
 DIRECTORY='remote.agent'
