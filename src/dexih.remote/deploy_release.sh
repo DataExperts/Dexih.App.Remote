@@ -36,6 +36,13 @@ echo FILE - ${FILE}
 echo UPLOADURL - ${UPLOADURL}
 curl --progress-bar  -o upload.txt -u gholland@dataexpertsgroup.com:$PASSWORD  -H "Content-Type: application/octet-stream" --data-binary @"${FILE}" "${UPLOADURL}"
 
+echo UPLOAD ALPINE BINARY
+FILE=/Users/garyholland/Source/Dexih.App.Remote/src/dexih.remote/releases/dexih.remote.alpine_${VERSION}.zip
+UPLOADURL="${URL}?name=dexih.remote.alpine_${VERSION}.zip"
+echo FILE - ${FILE}
+echo UPLOADURL - ${UPLOADURL}
+curl --progress-bar  -o upload.txt -u gholland@dataexpertsgroup.com:$PASSWORD  -H "Content-Type: application/octet-stream" --data-binary @"${FILE}" "${UPLOADURL}"
+
 rm upload.txt
 
 echo UPLOAD DOCKER IMAGE

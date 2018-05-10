@@ -25,8 +25,8 @@ do
     fi
 
     GIT_DATA=`curl -s "https://api.github.com/repos/DataExperts/Dexih.App.Remote/releases/latest"`
-    LATEST_RELEASE_BINARY=`echo $GIT_DATA |  jq -r '.assets[].name' | grep linux`
-    LATEST_RELEASE_URL=`echo $GIT_DATA |  jq -r '.assets[].browser_download_url' | grep linux`
+    LATEST_RELEASE_BINARY=`echo $GIT_DATA |  jq -r '.assets[].name' | grep alpine`
+    LATEST_RELEASE_URL=`echo $GIT_DATA |  jq -r '.assets[].browser_download_url' | grep alpine`
 
     if [ -f "local_binary.txt" ]; then
         LOCAL_BINARY=`more local_binary.txt`
@@ -93,8 +93,9 @@ do
     fi
 
     # Run the remote agent
-    pushd ${DIRECTORY}
-        ./dexih.remote $1
-        UPGRADE=$?
-    popd
+    OLD_DIR=`pwd`
+    cd ${DIRECTORY}
+    ./dexih.remote $1
+    UPGRADE=$?
+    cd ${OLD_DIR}
 done
