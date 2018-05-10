@@ -55,7 +55,12 @@ namespace dexih.remote
                 var path = context.Request.Path;
                 var segments = path.Value.Split('/');
 
-                if (segments.Length >= 4)
+                if (segments[1] == "ping")
+                {
+                    await context.Response.WriteAsync("<h1>Remote agent is alive</h1>");
+                }
+
+                else if (segments.Length >= 4)
                 {
                     var command = segments[1];
                     var key = HttpUtility.UrlDecode(segments[2]);
@@ -102,23 +107,6 @@ namespace dexih.remote
 
                                 break;
 
-//                            case "reader":
-//
-//                                var readerStream =
-//                                    await streams.GetDownloadBuffer(key, securityKey, CancellationToken.None);
-//
-//                                context.Response.ContentType = "application/json";
-//
-//                                // use status code 206 more data available
-//                                context.Response.StatusCode = readerStream.moreData ? 206 : 200;
-//
-//                                using (var writer = new StreamWriter(context.Response.Body))
-//                                {
-//                                    new JsonSerializer().Serialize(writer, readerStream.buffer);
-//                                    await writer.FlushAsync().ConfigureAwait(false);
-//                                }
-//
-//                                break;
                             case "upload":
                                 var memoryStream = new MemoryStream();
                                 await context.Request.Body.CopyToAsync(memoryStream);

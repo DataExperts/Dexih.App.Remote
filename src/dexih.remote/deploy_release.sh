@@ -39,4 +39,4 @@ curl --progress-bar  -o upload.txt -u gholland@dataexpertsgroup.com:$PASSWORD  -
 rm upload.txt
 
 echo UPLOAD DOCKER IMAGE
-docker push dexih/remote
+docker push dexih/remote:${VERSION_PREFIX}-${VERSION_SUFFIX}

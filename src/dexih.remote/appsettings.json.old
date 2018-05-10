@@ -1,0 +1,95 @@
+{
+  "AppSettings": {
+    "User": "admin@dataexpertsgroup.com",
+    "RemoteAgentId": "896f93cd-e699-431c-af0b-3c59c3715a82",
+    "UserToken": "CfDJ8IfK9B5hwZ1JiOODrM7NTD8oHYBqyrJ2+wBIwtz3oCDe6oC9AkU7UJ7vBMRJgW/4RdcMlFAVlRWRAy0RKEyPeeV4w3aNbqz0IOoJHGPLue8XOKgtv4g50mZylxaegMOI6aeztI8HV3541fu5CgfhU/S4+3whfMqKySCHB6tw7HO/1scYpzOfqklZ7KoTZehmvGRDfOYGldCJi0zctoXOBaNogJ8G1ocXQua5QlSXH3HninHIebqGmtbzyhmMdW6rarqAtShTWnQcDfKea2Vhajw=",
+    "EncryptionKey": "saTmDk5g7GzsdSIPxnDltP1FK3ax/wuX6j6JkJSZhS1Ax12FY0AjhQsYS7w9ZwwQ+QU=",
+    "WebServer": "http://localhost:4200",
+    "Name": "GaryMac",
+    "AutoSchedules": true,
+    "AutoUpgrade": false,
+    "PreRelease": false,
+    "AllowAzureStorage": false,
+    "AllowDataDownload": true,
+    "AllowDataUpload": true,
+    "DownloadDirectly": true,
+    "DownloadPort": "33944",
+    "ExternalDownloadUrl": "",
+    "AllowLocalFiles": true,
+    "AllowAllPaths": true,
+    "AllowedPaths": [],
+    "AllowAllHubs": true,
+    "MaxUploadSize": "1000000000",
+    "EnforceHttps": false,
+    "AutoGenerateCertificate": false,
+    "CertificatePassword": "",
+    "DownloadLocalIp": true
+  },
+  "SystemSettings": {
+    "MaxAcknowledgeWait": 5000,
+    "ResponseTimeout": 1000000,
+    "CancelDelay": 1000,
+    "EncryptionIterations": 1000,
+    "MaxPreviewDuration": 10000,
+    "MaxConcurrentTasks": 50,
+    "SocketTransportType": 1
+  },
+  "Logging": {
+    "IncludeScopes": false,
+    "LogLevel": {
+      "Default": "Information",
+      "System": "Information",
+      "Microsoft": "Information"
+    }
+  }
+}
+
+
+
+//{
+//  "AppSettings": {
+//    "FirstRun": false,
+//    "User": "admin@dataexpertsgroup.com",
+//    "UserToken": "CfDJ8J3mfDXQXUhBtr3ljkwOBqa53IZz9F30zfRtjxUoW0hHWeGjx+YfAMHQaTTxSlLeM9MUp01XcnS/76xKU6REtIf6UzOItLWjKJDLWIoGpmuRdUeCFWsq9l8RC0EuukD5Sd+oUhbokoPt4ryeviYfGnM8PbZONBtpD3u2n7BiWgIH104jUlky1JHGu+2+La2mGxMaY4ZErNL4/IiHLc8Kdrbuqow0Wx4L4Qv5VAEyTAR6hreyqKhVANouyj0wo1u+6t6VYV3bppcKehEdUYdwSb4=",
+//    "EncryptionKey": "yz+yCCZxTC+mvNaEl9dVRUPoq2m/2Qd93jb7JdvmWzvDvKXZFNO4Skl8FRD0dgtPN1o=",
+//    "WebServer": "https://dexih.dataexpertsgroup.com",
+//    "Name": "GaryMac",
+//    "AutoSchedules": true,
+//    "AutoUpgrade": false,
+//    "PreRelease": false,
+//    "AllowAzureStorage": false,
+//    "AllowDataDownload": true,
+//    "AllowDataUpload": true,
+//    "RemoteAgentId": "39d209e9-a234-421c-9d0c-c967b8c32e60",
+//    "AgentSecret": null,
+//    "DownloadDirectly": true,
+//    "DownloadPort": 33944,
+//    "ExternalDownloadUrl": null, // "https://localhost:33944",
+//    "AllowAllPaths": true,
+//    "AllowedPaths": [],
+//    "AllowAllHubs": true,
+//    "AllowedHubs": [],
+//    "MaxUploadSize": "1000000000",
+//    "EnforceHttps": true,
+//    "AutoGenerateCertificate": true,
+//    "CertificatePassword": "wombat",
+//    "DownloadLocalIp": true
+//  },
+//  "SystemSettings": {
+//    "MaxAcknowledgeWait": 5000,
+//    "ResponseTimeout": 1000000,
+//    "CancelDelay": 1000,
+//    "EncryptionIteractions": 1000,
+//    "MaxPreviewDuration": 10000,
+//    "MaxConcurrentTasks": 50,
+//    "SocketTransportType": 1
+//  },
+//  "Logging": {
+//    "IncludeScopes": false,
+//    "LogLevel": {
+//      "Default": "Information",
+//      "System": "Information",
+//      "Microsoft": "Information"
+//    }
+//  }
+//}

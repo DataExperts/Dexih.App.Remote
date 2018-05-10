@@ -14,24 +14,24 @@ printf "%s %s" ${VERSION_PREFIX} ${VERSION_SUFFIX} > version.txt
 dotnet restore
 # dotnet publish -c release -r win7-x64 -f net46
 #dotnet restore -r win7-x64 
-dotnet publish -c release -r win7-x64 -f netcoreapp2.0 --version-suffix ${VERSION_SUFFIX} -p:VersionPrefix=${VERSION_PREFIX}
+dotnet publish -c release -r win7-x64 -f netcoreapp2.1 --version-suffix ${VERSION_SUFFIX} -p:VersionPrefix=${VERSION_PREFIX}
 #dotnet restore -r osx-x64
-dotnet publish -c release -r osx-x64 -f netcoreapp2.0 --version-suffix ${VERSION_SUFFIX} -p:VersionPrefix=${VERSION_PREFIX}
+dotnet publish -c release -r osx-x64 -f netcoreapp2.1 --version-suffix ${VERSION_SUFFIX} -p:VersionPrefix=${VERSION_PREFIX}
 #dotnet restore -r linux-x64
-dotnet publish -c release -r linux-x64 -f netcoreapp2.0 --version-suffix ${VERSION_SUFFIX} -p:VersionPrefix=${VERSION_PREFIX}
+dotnet publish -c release -r linux-x64 -f netcoreapp2.1 --version-suffix ${VERSION_SUFFIX} -p:VersionPrefix=${VERSION_PREFIX}
 
-pushd ./bin/release/netcoreapp2.0/win7-x64/publish
+pushd ./bin/release/netcoreapp2.1/win7-x64/publish
 zip -r ../../../../../releases/dexih.remote.windows_${VERSION_PREFIX}-${VERSION_SUFFIX}.zip *
 popd
 
-pushd ./bin/release/netcoreapp2.0/osx-x64/publish
+pushd ./bin/release/netcoreapp2.1/osx-x64/publish
 chmod a+x dexih.remote
 zip -r ../../../../../releases/dexih.remote.osx_${VERSION_PREFIX}-${VERSION_SUFFIX}.zip *
 popd
 
-pushd ./bin/release/netcoreapp2.0/linux-x64/publish
+pushd ./bin/release/netcoreapp2.1/linux-x64/publish
 chmod a+x dexih.remote
 zip -r ../../../../../releases/dexih.remote.linux_${VERSION_PREFIX}-${VERSION_SUFFIX}.zip *
 popd
 
-docker build . -t dexih/remote
+docker build . -t dexih/remote:${VERSION_PREFIX}-${VERSION_SUFFIX}

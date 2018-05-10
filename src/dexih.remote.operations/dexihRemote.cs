@@ -1,30 +1,30 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Net;
 using System.Net.Http;
-using System.Threading.Tasks;
-using Newtonsoft.Json.Linq;
-using System.Threading;
-using System.Diagnostics;
-using System.Text;
-using System.Collections.Concurrent;
-using System.IO;
-using Microsoft.Extensions.Logging;
+using System.Net.Sockets;
 using System.Reflection;
 using System.Security.Cryptography.X509Certificates;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using dexih.operations;
-using Dexih.Utils.Crypto;
-using Dexih.Utils.MessageHelpers;
 using dexih.remote.operations;
 using dexih.remote.Operations.Services;
 using dexih.repository;
+using Dexih.Utils.Crypto;
 using Dexih.Utils.ManagedTasks;
+using Dexih.Utils.MessageHelpers;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.DependencyInjection;
-using OfficeOpenXml.FormulaParsing.Excel.Functions.DateTime;
-using TransportType = Microsoft.AspNetCore.Http.Connections.TransportType;
+using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace dexih.remote
 {
@@ -39,6 +39,15 @@ namespace dexih.remote
             InvalidLocation = 2,
             InvalidCredentials = 3,
             UnhandledException = 4
+        }
+        
+        public enum EExitCode {
+            Success = 0,
+            InvalidSetting = 1,
+            InvalidLogin = 2,
+            Terminated = 3,
+            UnknownError = 10,
+            Upgrade = 20
         }
 
         private readonly RemoteSettings _remoteSettings;
@@ -65,9 +74,24 @@ namespace dexih.remote
         private readonly ConcurrentBag<ResponseMessage> _sendMessageQueue = new ConcurrentBag<ResponseMessage>();
         private readonly IStreams _streams = new Streams();
 
+        private string LocalIPAddress()
+        {
+            string localIP;
+            using (Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, 0))
+            {
+                socket.Connect("8.8.8.8", 65530);
+                IPEndPoint endPoint = socket.LocalEndPoint as IPEndPoint;
+                localIP = endPoint.Address.ToString();
+
+                return localIP;
+            }
+        }
+        
         public DexihRemote(RemoteSettings remoteSettings, LoggerFactory loggerFactory)
         {
             _remoteSettings = remoteSettings;
+            _remoteSettings.AppSettings.LocalIpAddress = LocalIPAddress();
+            
             LoggerFactory = loggerFactory;
 
             var url = remoteSettings.AppSettings.WebServer;
@@ -83,7 +107,7 @@ namespace dexih.remote
             LoggerFactory.CreateLogger("Scheduler");
 
             var cookies = new CookieContainer();
-            var handler = new HttpClientHandler()
+            var handler = new HttpClientHandler
             {
                 CookieContainer = cookies
             };
@@ -94,13 +118,79 @@ namespace dexih.remote
             _remoteOperations = new RemoteOperations(_remoteSettings, SessionEncryptionKey, LoggerMessages, _httpClient, Url, _streams);
         }
 
+        public async Task<EExitCode> StartAsync(bool saveSettings, CancellationToken cancellationToken)
+        {
+            var logger = LoggerFactory.CreateLogger("Start");
+            logger.LogInformation("Connecting to server.  ctrl-c to terminate.");
+
+            //use this flag so the retrying only displays once.
+            var retryStarted = false;
+            var savedSettings = false;
+
+            while (true)
+            {
+                var generateToken = !string.IsNullOrEmpty(_remoteSettings.AppSettings.Password) && saveSettings;
+                var loginResult = await LoginAsync(generateToken, retryStarted, cancellationToken);
+
+                var connectResult = loginResult.connectionResult;
+
+                if (connectResult == EConnectionResult.Connected)
+                {
+                    _remoteSettings.AppSettings.IpAddress = loginResult.ipAddress;
+
+                    if (!savedSettings && saveSettings)
+                    {
+                        _remoteSettings.AppSettings.UserToken = loginResult.userToken;
+                        
+                        var appSettingsFile = Directory.GetCurrentDirectory() + "/appsettings.json";
+                        File.WriteAllText(appSettingsFile, JsonConvert.SerializeObject(_remoteSettings, Formatting.Indented));
+                        logger.LogInformation("The appsettings.json file has been updated with the current settings.");
+
+                        if (!string.IsNullOrEmpty(_remoteSettings.AppSettings.Password))
+                        {
+                            logger.LogWarning("The password is not saved to the appsettings.json file.  Create a RemoteId/UserToken combination to authenticate without a password.");
+                        }
+
+                        savedSettings = true;
+                    }
+
+                    connectResult = await ListenAsync(retryStarted, cancellationToken);
+                }
+                
+                switch (connectResult)
+                {
+                    case EConnectionResult.Disconnected:
+                        if (!retryStarted)
+                            logger.LogWarning("Remote agent disconnected... attempting to reconnect");
+                        Thread.Sleep(2000);
+                        break;
+                    case EConnectionResult.InvalidCredentials:
+                        logger.LogWarning("Invalid credentials... terminating service.");
+                        return EExitCode.InvalidLogin;
+                    case EConnectionResult.InvalidLocation:
+                        if (!retryStarted)
+                            logger.LogWarning("Invalid location... web server might be down... retrying...");
+                        Thread.Sleep(5000);
+                        break;
+                    case EConnectionResult.UnhandledException:
+                        if (!retryStarted)
+                            logger.LogWarning("Unhandled exception on remote server.. retrying...");
+                        Thread.Sleep(5000);
+                        break;
+                }
+
+                retryStarted = true;
+            }
+        }
+
         /// <summary>
         /// Authenticates and logs the user in
         /// </summary>
         /// <param name="generateUserToken">Create a new user authentication token</param>
         /// <param name="silentLogin"></param>
+        /// <param name="cancellationToken"></param>
         /// <returns>The connection result, and a new user token if generated.</returns>
-        public async Task<(EConnectionResult connectionResult, string userToken, string ipAddress, string userHash)> LoginAsync(bool generateUserToken, bool silentLogin = false)
+        public async Task<(EConnectionResult connectionResult, string userToken, string ipAddress, string userHash)> LoginAsync(bool generateUserToken, bool silentLogin, CancellationToken cancellationToken)
         {
             var logger = LoggerFactory.CreateLogger("Login");
             try
@@ -110,19 +200,18 @@ namespace dexih.remote
 
                 if (!silentLogin)
                 {
-                    logger.LogInformation(1, "Data Experts Group - Remote Agent version {version}", runtimeVersion);
-                    logger.LogInformation(1, "Connecting as {server} to url  {url} with {user}",
-                        _remoteSettings.AppSettings.Name, Url, _remoteSettings.AppSettings.User);
+                    logger.LogInformation(1, $"Connecting to {Url} with user {_remoteSettings.AppSettings.User}");
+                    logger.LogInformation($"This remote agent is named: \"{_remoteSettings.AppSettings.Name}\"");
                 }
 
                 var login = new
                 {
-                    User = _remoteSettings.AppSettings.User,
-                    Password = _remoteSettings.AppSettings.Password,
-                    UserToken = _remoteSettings.AppSettings.UserToken,
+                    _remoteSettings.AppSettings.User,
+                    _remoteSettings.AppSettings.Password,
+                    _remoteSettings.AppSettings.UserToken,
                     Version = runtimeVersion,
                     GenerateToken = generateUserToken,
-                    RemoteSettings = _remoteSettings,
+                    RemoteSettings = _remoteSettings
                 };
                 
                 var messagesString = Json.SerializeObject(login, SessionEncryptionKey);
@@ -131,7 +220,7 @@ namespace dexih.remote
                 HttpResponseMessage response;
                 try
                 {
-                    response = await _httpClient.PostAsync(Url + "Remote/Login", content);
+                    response = await _httpClient.PostAsync(Url + "Remote/Login", content, cancellationToken);
                 }
                 catch (HttpRequestException ex)
                 {
@@ -153,11 +242,20 @@ namespace dexih.remote
                 var serverResponse = await response.Content.ReadAsStringAsync();
                 if (string.IsNullOrEmpty(serverResponse))
                 {
-                    logger.LogCritical(3, "No response returned from server when logging in.");
+                    logger.LogCritical(4, $"No response returned connecting to {Url}.");
                     return (EConnectionResult.InvalidLocation, "", "", "");
                 }
 
-                var parsedServerResponse = JObject.Parse(serverResponse);
+                JObject parsedServerResponse;
+                try
+                {
+                    parsedServerResponse = JObject.Parse(serverResponse);
+                }
+                catch (JsonException e)
+                {
+                    logger.LogCritical(4, $"An invalid response was returned connecting to {Url}.  Response was: \"{serverResponse}\".");
+                    return (EConnectionResult.InvalidLocation, "", "", "");
+                }
 
                 if ((bool) parsedServerResponse["success"])
                 {
@@ -171,12 +269,10 @@ namespace dexih.remote
                     logger.LogInformation(2, "User authentication successful.");
                     return (EConnectionResult.Connected, userToken, ipAddress, userHash);
                 }
-                else
-                {
-                    logger.LogCritical(3, "User authentication failed.  Run with the -reset flag to update the settings.  The authentication message from the server was: {0}.",
-                        parsedServerResponse["message"].ToString());
-                    return (EConnectionResult.InvalidCredentials, "", "", "");
-                }
+
+                logger.LogCritical(3, "User authentication failed.  Run with the -reset flag to update the settings.  The authentication message from the server was: {0}.",
+                    parsedServerResponse["message"].ToString());
+                return (EConnectionResult.InvalidCredentials, "", "", "");
             }
             catch (Exception ex)
             {
@@ -185,188 +281,206 @@ namespace dexih.remote
             }
         }
 
-        public async Task<EConnectionResult> ListenAsync(bool silentLogin = false)
+        public async Task<EConnectionResult> ListenAsync(bool silentLogin, CancellationToken cancellationToken)
         {
 
             var logger = LoggerFactory.CreateLogger("Listen");
             try
             {
-          
-                var ts = new CancellationTokenSource();
-                var ct = ts.Token;
 
-                var signalrConnectionResult = await SignalRConnection(ts, ct);
 
-                if (ct.IsCancellationRequested || signalrConnectionResult != EConnectionResult.Connected)
+                using (var signalrTs = new CancellationTokenSource())
                 {
-                    return signalrConnectionResult;
-                }
-                
-                // start the send message handler.
-                var sender = SendMessageHandler(ct);
-                
-                //set the repeating tasks
-                TimerCallback datalinkProgressCallBack = SendDatalinkProgress;
-                var datalinkProgressTimer = new Timer(datalinkProgressCallBack, null, 500, 500);
-
-                _streams.OriginUrl = _remoteSettings.AppSettings.WebServer;
-                _streams.RemoteSettings = _remoteSettings;
-
-
-                // if direct upload/downloads are enabled, startup the upload/download web server.
-                if (_remoteSettings.AppSettings.DownloadDirectly)
-                {
-                    try
+                    var signalrCt = signalrTs.Token;
+                    using (var linkedCTs =CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, signalrCt))
                     {
-                        var useHttps = !string.IsNullOrEmpty(_remoteSettings.AppSettings.CertificateFilename);
+                        var ct = linkedCTs.Token;
 
-                        if (_remoteSettings.AppSettings.AutoGenerateCertificate)
+                        var signalrConnectionResult = await SignalRConnection(signalrTs, ct);
+
+                        if (cancellationToken.IsCancellationRequested || signalrCt.IsCancellationRequested ||
+                            signalrConnectionResult != EConnectionResult.Connected)
                         {
-                            if (string.IsNullOrEmpty(_remoteSettings.AppSettings.CertificateFilename))
-                            {
-                                _remoteSettings.AppSettings.CertificateFilename = "dexih.pfx";
-                                useHttps = true;
-                            }
+                            return signalrConnectionResult;
+                        }
 
-                            var renew = false;
+                        // start the send message handler.
+                        var sender = SendMessageHandler(ct);
 
-                            if (File.Exists(_remoteSettings.AppSettings.CertificateFilename))
+                        //set the repeating tasks
+                        TimerCallback datalinkProgressCallBack = SendDatalinkProgress;
+                        var datalinkProgressTimer = new Timer(datalinkProgressCallBack, null, 500, 500);
+
+                        _streams.OriginUrl = _remoteSettings.AppSettings.WebServer;
+                        _streams.RemoteSettings = _remoteSettings;
+
+
+                        // if direct upload/downloads are enabled, startup the upload/download web server.
+                        if (_remoteSettings.AppSettings.DownloadDirectly)
+                        {
+                            try
                             {
-                                // Create a collection object and populate it using the PFX file
-                                using (var cert = new X509Certificate2(_remoteSettings.AppSettings.CertificateFilename, _remoteSettings.AppSettings.CertificatePassword))
+                                var useHttps = !string.IsNullOrEmpty(_remoteSettings.AppSettings.CertificateFilename);
+
+                                if (_remoteSettings.AppSettings.AutoGenerateCertificate)
                                 {
-                                    var effectiveDate = DateTime.Parse(cert.GetEffectiveDateString());
-                                    var expiresDate = DateTime.Parse(cert.GetExpirationDateString());
+                                    if (string.IsNullOrEmpty(_remoteSettings.AppSettings.CertificateFilename))
+                                    {
+                                        _remoteSettings.AppSettings.CertificateFilename = "dexih.pfx";
+                                        useHttps = true;
+                                    }
 
-                                    // if cert expires in next 7 days, then renew.
-                                    if (DateTime.Now > expiresDate.AddDays(-7))
+                                    var renew = false;
+
+                                    if (File.Exists(_remoteSettings.AppSettings.CertificateFilename))
+                                    {
+                                        // Create a collection object and populate it using the PFX file
+                                        using (var cert = new X509Certificate2(
+                                            _remoteSettings.AppSettings.CertificateFilename,
+                                            _remoteSettings.AppSettings.CertificatePassword))
+                                        {
+                                            var effectiveDate = DateTime.Parse(cert.GetEffectiveDateString());
+                                            var expiresDate = DateTime.Parse(cert.GetExpirationDateString());
+
+                                            // if cert expires in next 7 days, then renew.
+                                            if (DateTime.Now > expiresDate.AddDays(-7))
+                                            {
+                                                renew = true;
+                                            }
+                                        }
+                                    }
+                                    else
                                     {
                                         renew = true;
                                     }
+
+                                    if (renew)
+                                    {
+                                        var details = new
+                                        {
+                                            Domain = _remoteSettings.AppSettings.DynamicDomain,
+                                            Password = _remoteSettings.AppSettings.CertificatePassword
+                                        };
+
+                                        var messagesString = Json.SerializeObject(details, SessionEncryptionKey);
+                                        var content = new StringContent(messagesString, Encoding.UTF8,
+                                            "application/json");
+
+                                        var response = await _httpClient.PostAsync(Url + "Remote/GenerateCertificate",
+                                            content, ct);
+
+                                        if (response.IsSuccessStatusCode)
+                                        {
+                                            var certificate = await response.Content.ReadAsByteArrayAsync();
+                                            File.WriteAllBytes(_remoteSettings.AppSettings.CertificateFilename,
+                                                certificate);
+                                        }
+                                        else
+                                        {
+                                            throw new RemoteException(
+                                                $"The certificate renewal failed.  {response.ReasonPhrase}.");
+                                        }
+                                    }
                                 }
-                            }
-                            else
-                            {
-                                renew = true;
-                            }
 
-                            if (renew)
-                            {
-                                var details = new
+                                if (_remoteSettings.AppSettings.EnforceHttps)
                                 {
-                                    Domain = _remoteSettings.AppSettings.DynamicDomain,
-                                    Password = _remoteSettings.AppSettings.CertificatePassword
-                                };
-                
-                                var messagesString = Json.SerializeObject(details, SessionEncryptionKey);
-                                var content = new StringContent(messagesString, Encoding.UTF8, "application/json");
-                                
-                                var response = await _httpClient.PostAsync(Url + "Remote/GenerateCertificate", content, ct);
 
-                                if (response.IsSuccessStatusCode)
+                                    if (string.IsNullOrEmpty(_remoteSettings.AppSettings.CertificateFilename))
+                                    {
+                                        throw new RemoteException(
+                                            "The server requires https, however a CertificateFile name is not specified.");
+                                    }
+
+                                    if (!File.Exists(_remoteSettings.AppSettings.CertificateFilename))
+                                    {
+                                        throw new RemoteException(
+                                            $"The certificate with the filename {_remoteSettings.AppSettings.CertificateFilename} does not exist.");
+                                    }
+
+                                    using (var cert = new X509Certificate2(
+                                        _remoteSettings.AppSettings.CertificateFilename,
+                                        _remoteSettings.AppSettings.CertificatePassword))
+                                    {
+                                        var effectiveDate = DateTime.Parse(cert.GetEffectiveDateString());
+                                        var expiresDate = DateTime.Parse(cert.GetExpirationDateString());
+
+                                        if (DateTime.Now < effectiveDate)
+                                        {
+                                            throw new RemoteException(
+                                                $"The certificate with the filename {_remoteSettings.AppSettings.CertificateFilename} is not valid until {effectiveDate}.");
+                                        }
+
+
+                                        if (DateTime.Now > expiresDate)
+                                        {
+                                            throw new RemoteException(
+                                                $"The certificate with the filename {_remoteSettings.AppSettings.CertificateFilename} expired on {expiresDate}.");
+                                        }
+
+                                    }
+
+                                }
+
+
+                                if (!useHttps || File.Exists(_remoteSettings.AppSettings.CertificateFilename))
                                 {
-                                    var certificate = await response.Content.ReadAsByteArrayAsync();
-                                    await File.WriteAllBytesAsync(_remoteSettings.AppSettings.CertificateFilename,
-                                        certificate, ct);
+                                    logger.LogInformation("Starting the data upload/download web server.");
+                                    var host = new WebHostBuilder()
+                                        .UseStartup<Startup>()
+                                        .ConfigureServices(s => s.AddSingleton(_streams))
+                                        .UseKestrel(options =>
+                                        {
+                                            options.Listen(IPAddress.Any,
+                                                _remoteSettings.AppSettings.DownloadPort ?? 33944,
+                                                listenOptions =>
+                                                {
+                                                    // if there is a cerficiate then default to https
+                                                    if (useHttps)
+                                                    {
+                                                        listenOptions.UseHttps(
+                                                            Path.Combine(Directory.GetCurrentDirectory(),
+                                                                _remoteSettings.AppSettings.CertificateFilename),
+                                                            _remoteSettings.AppSettings.CertificatePassword);
+                                                    }
+                                                });
+                                        })
+                                        .UseUrls((useHttps ? "https://*:" : "http://*:") +
+                                                 _remoteSettings.AppSettings.DownloadPort)
+                                        .Build();
+
+                                    var webRunTask = host.RunAsync(ct);
+
+                                    // remote agent will wait here until a cancel is issued.
+                                    await Task.WhenAny(sender, webRunTask);
+                                    host.Dispose();
                                 }
                                 else
                                 {
                                     throw new RemoteException(
-                                        $"The certificate renewal failed.  {response.ReasonPhrase}.");
+                                        $"The certificate {_remoteSettings.AppSettings.CertificateFilename} could not be found.");
                                 }
                             }
-                        }
-
-                        if (_remoteSettings.AppSettings.EnforceHttps)
-                        {
-
-                            if (string.IsNullOrEmpty(_remoteSettings.AppSettings.CertificateFilename))
+                            catch (Exception e)
                             {
-                                throw new RemoteException(
-                                    "The server requires https, however a CertificateFile name is not specified.");
+                                logger.LogError(10, e,
+                                    $"HttpServer not started, this agent will not be able to upload/download data.");
+                                await sender;
                             }
-
-                            if (!File.Exists(_remoteSettings.AppSettings.CertificateFilename))
-                            {
-                                throw new RemoteException(
-                                    $"The certificate with the filename {_remoteSettings.AppSettings.CertificateFilename} does not exist.");
-                            }
-
-                            using (var cert = new X509Certificate2(_remoteSettings.AppSettings.CertificateFilename, _remoteSettings.AppSettings.CertificatePassword))
-                            {
-                                var effectiveDate = DateTime.Parse(cert.GetEffectiveDateString());
-                                var expiresDate = DateTime.Parse(cert.GetExpirationDateString());
-
-                                if (DateTime.Now < effectiveDate)
-                                {
-                                    throw new RemoteException(
-                                        $"The certificate with the filename {_remoteSettings.AppSettings.CertificateFilename} is not valid until {effectiveDate}.");
-                                }
-
-
-                                if (DateTime.Now > expiresDate)
-                                {
-                                    throw new RemoteException(
-                                        $"The certificate with the filename {_remoteSettings.AppSettings.CertificateFilename} expired on {expiresDate}.");
-                                }
-
-                            }
-
-                        }
-
-
-                        if (!useHttps || File.Exists(_remoteSettings.AppSettings.CertificateFilename))
-                        {
-                            var host = new WebHostBuilder()
-                                .UseStartup<Startup>()
-                                .ConfigureServices(s => s.AddSingleton(_streams))
-                                .UseKestrel(options =>
-                                {
-                                    options.Listen(IPAddress.Loopback,
-                                        _remoteSettings.AppSettings.DownloadPort ?? 33944,
-                                        listenOptions =>
-                                        {
-                                            // if there is a cerficiate then default to https
-                                            if (useHttps)
-                                            {
-                                                listenOptions.UseHttps(Path.Combine(Directory.GetCurrentDirectory(), _remoteSettings.AppSettings.CertificateFilename),
-                                                    _remoteSettings.AppSettings.CertificatePassword);
-                                            }
-                                        });
-                                })
-                                .UseUrls((useHttps ? "https://*:" : "http://*:") +
-                                         _remoteSettings.AppSettings.DownloadPort)
-                                .Build();
-
-                            var webRunTask = host.RunAsync(ct);
-
-                            // remote agent will wait here until a cancel is issued.
-                            await Task.WhenAny(sender, webRunTask);
-                            host.Dispose();
                         }
                         else
                         {
-                            throw new RemoteException(
-                                $"The certificate {_remoteSettings.AppSettings.CertificateFilename} could not be found.");
+                            logger.LogWarning(10,
+                                $"HttpServer not started, this agent will not be able to upload/download data.");
+                            await sender;
                         }
-                    }
-                    catch (Exception e)
-                    {
-                        logger.LogError(10, e,
-                            $"HttpServer not started, this agent will not be able to upload/download data.");
-                        await sender;
+
+                        datalinkProgressTimer.Dispose();
+                        await HubConnection.DisposeAsync();
+
+                        return EConnectionResult.Disconnected;
                     }
                 }
-                else
-                {
-                    logger.LogWarning(10, $"HttpServer not started, this agent will not be able to upload/download data.");
-                    await sender;
-                }
-
-                datalinkProgressTimer.Dispose();
-                await HubConnection.DisposeAsync();
-
-                return EConnectionResult.Disconnected;
             }
             catch (Exception ex)
             {
@@ -392,18 +506,17 @@ namespace dexih.remote
                 await HubConnection.DisposeAsync();
             }
 
-            HubConnection BuildHubConnection(TransportType transportType)
+            HubConnection BuildHubConnection(HttpTransportType transportType)
             {
                 // create a new connection that points to web server.
                 var con = new HubConnectionBuilder()
-                    .WithUrl(SignalrUrl)
-                    .WithLoggerFactory(LoggerFactory)
-                    .WithTransport(transportType)
+                    .WithUrl(SignalrUrl, transportType)
+                    .ConfigureLogging(logging => { logging.SetMinimumLevel(_remoteSettings.Logging.LogLevel.Default); })
                     .Build();
 
                 
                 // call the "ProcessMessage" function whenever a signalr message is received.
-                con.On<RemoteMessage>("Command", async (message) =>
+                con.On<RemoteMessage>("Command", async message =>
                 {
                     await ProcessMessage(message);
                 });
@@ -427,31 +540,37 @@ namespace dexih.remote
                         logger.LogError("SignalR connection closed with error: {0}", e.Message);
                     }
                     ts.Cancel();
-                    // return Task.CompletedTask;
+                    return Task.CompletedTask;
                 };
 
                 return con;
             }
             
             // attempt a connection with the default transport type.
-            HubConnection = BuildHubConnection((TransportType) _remoteSettings.SystemSettings.SocketTransportType);
+            if (!Enum.TryParse<HttpTransportType>(_remoteSettings.SystemSettings.SocketTransportType,
+                out var defaultTransportType))
+            {
+                defaultTransportType = HttpTransportType.WebSockets;
+            };
+
+            HubConnection = BuildHubConnection(defaultTransportType);
             
             try
             {
-                await HubConnection.StartAsync();
+                await HubConnection.StartAsync(ct);
             }
             catch (Exception ex)
             {
-                logger.LogError(10, ex, "Failed to connect with " + _remoteSettings.SystemSettings.SocketTransportType  + ".  Attempting longpolling.");
+                logger.LogError(10, ex, "Failed to connect with " + defaultTransportType  + ".  Attempting longpolling.");
 
                 // if the connection failes, attempt to downgrade to longpolling.
-                if ((TransportType)_remoteSettings.SystemSettings.SocketTransportType == TransportType.WebSockets)
+                if (defaultTransportType == HttpTransportType.WebSockets)
                 {
-                    HubConnection = BuildHubConnection(TransportType.LongPolling);
+                    HubConnection = BuildHubConnection(HttpTransportType.LongPolling);
 
                     try
                     {
-                        await HubConnection.StartAsync();
+                        await HubConnection.StartAsync(ct);
                     }
                     catch (Exception ex2)
                     {
@@ -461,7 +580,8 @@ namespace dexih.remote
                 }
                 else
                 {
-                    throw;
+                    logger.LogError(10, "Failed to connect with LongPolling.  Exiting now.");
+                    return EConnectionResult.UnhandledException;
                 }
             }
 

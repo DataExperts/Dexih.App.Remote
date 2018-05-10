@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # This script downloads the remote agent binaries and runs the remote agent.
 
 DIRECTORY='remote.agent'
@@ -7,34 +7,36 @@ if [ ! -d "${DIRECTORY}" ]; then
     mkdir ${DIRECTORY}
 fi
 
+if [ -f "latest_version.txt" ]; then
+    mv latest_version.txt ${DIRECTORY}
+fi
+
 # 20 is the return value of the dexih.remote if an upgrade is suggested.
 UPGRADE=20
 
 while [ ${UPGRADE} -eq 20 ]
 do
-    # Install curl if is does not exist
-    if ! [ -x "$(command -v curl)" ]; then
-        apt-get update
-        apt-get -q -y install curl
+
+    if [ -f "${DIRECTORY}/latest_version.txt" ]; then
+    # First line contain the version
+        LATEST_RELEASE_VERSION=`more ${DIRECTORY}/latest_version.txt | head -1`
+        LATEST_RELEASE_BUILD=`echo "${LATEST_RELEASE_VERSION}" | rev | cut -d "-" -f 1 | rev`
+    # Second line contains the download url
+        LATEST_RELEASE_URL=`more ${DIRECTORY}/latest_version.txt | head -2 | tail -1`
+        LATEST_RELEASE_BINARY=`echo $(basename "${LATEST_RELEASE_URL}")`
     fi
 
-    # Install jq if is does not exist
-    if ! [ -x "$(command -v jq)" ]; then
-        apt-get update
-        apt-get -q -y install jq
-    fi
 
-    GIT_DATA=`curl -s "https://api.github.com/repos/DataExperts/Dexih.App.Remote/releases/latest"`
-    LATEST_RELEASE_BINARY=`echo $GIT_DATA |  jq -r '.assets[].name' | grep linux`
-    LATEST_RELEASE_URL=`echo $GIT_DATA |  jq -r '.assets[].browser_download_url' | grep linux`
-
-    if [ -f "local_binary.txt" ]; then
-        LOCAL_BINARY=`more local_binary.txt`
+    if [ -f "${DIRECTORY}/version.txt" ]; then
+        LOCAL_VERSION=`more ${DIRECTORY}/version.txt`
+        LOCAL_BUILD=`more ${DIRECTORY}/version.txt | rev | cut -d " " -f 1 | rev`
     fi
 
     echo LOCAL_VERSION ${LOCAL_VERSION}
     echo LOCAL_BUILD ${LOCAL_BUILD}
     echo LATEST_RELEASE_BINARY ${LATEST_RELEASE_BINARY}
+    echo LATEST_RELEASE_VERSION ${LATEST_RELEASE_VERSION}
+    echo LATEST_RELEASE_BUILD ${LATEST_RELEASE_BUILD}
     echo LATEST_RELEASE_URL ${LATEST_RELEASE_URL}
 
     if [ ! -z "${PREVIOUS_BINARY}" ] && [ "${PREVIOUS_BINARY}" -eq "${LATEST_RELEASE_BINARY}" ]; then
@@ -44,7 +46,13 @@ do
     fi
     
     if [ ! -z "${LATEST_RELEASE_URL}" ]; then
-        if [ "${LATEST_RELEASE_BINARY}" != "${LOCAL_BINARY}" ]  || [ ! -d ${DIRECTORY}  ]; then
+        if [ "${LATEST_RELEASE_BUILD}" -ne "${LOCAL_BUILD}" ]  || [ ! -d ${DIRECTORY}  ]; then
+            # Install curl if it does not exist
+            if ! [ -x "$(command -v curl)" ]; then
+                apk update
+                apk add curl
+            fi
+
             curl -L -o "${LATEST_RELEASE_BINARY}" "${LATEST_RELEASE_URL}"
 
             if [ ! -f ${LATEST_RELEASE_BINARY} ]; then
@@ -58,10 +66,10 @@ do
                 mv ${DIRECTORY}/appsettings.json .
             fi
 
-            # Install unzip if is does not exist
+            # Install unzip if it does not exist
             if ! [ -x "$(command -v unzip)" ]; then
-                apt-get update
-                apt-get -q -y install unzip
+                apk update
+                apk add unzip
             fi
 
             # Clean out the previous directory contents.
@@ -73,8 +81,6 @@ do
             
             unzip ${LATEST_RELEASE_BINARY} -d ${DIRECTORY}
             rm ${LATEST_RELEASE_BINARY}
-
-            echo $LATEST_RELEASE_BINARY > local_binary.txt
 
             if [ -f "appsettings.json" ]
             then
@@ -93,8 +99,9 @@ do
     fi
 
     # Run the remote agent
-    pushd ${DIRECTORY}
-        ./dexih.remote $1
-        UPGRADE=$?
-    popd
+    oldpath=`pwd`
+    cd ${DIRECTORY}
+    ./dexih.remote $1
+    UPGRADE=$?
+    cd $oldpath
 done
