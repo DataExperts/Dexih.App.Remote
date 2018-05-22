@@ -70,6 +70,15 @@ The remote agent should be run in a location that has access to the required dat
 3. Open a command prompt and execute the command `./dexih.remote`.
 4. Follow the prompts to complete the installation.
 
+### Ubuntu Installation
+
+Run the following command to automatically download the agent and get started:
+```
+curl -o dexih.remote.run.sh https://raw.githubusercontent.com/DataExperts/Dexih.App.Remote/master/src/dexih.remote/scripts/dexih.remote.run.linux.sh
+chmod a+x dexih.remote.run.sh
+./dexih.remote.run.sh
+```
+
 ### Configuration Options
 
 The `dexih.remote` has a number of configuration options.  When executed these options are set in the following order:

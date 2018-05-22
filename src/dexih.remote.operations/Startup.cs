@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Web;
@@ -48,6 +49,8 @@ namespace dexih.remote
                     .WithMethods()
                     .WithOrigins();
             });
+
+            var rand = EncryptString.GenerateRandomKey();
 
             app.Run(async (context) =>
             {
@@ -127,13 +130,14 @@ namespace dexih.remote
                     }
                     catch (Exception e)
                     {
-                        context.Response.StatusCode = 500;
+                        context.Response.StatusCode = 200;
                         context.Response.ContentType = "application/json";
 
                         var returnValue = new ReturnValue(false, "Data reader failed with error: " + e.Message, e);
                         using (var writer = new StreamWriter(context.Response.Body))
                         {
-                            new JsonSerializer().Serialize(writer, returnValue);
+                            var result = Json.SerializeObject(returnValue, rand);
+                            await writer.WriteAsync(result);
                             await writer.FlushAsync().ConfigureAwait(false);
                         }
                     }

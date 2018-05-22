@@ -65,7 +65,7 @@ namespace dexih.remote
                     case "-p":
                     case "-password":
                         i++;
-                        RemoteSettings.AppSettings.Password = args[i];
+                        RemoteSettings.Runtime.Password = args[i];
                         break;
                     case "-k":
                     case "-key":
@@ -446,7 +446,7 @@ namespace dexih.remote
             }
 
             
-            if (ResetSettings || (string.IsNullOrEmpty(RemoteSettings.AppSettings.UserToken) && string.IsNullOrEmpty(RemoteSettings.AppSettings.Password)))
+            if (ResetSettings || (string.IsNullOrEmpty(RemoteSettings.AppSettings.UserToken) && string.IsNullOrEmpty(RemoteSettings.Runtime.Password)))
             {
                 checkSaveSettings = true;
 
@@ -471,9 +471,9 @@ namespace dexih.remote
                     }
                 } while (key.Key != ConsoleKey.Enter);
                 Console.WriteLine();
-                RemoteSettings.AppSettings.Password = pass;
+                RemoteSettings.Runtime.Password = pass;
                 
-                if (string.IsNullOrEmpty(RemoteSettings.AppSettings.Password))
+                if (string.IsNullOrEmpty(RemoteSettings.Runtime.Password))
                 {
                     RemoteSettings.AppSettings.RemoteAgentId = GetStringInput(
                         $"Enter the unique remote agent id (create new tokens at: {RemoteSettings.AppSettings.WebServer}/hubs/index/remoteAgents:",

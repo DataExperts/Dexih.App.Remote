@@ -287,7 +287,7 @@ namespace dexih.remote
             public ConsoleColor? Background { get; }
         }
 
-        private class AnsiSystemConsole : IAnsiSystemConsole
+        private struct AnsiSystemConsole : IAnsiSystemConsole
         {
             public void Write(string message)
             {

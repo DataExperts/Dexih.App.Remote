@@ -24,18 +24,16 @@ namespace dexih.remote
 {
     public class Program
     {
+        
         public static async Task<int> Main(string[] args)
         {
+            Welcome();
+            
             // create a temporary logger (until the log level settings have been loaded.
             var loggerFactory = new LoggerFactory();
             loggerFactory.AddProvider(new RemoteLoggerProvider(LogLevel.Trace));
             var logger = loggerFactory.CreateLogger("main");
 
-            // introduction message, with file version
-            var runtimeVersion = Assembly.GetEntryAssembly()
-                .GetCustomAttribute<AssemblyInformationalVersionAttribute>().InformationalVersion;
-
-            logger.LogInformation(1, "Data Experts - Remote Agent:  Version {version}", runtimeVersion);
 
             var settingsFile = Path.Combine(Directory.GetCurrentDirectory(), "appsettings.json");
             if (args.Length >= 2 && args[0] == "-appsettings")
@@ -95,5 +93,26 @@ namespace dexih.remote
             return (int) exitCode;
         }
         
+        public static void Welcome()
+        {
+            Console.WriteLine(@"
+ _______   _______ ___   ___  __   __    __  
+|       \ |   ____|\  \ /  / |  | |  |  |  | 
+|  .--.  ||  |__    \  V  /  |  | |  |__|  | 
+|  |  |  ||   __|    >   <   |  | |   __   | 
+|  '--'  ||  |____  /  .  \  |  | |  |  |  | 
+|_______/ |_______|/__/ \__\ |__| |__|  |__| 
+
+Welcome to Dexih - The Data Experts Integration Hub
+");
+            
+            // introduction message, with file version
+            var runtimeVersion = Assembly.GetEntryAssembly()
+                .GetCustomAttribute<AssemblyInformationalVersionAttribute>().InformationalVersion;
+
+            Console.WriteLine($"Remote Agent - Version {runtimeVersion}");
+            
+        }
+
     }
 }

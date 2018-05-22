@@ -20,6 +20,7 @@ using Dexih.Utils.ManagedTasks;
 using Dexih.Utils.MessageHelpers;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http.Connections;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -74,25 +75,41 @@ namespace dexih.remote
         private readonly ConcurrentBag<ResponseMessage> _sendMessageQueue = new ConcurrentBag<ResponseMessage>();
         private readonly IStreams _streams = new Streams();
 
-        private string LocalIPAddress()
+        /// <summary>
+        /// Gets the local ip address
+        /// </summary>
+        /// <returns></returns>
+        private string LocalIpAddress(ILogger logger)
         {
-            string localIP;
-            using (Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, 0))
+            try
             {
-                socket.Connect("8.8.8.8", 65530);
-                IPEndPoint endPoint = socket.LocalEndPoint as IPEndPoint;
-                localIP = endPoint.Address.ToString();
-
-                return localIP;
+                using (var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, 0))
+                {
+                    socket.Connect("8.8.8.8", 65530);
+                    if (!(socket.LocalEndPoint is IPEndPoint endPoint))
+                    {
+                        logger.LogError("The local network ip address could not be determined automatically.  Defaulting to local IP (127.0.0.1)");
+                        return "127.0.0.1";
+                    }
+                    return endPoint.Address.ToString();
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError("The local network ip address could not be determined automatically.  Defaulting to local IP (127.0.0.1)", ex);
+                return "127.0.0.1";
             }
         }
         
         public DexihRemote(RemoteSettings remoteSettings, LoggerFactory loggerFactory)
         {
-            _remoteSettings = remoteSettings;
-            _remoteSettings.AppSettings.LocalIpAddress = LocalIPAddress();
-            
             LoggerFactory = loggerFactory;
+            LoggerMessages = LoggerFactory.CreateLogger("Command");
+            LoggerDatalinks = LoggerFactory.CreateLogger("Datalink");
+            LoggerFactory.CreateLogger("Scheduler");
+
+            _remoteSettings = remoteSettings;
+            _remoteSettings.Runtime.LocalIpAddress = LocalIpAddress(LoggerMessages);
 
             var url = remoteSettings.AppSettings.WebServer;
             
@@ -101,10 +118,6 @@ namespace dexih.remote
 			SignalrUrl = url + "remoteagent";
 
             SessionEncryptionKey = EncryptString.GenerateRandomKey();
-
-            LoggerMessages = LoggerFactory.CreateLogger("Command");
-            LoggerDatalinks = LoggerFactory.CreateLogger("Datalink");
-            LoggerFactory.CreateLogger("Scheduler");
 
             var cookies = new CookieContainer();
             var handler = new HttpClientHandler
@@ -129,24 +142,33 @@ namespace dexih.remote
 
             while (true)
             {
-                var generateToken = !string.IsNullOrEmpty(_remoteSettings.AppSettings.Password) && saveSettings;
+                var generateToken = !string.IsNullOrEmpty(_remoteSettings.Runtime.Password) && saveSettings;
                 var loginResult = await LoginAsync(generateToken, retryStarted, cancellationToken);
 
                 var connectResult = loginResult.connectionResult;
 
                 if (connectResult == EConnectionResult.Connected)
                 {
-                    _remoteSettings.AppSettings.IpAddress = loginResult.ipAddress;
+                    _remoteSettings.Runtime.IpAddress = loginResult.ipAddress;
 
                     if (!savedSettings && saveSettings)
                     {
                         _remoteSettings.AppSettings.UserToken = loginResult.userToken;
                         
                         var appSettingsFile = Directory.GetCurrentDirectory() + "/appsettings.json";
-                        File.WriteAllText(appSettingsFile, JsonConvert.SerializeObject(_remoteSettings, Formatting.Indented));
+                        
+                        //create a temporary settings file that does not contain the RunTime property.
+                        var _tmpSettings = new RemoteSettings()
+                        {
+                            AppSettings = _remoteSettings.AppSettings,
+                            Logging = _remoteSettings.Logging,
+                            SystemSettings = _remoteSettings.SystemSettings
+                        };
+                        
+                        File.WriteAllText(appSettingsFile, JsonConvert.SerializeObject(_tmpSettings, Formatting.Indented));
                         logger.LogInformation("The appsettings.json file has been updated with the current settings.");
 
-                        if (!string.IsNullOrEmpty(_remoteSettings.AppSettings.Password))
+                        if (!string.IsNullOrEmpty(_remoteSettings.Runtime.Password))
                         {
                             logger.LogWarning("The password is not saved to the appsettings.json file.  Create a RemoteId/UserToken combination to authenticate without a password.");
                         }
@@ -204,17 +226,11 @@ namespace dexih.remote
                     logger.LogInformation($"This remote agent is named: \"{_remoteSettings.AppSettings.Name}\"");
                 }
 
-                var login = new
-                {
-                    _remoteSettings.AppSettings.User,
-                    _remoteSettings.AppSettings.Password,
-                    _remoteSettings.AppSettings.UserToken,
-                    Version = runtimeVersion,
-                    GenerateToken = generateUserToken,
-                    RemoteSettings = _remoteSettings
-                };
+                _remoteSettings.Runtime.GenerateUserToken = generateUserToken;
+                _remoteSettings.Runtime.Version = runtimeVersion;
                 
-                var messagesString = Json.SerializeObject(login, SessionEncryptionKey);
+                
+                var messagesString = Json.SerializeObject(_remoteSettings, SessionEncryptionKey);
                 var content = new StringContent(messagesString, Encoding.UTF8, "application/json");
 
                 HttpResponseMessage response;
@@ -242,7 +258,8 @@ namespace dexih.remote
                 var serverResponse = await response.Content.ReadAsStringAsync();
                 if (string.IsNullOrEmpty(serverResponse))
                 {
-                    logger.LogCritical(4, $"No response returned connecting to {Url}.");
+                    if (!silentLogin)
+                        logger.LogCritical(4, $"No response returned connecting to {Url}.");
                     return (EConnectionResult.InvalidLocation, "", "", "");
                 }
 
@@ -251,9 +268,10 @@ namespace dexih.remote
                 {
                     parsedServerResponse = JObject.Parse(serverResponse);
                 }
-                catch (JsonException e)
+                catch (JsonException)
                 {
-                    logger.LogCritical(4, $"An invalid response was returned connecting to {Url}.  Response was: \"{serverResponse}\".");
+                    if (!silentLogin)
+                        logger.LogCritical(4, $"An invalid response was returned connecting to {Url}.  Response was: \"{serverResponse}\".");
                     return (EConnectionResult.InvalidLocation, "", "", "");
                 }
 
@@ -513,7 +531,6 @@ namespace dexih.remote
                     .WithUrl(SignalrUrl, transportType)
                     .ConfigureLogging(logging => { logging.SetMinimumLevel(_remoteSettings.Logging.LogLevel.Default); })
                     .Build();
-
                 
                 // call the "ProcessMessage" function whenever a signalr message is received.
                 con.On<RemoteMessage>("Command", async message =>
@@ -546,6 +563,7 @@ namespace dexih.remote
                 return con;
             }
             
+           
             // attempt a connection with the default transport type.
             if (!Enum.TryParse<HttpTransportType>(_remoteSettings.SystemSettings.SocketTransportType,
                 out var defaultTransportType))
@@ -585,7 +603,15 @@ namespace dexih.remote
                 }
             }
 
-            await HubConnection.InvokeAsync("Connect", SecurityToken, cancellationToken: ct);
+            try
+            {
+                await HubConnection.InvokeAsync("Connect", SecurityToken, cancellationToken: ct);
+            }
+            catch (HubException ex)
+            {
+                logger.LogError(10, ex, "Failed to call the \"Connect\" method on the server.");
+                return EConnectionResult.UnhandledException;
+            }
 
             return EConnectionResult.Connected;
 
@@ -765,7 +791,7 @@ namespace dexih.remote
             }
         }
 
-     private bool _sendDatalinkProgressBusy;
+         private bool _sendDatalinkProgressBusy;
 
         /// <summary>
         /// Sends the progress and status of any datalinks to the central server.
