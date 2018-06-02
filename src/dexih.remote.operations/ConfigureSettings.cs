@@ -1,9 +1,11 @@
 ﻿using System;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Runtime.Serialization;
 using System.Threading.Tasks;
 using dexih.repository;
 using Microsoft.EntityFrameworkCore.ValueGeneration.Internal;
@@ -117,19 +119,31 @@ namespace dexih.remote
                     case "-https":
                     case "-ssl":
                     case "-enforsehttps":
-                        RemoteSettings.AppSettings.EnforceHttps = true;
+                        RemoteSettings.Network.EnforceHttps = true;
+                        break;
+                    case "-disablelanaccess":
+                        RemoteSettings.Privacy.AllowLanAccess = false;
+                        break;
+                    case "-disableaxternalaccess":
+                        RemoteSettings.Privacy.AllowExternalAccess = false;
+                        break;
+                    case "-disableproxyaccess":
+                        RemoteSettings.Privacy.AllowProxy = false;
                         break;
                     case "-certificatefilename":
                         i++;
-                        RemoteSettings.AppSettings.CertificateFilename = args[i];
+                        RemoteSettings.Network.CertificateFilename = args[i];
                         break;
                     case "-certificatepassword":
                         i++;
-                        RemoteSettings.AppSettings.CertificatePassword = args[i];
+                        RemoteSettings.Network.CertificatePassword = args[i];
                         break;
                     case "-a":
                     case "-autogeneratecertificate":
-                        RemoteSettings.AppSettings.AutoGenerateCertificate = true;
+                        RemoteSettings.Network.AutoGenerateCertificate = true;
+                        break;
+                    case "-disableupnp":
+                        RemoteSettings.Network.EnableUPnP = false;
                         break;
                     default:
                         Logger.LogError($"The command line option {args[i]} was not recognised.");
@@ -202,6 +216,36 @@ namespace dexih.remote
                                 break;
                             }
                         }
+
+                        // Download and save the update
+//                        if (!string.IsNullOrEmpty(downloadUrl))
+//                        {
+//                            Logger.LogInformation($"Downloading latest remote agent release from {downloadUrl}.");
+//                            var releaseFileName = Path.Combine(Path.GetTempPath(), "dexih.remote.latest.zip");
+//
+//                            if (File.Exists(releaseFileName))
+//                            {
+//                                File.Delete(releaseFileName);
+//                            }
+//
+//                            using (var response = await httpClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead))
+//                            using (var streamToReadFrom = await response.Content.ReadAsStreamAsync())
+//                            {
+//                                using (Stream streamToWriteTo = File.Open(releaseFileName, FileMode.Create))
+//                                {
+//                                    await streamToReadFrom.CopyToAsync(streamToWriteTo);
+//                                }
+//                            }
+//
+//                            var extractDirectory = Path.Combine(Path.GetTempPath(), "remote.agent");
+//                            if (Directory.Exists(extractDirectory))
+//                            {
+//                                Directory.Delete(extractDirectory, true);
+//                            }
+//
+//                            Directory.CreateDirectory(extractDirectory);
+//                            ZipFile.ExtractToDirectory(releaseFileName, extractDirectory);
+//                        }
                     }
                 }
                 catch (Exception ex)
@@ -325,211 +369,272 @@ namespace dexih.remote
         
         public void GetUserInput()
         {
-            
             var checkSaveSettings = false;
-            
-            //any critical settings not received, prompt user.
-            if (ResetSettings || string.IsNullOrEmpty(RemoteSettings.AppSettings.WebServer))
-            {
-                checkSaveSettings = true;
+            var detailed = false;
 
-                RemoteSettings.AppSettings.WebServer = defaultWebServer;
-                
-                Console.Write($"Enter the dexih web server [{RemoteSettings.AppSettings.WebServer}]: ");
-                var webServer = Console.ReadLine();
-                
-                if (!string.IsNullOrEmpty(webServer))
+            if (ResetSettings)
+            {
+                detailed = GetBoolInput(
+                    "Do you want to enter detailed configuration options?",
+                    detailed);
+
+                var sslConfigureComplete = false;
+
+                if (detailed)
                 {
-                    RemoteSettings.AppSettings.WebServer = webServer;
+                    //any critical settings not received, prompt user.
+                    if (string.IsNullOrEmpty(RemoteSettings.AppSettings.WebServer))
+                    {
+                        checkSaveSettings = true;
+
+                        RemoteSettings.AppSettings.WebServer = defaultWebServer;
+
+                        Console.Write($"Enter the dexih web server [{RemoteSettings.AppSettings.WebServer}]: ");
+                        var webServer = Console.ReadLine();
+
+                        if (!string.IsNullOrEmpty(webServer))
+                        {
+                            RemoteSettings.AppSettings.WebServer = webServer;
+                        }
+                    }
+
+
+                    if (string.IsNullOrEmpty(RemoteSettings.AppSettings.EncryptionKey))
+                    {
+                        checkSaveSettings = true;
+
+                        if (string.IsNullOrEmpty(RemoteSettings.AppSettings.EncryptionKey))
+                        {
+                            Console.WriteLine($"Enter the encryption key.");
+                            Console.Write($"This is used to encrypt/decrypt data marked as secure. [auto-generate]: ");
+                            RemoteSettings.AppSettings.EncryptionKey = Console.ReadLine();
+                            if (string.IsNullOrEmpty(RemoteSettings.AppSettings.EncryptionKey))
+                            {
+                                RemoteSettings.AppSettings.EncryptionKey =
+                                    Dexih.Utils.Crypto.EncryptString.GenerateRandomKey();
+                                Console.WriteLine(
+                                    $"New encryption key \"{RemoteSettings.AppSettings.EncryptionKey}\".");
+                            }
+                        }
+                        else
+                        {
+                            Console.Write($"Enter the encryption key [blank - use current, \"new\" to generate]: ");
+                            var key = Console.ReadLine();
+                            if (string.IsNullOrEmpty(key) || key.ToLower() == "new")
+                            {
+                                RemoteSettings.AppSettings.EncryptionKey =
+                                    Dexih.Utils.Crypto.EncryptString.GenerateRandomKey();
+                                Console.WriteLine(
+                                    $"New encryption key \"{RemoteSettings.AppSettings.EncryptionKey}\".");
+                            }
+                        }
+                    }
+
+                    //any critical settings not received, prompt user.
+                    if (string.IsNullOrEmpty(RemoteSettings.AppSettings.Name))
+                    {
+                        checkSaveSettings = true;
+
+                        RemoteSettings.Privacy.AllowDataUpload = GetBoolInput(
+                            "Allow files to be uploaded through the agent", RemoteSettings.Privacy.AllowDataUpload);
+
+                        RemoteSettings.Privacy.AllowDataDownload = GetBoolInput(
+                            "Allow files to be downloaded through the agent",
+                            RemoteSettings.Privacy.AllowDataDownload);
+
+                        if (RemoteSettings.Privacy.AllowDataDownload || RemoteSettings.Privacy.AllowDataUpload)
+                        {
+                            RemoteSettings.Network.EnforceHttps = GetBoolInput(
+                                "Enforce Https(encrypted) for upload/download of data",
+                                RemoteSettings.Network.EnforceHttps);
+
+                            RemoteSettings.Privacy.AllowLanAccess = GetBoolInput(
+                                "Allow direct connections through the LAN",
+                                RemoteSettings.Privacy.AllowLanAccess);
+
+                            RemoteSettings.Privacy.AllowExternalAccess = GetBoolInput(
+                                "Allow direct connections externally through internet (note: ports must be mapped to internet IP)?",
+                                RemoteSettings.Privacy.AllowExternalAccess);
+
+                            if (RemoteSettings.Privacy.AllowLanAccess || RemoteSettings.Privacy.AllowExternalAccess)
+                            {
+                                RemoteSettings.Network.DownloadPort = GetNumberInput(
+                                    "Enter the network port to listen for data upload/download connections",
+                                    RemoteSettings.Network.DownloadPort, false, 1, 65535);
+                                
+                                RemoteSettings.Network.EnableUPnP = GetBoolInput(
+                                    "Enable UPnP discovery to map port automatically to the internet?",
+                                    RemoteSettings.Network.EnableUPnP);
+                            }
+
+                            RemoteSettings.Network.EnforceHttps = GetBoolInput(
+                                "Allow connections through a proxy server?",
+                                RemoteSettings.Privacy.AllowProxy);
+
+                            if (RemoteSettings.Privacy.AllowProxy)
+                            {
+                                RemoteSettings.Network.ProxyUrl = GetStringInput(
+                                    "Enter a custom proxy url (leave blank for default internet based proxy)",
+                                    RemoteSettings.Network.ProxyUrl, true);
+                            }
+
+                            if (RemoteSettings.Network.EnforceHttps && (RemoteSettings.Privacy.AllowLanAccess || RemoteSettings.Privacy.AllowExternalAccess))
+                            {
+                                
+                                RemoteSettings.Network.AutoGenerateCertificate = GetBoolInput(
+                                    "Automatically generate a SSL certificate",
+                                    RemoteSettings.Network.AutoGenerateCertificate);
+
+                                if (!RemoteSettings.Network.AutoGenerateCertificate)
+                                {
+                                    RemoteSettings.Network.ExternalDownloadUrl = GetStringInput(
+                                        "Enter an external url to access the http connection for data upload/download (this can be used when using a proxy server or forwarding the port to another network or internet)",
+                                        RemoteSettings.Network.ExternalDownloadUrl, true);
+
+                                    RemoteSettings.Network.CertificateFilename = GetStringInput(
+                                        "Enter the path/filename of the SSL (PKF) cerficiate",
+                                        RemoteSettings.Network.CertificateFilename, false);
+                                }
+
+                                RemoteSettings.Network.CertificatePassword = GetStringInput(
+                                    "Enter password for the SSL certificate",
+                                    RemoteSettings.Network.CertificatePassword, false);
+                                
+                                sslConfigureComplete = true;
+                            }
+
+                        }
+                    }
                 }
-            }
-
-           
-            if (ResetSettings || string.IsNullOrEmpty(RemoteSettings.AppSettings.EncryptionKey))
-            {
-                checkSaveSettings = true;
-
-                if (string.IsNullOrEmpty(RemoteSettings.AppSettings.EncryptionKey))
+                else
                 {
-                    Console.WriteLine($"Enter the encryption key.");
-                    Console.Write($"This is used to encrypt/decrypt data marked as secure. [auto-generate]: ");
-                    RemoteSettings.AppSettings.EncryptionKey = Console.ReadLine();
                     if (string.IsNullOrEmpty(RemoteSettings.AppSettings.EncryptionKey))
                     {
                         RemoteSettings.AppSettings.EncryptionKey = Dexih.Utils.Crypto.EncryptString.GenerateRandomKey();
-                        Console.WriteLine($"New encryption key \"{RemoteSettings.AppSettings.EncryptionKey}\".");
                     }
                 }
-                else
+
+                if (string.IsNullOrEmpty(RemoteSettings.AppSettings.User))
                 {
-                    string key;
-                    Console.Write($"Enter the encryption key [blank - use current, \"new\" to generate]: ");
-                    key = Console.ReadLine();
-                    if (string.IsNullOrEmpty(key) || key.ToLower() == "new")
+                    checkSaveSettings = true;
+
+                    Console.Write($"Enter the login email [{RemoteSettings.AppSettings.User}]: ");
+                    var user = Console.ReadLine();
+                    if (!string.IsNullOrEmpty(user))
                     {
-                        RemoteSettings.AppSettings.EncryptionKey = Dexih.Utils.Crypto.EncryptString.GenerateRandomKey();
-                        Console.WriteLine($"New encryption key \"{RemoteSettings.AppSettings.EncryptionKey}\".");
+                        RemoteSettings.AppSettings.User = user;
                     }
-                   
                 }
-            }
-            
-            //any critical settings not received, prompt user.
-            if (ResetSettings || string.IsNullOrEmpty(RemoteSettings.AppSettings.Name))
-            {
-                checkSaveSettings = true;
 
-                RemoteSettings.AppSettings.AllowDataUpload = GetBoolInput(
-                    "Allow files to be uploaded through the agent", RemoteSettings.AppSettings.AllowDataUpload);
 
-                RemoteSettings.AppSettings.AllowDataDownload = GetBoolInput(
-                    "Allow files to be downloaded through the agent", RemoteSettings.AppSettings.AllowDataDownload);
-
-                if (RemoteSettings.AppSettings.AllowDataDownload || RemoteSettings.AppSettings.AllowDataUpload)
+                if ((string.IsNullOrEmpty(RemoteSettings.AppSettings.UserToken) &&
+                                      string.IsNullOrEmpty(RemoteSettings.Runtime.Password)))
                 {
-                    RemoteSettings.AppSettings.DownloadDirectly = GetBoolInput(
-                        "Allow direct upload/downloads (if false data will be proxied through the information hub web server)",
-                        RemoteSettings.AppSettings.DownloadDirectly);
+                    checkSaveSettings = true;
 
-                    if (RemoteSettings.AppSettings.DownloadDirectly)
+                    Console.Write("Enter the password [leave empty to specify user token]: ");
+                    ConsoleKeyInfo key;
+                    var pass = "";
+                    do
                     {
-                        RemoteSettings.AppSettings.EnforceHttps = GetBoolInput(
-                            "Enforce Https(encrypted) for upload/download of data", RemoteSettings.AppSettings.EnforceHttps);
-
-                        if (RemoteSettings.AppSettings.EnforceHttps)
+                        key = Console.ReadKey(true);
+                        if (key.Key != ConsoleKey.Backspace && key.Key != ConsoleKey.Enter)
                         {
-                            RemoteSettings.AppSettings.AutoGenerateCertificate = GetBoolInput(
-                                "Automatically generate a SSL certificate",
-                                RemoteSettings.AppSettings.AutoGenerateCertificate);
-
-                            if (!RemoteSettings.AppSettings.AutoGenerateCertificate)
+                            pass += key.KeyChar;
+                            Console.Write("*");
+                        }
+                        else
+                        {
+                            if (key.Key == ConsoleKey.Backspace && pass.Length > 0)
                             {
-                                RemoteSettings.AppSettings.CertificateFilename = GetStringInput(
-                                    "Enter the path/filename of the SSL (PKF) cerficiate",
-                                    RemoteSettings.AppSettings.CertificateFilename, false);
+                                pass = pass.Substring(0, (pass.Length - 1));
+                                Console.Write("\b \b");
                             }
-
-                            RemoteSettings.AppSettings.CertificatePassword = GetStringInput(
-                                "Enter password for the SSL certificate",
-                                RemoteSettings.AppSettings.CertificatePassword, false);
                         }
+                    } while (key.Key != ConsoleKey.Enter);
 
-                        RemoteSettings.AppSettings.DownloadPort = GetNumberInput(
-                            "Enter the network port to listen for data upload/download connections",
-                            RemoteSettings.AppSettings.DownloadPort, false, 1, 65535);
+                    Console.WriteLine();
+                    RemoteSettings.Runtime.Password = pass;
 
-                        RemoteSettings.AppSettings.DownloadLocalIp = GetBoolInput(
-                            "Use a local network ip address for upload/downloads (vs the public ip address that the web server sees)",
-                            RemoteSettings.AppSettings.DownloadLocalIp);
-
-                        if (!RemoteSettings.AppSettings.AutoGenerateCertificate)
-                        {
-                            RemoteSettings.AppSettings.ExternalDownloadUrl = GetStringInput(
-                                "Enter an external url to access the http connection for data upload/download (this can be used when using a proxy server or forwarding the port to another network or internet)",
-                                RemoteSettings.AppSettings.ExternalDownloadUrl, true);
-                        }
-
-                    }
-                }
-            }
-            
-            if (ResetSettings || string.IsNullOrEmpty(RemoteSettings.AppSettings.User))
-            {
-                checkSaveSettings = true;
-
-                Console.Write($"Enter the login email [{RemoteSettings.AppSettings.User}]: ");
-                var user = Console.ReadLine();
-                if (!string.IsNullOrEmpty(user))
-                {
-                    RemoteSettings.AppSettings.User = user;
-                }
-            }
-
-            
-            if (ResetSettings || (string.IsNullOrEmpty(RemoteSettings.AppSettings.UserToken) && string.IsNullOrEmpty(RemoteSettings.Runtime.Password)))
-            {
-                checkSaveSettings = true;
-
-                Console.Write("Enter the password [leave empty to specify user token]: ");
-                ConsoleKeyInfo key;
-                var pass = "";
-                do
-                {
-                    key = Console.ReadKey(true);
-                    if (key.Key != ConsoleKey.Backspace && key.Key != ConsoleKey.Enter)
+                    if (string.IsNullOrEmpty(RemoteSettings.Runtime.Password))
                     {
-                        pass += key.KeyChar;
-                        Console.Write("*");
+                        RemoteSettings.AppSettings.RemoteAgentId = GetStringInput(
+                            $"Enter the unique remote agent id (create new tokens at: {RemoteSettings.AppSettings.WebServer}/hubs/index/remoteAgents:",
+                            RemoteSettings.AppSettings.RemoteAgentId, false);
+
+                        RemoteSettings.AppSettings.UserToken = GetStringInput(
+                            $"Enter the user token:",
+                            RemoteSettings.AppSettings.UserToken, false);
                     }
                     else
                     {
-                        if (key.Key == ConsoleKey.Backspace && pass.Length > 0)
+                        // if there is a password, and reset settings has been asked, then remove the user token.
+                        if (ResetSettings)
                         {
-                            pass = pass.Substring(0, (pass.Length - 1));
-                            Console.Write("\b \b");
+                            RemoteSettings.AppSettings.UserToken = null;
                         }
                     }
-                } while (key.Key != ConsoleKey.Enter);
-                Console.WriteLine();
-                RemoteSettings.Runtime.Password = pass;
-                
-                if (string.IsNullOrEmpty(RemoteSettings.Runtime.Password))
-                {
-                    RemoteSettings.AppSettings.RemoteAgentId = GetStringInput(
-                        $"Enter the unique remote agent id (create new tokens at: {RemoteSettings.AppSettings.WebServer}/hubs/index/remoteAgents:",
-                        RemoteSettings.AppSettings.RemoteAgentId, false);
-
-                    RemoteSettings.AppSettings.UserToken = GetStringInput(
-                        $"Enter the user token:",
-                        RemoteSettings.AppSettings.UserToken, false);
                 }
-                else
+
+                if (string.IsNullOrEmpty(RemoteSettings.AppSettings.RemoteAgentId))
                 {
-                    // if there is a password, and reset settings has been asked, then remove the user token.
-                    if (ResetSettings)
+                    RemoteSettings.AppSettings.RemoteAgentId = Guid.NewGuid().ToString();
+                }
+
+                if (string.IsNullOrEmpty(RemoteSettings.AppSettings.Name))
+                {
+                    checkSaveSettings = true;
+
+                    Console.Write($"Enter a name to describe this remote agent [{Environment.MachineName}]: ");
+                    RemoteSettings.AppSettings.Name = Console.ReadLine();
+
+                    if (string.IsNullOrEmpty(RemoteSettings.AppSettings.Name))
                     {
-                        RemoteSettings.AppSettings.UserToken = null;
+                        RemoteSettings.AppSettings.Name = Environment.MachineName;
+                    }
+                }
+
+                if (!sslConfigureComplete)
+                {
+                    if(RemoteSettings.Network.AutoGenerateCertificate && string.IsNullOrEmpty(RemoteSettings.Network.CertificateFilename))
+                    {
+                        RemoteSettings.Network.CertificateFilename = "dexih.pfx";
+                        checkSaveSettings = true;
+                    }
+
+                    if (File.Exists(RemoteSettings.Network.CertificateFilename) && string.IsNullOrEmpty(RemoteSettings.Network.CertificatePassword))
+                    {
+                        RemoteSettings.Network.CertificatePassword = GetStringInput(
+                            $"An SSL certificate {RemoteSettings.Network.CertificateFilename} was found.  Enter the password for this certificate: ",
+                            RemoteSettings.Network.CertificatePassword, false);
+                        checkSaveSettings = true;
+                    }
+                }
+
+                if (checkSaveSettings && !SaveSettings)
+                {
+                    Console.Write("Would you like to save settings (enter yes or no) [no]?: ");
+                    var saveResult = Console.ReadLine().ToLower();
+
+                    while (!(saveResult == "yes" || saveResult == "no" || string.IsNullOrEmpty(saveResult)))
+                    {
+                        Console.Write("Would you like to save settings (enter yes or no) [no]?: ");
+                        saveResult = Console.ReadLine().ToLower();
+                    }
+
+                    if (saveResult == "no" || saveResult == "no" || string.IsNullOrEmpty(saveResult))
+                    {
+                        SaveSettings = false;
+                    }
+                    else if (saveResult == "yes")
+                    {
+                        SaveSettings = true;
                     }
                 }
             }
-
-            if (string.IsNullOrEmpty(RemoteSettings.AppSettings.RemoteAgentId))
+            else
             {
-                RemoteSettings.AppSettings.RemoteAgentId = Guid.NewGuid().ToString();
-            }
-
-            if (ResetSettings || string.IsNullOrEmpty(RemoteSettings.AppSettings.Name))
-            {
-                checkSaveSettings = true;
-
-                Console.Write("Enter a name to describe this remote agent [blank use machine name]: ");
-                RemoteSettings.AppSettings.Name = Console.ReadLine();
-                
-                if (string.IsNullOrEmpty(RemoteSettings.AppSettings.Name))
-                {
-                    RemoteSettings.AppSettings.Name = Environment.MachineName;
-                }
-            }
-            
-            if (ResetSettings || (checkSaveSettings && !SaveSettings))
-            {
-                Console.Write("Would you like to save settings (enter yes or no) [no]?: ");
-                var saveResult = Console.ReadLine().ToLower();
-
-                while(!(saveResult == "yes" || saveResult == "no" || string.IsNullOrEmpty(saveResult)))
-                {                
-                    Console.Write("Would you like to save settings (enter yes or no) [no]?: ");
-                    saveResult = Console.ReadLine().ToLower();
-                }
-
-                if (saveResult == "no" || saveResult == "no" || string.IsNullOrEmpty(saveResult))
-                {
-                    SaveSettings = false;
-                }
-                else if(saveResult == "yes")
-                {
-                    SaveSettings = true;
-                }
+                Logger.LogInformation("Automatically logging in.  To re-enter configuration run with the \"-reset\" flag.");
             }
         }
 

@@ -3,17 +3,17 @@
     <TargetFramework>netstandard2.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Dexih.Utils.ManagedTasks" Version="0.1.42" />
-    <PackageReference Include="Microsoft.AspNetCore.Cors" Version="2.1.0-rc1-final" />
-    <PackageReference Include="Microsoft.AspNetCore.Server.Kestrel" Version="2.1.0-rc1-final" />
-    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="1.0.0-rc1-final" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="2.1.0-rc1-final" />
+    <PackageReference Include="Dexih.Utils.ManagedTasks" Version="0.1.45" />
+    <PackageReference Include="Microsoft.AspNetCore.Cors" Version="2.1.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Server.Kestrel" Version="2.1.0" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="1.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="2.1.0" />
+    <PackageReference Include="Open.NAT" Version="2.1.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\Dexih.App.Operations\src\dexih.operations\dexih.operations.csproj">
       <Project>{D1BEE5EC-70AF-4947-8A4A-5076F83E69BF}</Project>
       <Name>dexih.operations</Name>
     </ProjectReference>
-    <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.sql\dexih.connections.sql.csproj" />
   </ItemGroup>
 </Project>

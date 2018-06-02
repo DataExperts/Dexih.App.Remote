@@ -26,12 +26,13 @@
     </Content>
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="2.1.0-rc1-final" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="2.1.0-rc1-final" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="2.1.0-rc1-final" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="2.1.0-rc1-final" />
-    <PackageReference Include="Microsoft.Extensions.Configuration" Version="2.1.0-rc1-final" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.FileExtensions" Version="2.1.0-rc1-final" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="2.1.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="2.1.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="2.1.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="2.1.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="2.1.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.FileExtensions" Version="2.1.0" />
+    <PackageReference Include="Microsoft.NETCore.App" Version="2.1.0" />
   </ItemGroup>
   <ItemGroup>
     <None Update=".dockerignore">
@@ -39,6 +40,11 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.mysql\dexih.connections.mysql.csproj" />
+    <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.oracle\dexih.connections.oracle.csproj" />
+    <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.postgressql\dexih.connections.postgressql.csproj" />
+    <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.sqlite\dexih.connections.sqlite.csproj" />
+    <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.sqlserver\dexih.connections.sqlserver.csproj" />
     <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.functions\dexih.functions.csproj" />
     <ProjectReference Include="..\..\..\Dexih.App.Operations\src\dexih.operations\dexih.operations.csproj" />
     <ProjectReference Include="..\..\..\Dexih.App.Operations\src\dexih.repository\dexih.repository.csproj" />
@@ -49,7 +55,6 @@
     <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.flatfile\dexih.connections.flatfile.csproj" />
     <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.ftp\dexih.connections.ftp.csproj" />
     <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.sftp\dexih.connections.sftp.csproj" />
-    <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.sql\dexih.connections.sql.csproj" />
     <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.webservice.restful\dexih.connections.webservice.restful.csproj" />
     <ProjectReference Include="..\dexih.remote.operations\dexih.remote.operations.csproj" />
   </ItemGroup>

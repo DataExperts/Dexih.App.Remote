@@ -47,7 +47,12 @@ namespace dexih.remote
             //check config file first for any settings.
             if (File.Exists(settingsFile))
             {
+                logger.LogInformation($"Reading setting from the {settingsFile}.");
                 builder.AddJsonFile(settingsFile);
+            }
+            else
+            {
+                logger.LogInformation($"Could not find the settings file {settingsFile}.");
             }
 
             // add environment variables second.

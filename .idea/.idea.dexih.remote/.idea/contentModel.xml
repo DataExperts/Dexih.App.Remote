@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ContentModelStore">
-    <e p="$USER_HOME$/Library/Caches/Rider2017.3/resharper-host/local/Transient/ReSharperHost/v11/SolutionCaches/_dexih.remote.-2005245256.00" t="ExcludeRecursive" />
+    <e p="$USER_HOME$/Library/Caches/Rider2018.1/resharper-host/local/Transient/ReSharperHost/v12/SolutionCaches/_dexih.remote.-2005245256.00" t="ExcludeRecursive" />
     <e p="$PROJECT_DIR$/../Dexih.App.Operations/src/dexih.operations" t="IncludeRecursive">
       <e p="AssemblyLoader.cs" t="Include" />
       <e p="bin" t="ExcludeRecursive" />
@@ -83,7 +83,6 @@
       <e p="DexihUpdateStrategy.cs" t="Include" />
       <e p="EntityStatus.cs" t="Include" />
       <e p="HubVariablesManager.cs" t="Include" />
-      <e p="Microsoft.EntityFrameworkCore" t="Include" />
       <e p="obj" t="ExcludeRecursive">
         <e p="Debug" t="Include">
           <e p="netstandard2.0" t="Include">
@@ -91,7 +90,6 @@
           </e>
         </e>
       </e>
-      <e p="project.lock.json" t="Include" />
       <e p="Properties" t="Include">
         <e p="AssemblyInfo.cs" t="Include" />
       </e>
@@ -160,6 +158,7 @@
             <e p="dexih.remote.alpine_0.4.0-beta-00073.zip" t="Include" />
             <e p="dexih.remote.alpine_0.4.0-beta-00074.zip" t="Include" />
             <e p="dexih.remote.alpine_0.4.0-beta-00075.zip" t="Include" />
+            <e p="dexih.remote.alpine_0.4.0-beta-00076.zip" t="Include" />
             <e p="dexih.remote.linux_0.4.0-beta-00021.zip" t="Include" />
             <e p="dexih.remote.linux_0.4.0-beta-00022.zip" t="Include" />
             <e p="dexih.remote.linux_0.4.0-beta-00023.zip" t="Include" />
@@ -207,6 +206,7 @@
             <e p="dexih.remote.linux_0.4.0-beta-00073.zip" t="Include" />
             <e p="dexih.remote.linux_0.4.0-beta-00074.zip" t="Include" />
             <e p="dexih.remote.linux_0.4.0-beta-00075.zip" t="Include" />
+            <e p="dexih.remote.linux_0.4.0-beta-00076.zip" t="Include" />
             <e p="dexih.remote.linux_00012.zip" t="Include" />
             <e p="dexih.remote.linux_00014.zip" t="Include" />
             <e p="dexih.remote.linux_00015.zip" t="Include" />
@@ -263,6 +263,7 @@
             <e p="dexih.remote.osx_0.4.0-beta-00073.zip" t="Include" />
             <e p="dexih.remote.osx_0.4.0-beta-00074.zip" t="Include" />
             <e p="dexih.remote.osx_0.4.0-beta-00075.zip" t="Include" />
+            <e p="dexih.remote.osx_0.4.0-beta-00076.zip" t="Include" />
             <e p="dexih.remote.osx_00016.zip" t="Include" />
             <e p="dexih.remote.osx_00017.zip" t="Include" />
             <e p="dexih.remote.osx_v0.4.0-beta-00020.zip" t="Include" />
@@ -317,6 +318,7 @@
             <e p="dexih.remote.windows_0.4.0-beta-00073.zip" t="Include" />
             <e p="dexih.remote.windows_0.4.0-beta-00074.zip" t="Include" />
             <e p="dexih.remote.windows_0.4.0-beta-00075.zip" t="Include" />
+            <e p="dexih.remote.windows_0.4.0-beta-00076.zip" t="Include" />
             <e p="dexih.remote.windows_00016.zip" t="Include" />
             <e p="dexih.remote.windows_00017.zip" t="Include" />
             <e p="dexih.remote.windows_v0.4.0-beta-00020.zip" t="Include" />
@@ -324,6 +326,7 @@
           <e p="scripts" t="Include">
             <e p="dexih.remote.run.alpine.sh" t="Include" />
             <e p="dexih.remote.run.linux.sh" t="Include" />
+            <e p="dexih.remote.run.osx.sh" t="Include" />
           </e>
           <e p="version.txt" t="Include" />
         </e>
@@ -455,6 +458,7 @@
       <e p="dexih.connections.sql.reader.cs" t="Include" />
       <e p="dexih.connections.sql.sqlite.cs" t="Include" />
       <e p="dexih.connections.sql.sqlserver.cs" t="Include" />
+      <e p="dexih.connectionsl.sql.oracle.cs" t="Include" />
       <e p="obj" t="ExcludeRecursive">
         <e p="Debug" t="Include">
           <e p="netstandard2.0" t="Include">
@@ -533,7 +537,6 @@
         <e p="UpdateQuery.cs" t="Include" />
       </e>
       <e p="Retry.cs" t="Include" />
-      <e p="StandardFunctions.cs" t="Include" />
       <e p="StandardProfiles.cs" t="Include" />
       <e p="Table" t="Include">
         <e p="File.cs" t="Include" />
@@ -558,6 +561,8 @@
         <e p="Connections.cs" t="Include" />
         <e p="ConnectionsExceptions.cs" t="Include" />
       </e>
+      <e p="dexih.connections.sql.cs" t="Include" />
+      <e p="dexih.connections.sql.reader.cs" t="Include" />
       <e p="dexih.transforms.csproj" t="IncludeRecursive" />
       <e p="EncryptedObject.cs" t="Include" />
       <e p="Exceptions" t="Include">

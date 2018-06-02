@@ -119,7 +119,7 @@ namespace dexih.remote.Operations.Services
     {
         public DownloadObject(string fileName, Stream stream)
         {
-            SecurityKey = Dexih.Utils.Crypto.EncryptString.GenerateRandomKey();
+            SecurityKey = Dexih.Utils.Crypto.EncryptString.GenerateRandomKey().Replace("+", "").Replace("/", "");
             AddedDateTime = DateTime.Now;
             DownloadStream = stream;
             FileName = fileName;

@@ -26,6 +26,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Open.Nat;
 
 namespace dexih.remote
 {
@@ -67,9 +68,9 @@ namespace dexih.remote
         private HubConnection HubConnection { get; set; }
         // private CookieContainer HttpCookieContainer { get; set; }
 
-        private HttpClient _httpClient;
+        private readonly HttpClient _httpClient;
 
-        private RemoteOperations _remoteOperations;
+        private readonly RemoteOperations _remoteOperations;
 
         private readonly ConcurrentDictionary<string, RemoteMessage> _responseMessages = new ConcurrentDictionary<string, RemoteMessage>(); //list of responses returned from clients.  This is updated by the hub.
         private readonly ConcurrentBag<ResponseMessage> _sendMessageQueue = new ConcurrentBag<ResponseMessage>();
@@ -101,6 +102,12 @@ namespace dexih.remote
             }
         }
         
+       
+        /// <summary>
+        /// Initializes the remote agents key properties.
+        /// </summary>
+        /// <param name="remoteSettings"></param>
+        /// <param name="loggerFactory"></param>
         public DexihRemote(RemoteSettings remoteSettings, LoggerFactory loggerFactory)
         {
             LoggerFactory = loggerFactory;
@@ -131,6 +138,12 @@ namespace dexih.remote
             _remoteOperations = new RemoteOperations(_remoteSettings, SessionEncryptionKey, LoggerMessages, _httpClient, Url, _streams);
         }
 
+        /// <summary>
+        /// Connects the remote agent to the central information hub server.
+        /// </summary>
+        /// <param name="saveSettings"></param>
+        /// <param name="cancellationToken"></param>
+        /// <returns></returns>
         public async Task<EExitCode> StartAsync(bool saveSettings, CancellationToken cancellationToken)
         {
             var logger = LoggerFactory.CreateLogger("Start");
@@ -149,23 +162,28 @@ namespace dexih.remote
 
                 if (connectResult == EConnectionResult.Connected)
                 {
-                    _remoteSettings.Runtime.IpAddress = loginResult.ipAddress;
+                    _remoteSettings.Runtime.ExternalIpAddress = loginResult.ipAddress;
 
                     if (!savedSettings && saveSettings)
                     {
                         _remoteSettings.AppSettings.UserToken = loginResult.userToken;
                         
                         var appSettingsFile = Directory.GetCurrentDirectory() + "/appsettings.json";
+
+                        _remoteSettings.AppSettings.FirstRun = false;
                         
                         //create a temporary settings file that does not contain the RunTime property.
-                        var _tmpSettings = new RemoteSettings()
+                        var tmpSettings = new RemoteSettings()
                         {
                             AppSettings = _remoteSettings.AppSettings,
                             Logging = _remoteSettings.Logging,
-                            SystemSettings = _remoteSettings.SystemSettings
+                            SystemSettings = _remoteSettings.SystemSettings,
+                            Network = _remoteSettings.Network,
+                            Privacy = _remoteSettings.Privacy,
+                            Permissions = _remoteSettings.Permissions
                         };
                         
-                        File.WriteAllText(appSettingsFile, JsonConvert.SerializeObject(_tmpSettings, Formatting.Indented));
+                        File.WriteAllText(appSettingsFile, JsonConvert.SerializeObject(tmpSettings, Formatting.Indented));
                         logger.LogInformation("The appsettings.json file has been updated with the current settings.");
 
                         if (!string.IsNullOrEmpty(_remoteSettings.Runtime.Password))
@@ -334,28 +352,28 @@ namespace dexih.remote
 
 
                         // if direct upload/downloads are enabled, startup the upload/download web server.
-                        if (_remoteSettings.AppSettings.DownloadDirectly)
+                        if ((_remoteSettings.Privacy.AllowDataUpload || _remoteSettings.Privacy.AllowDataDownload) && (_remoteSettings.Privacy.AllowLanAccess || _remoteSettings.Privacy.AllowExternalAccess))
                         {
                             try
                             {
-                                var useHttps = !string.IsNullOrEmpty(_remoteSettings.AppSettings.CertificateFilename);
+                                var useHttps = !string.IsNullOrEmpty(_remoteSettings.Network.CertificateFilename);
 
-                                if (_remoteSettings.AppSettings.AutoGenerateCertificate)
+                                if (_remoteSettings.Network.AutoGenerateCertificate)
                                 {
-                                    if (string.IsNullOrEmpty(_remoteSettings.AppSettings.CertificateFilename))
+                                    if (string.IsNullOrEmpty(_remoteSettings.Network.CertificateFilename))
                                     {
-                                        _remoteSettings.AppSettings.CertificateFilename = "dexih.pfx";
+                                        _remoteSettings.Network.CertificateFilename = "dexih.pfx";
                                         useHttps = true;
                                     }
 
                                     var renew = false;
 
-                                    if (File.Exists(_remoteSettings.AppSettings.CertificateFilename))
+                                    if (File.Exists(_remoteSettings.Network.CertificateFilename))
                                     {
                                         // Create a collection object and populate it using the PFX file
                                         using (var cert = new X509Certificate2(
-                                            _remoteSettings.AppSettings.CertificateFilename,
-                                            _remoteSettings.AppSettings.CertificatePassword))
+                                            _remoteSettings.Network.CertificateFilename,
+                                            _remoteSettings.Network.CertificatePassword))
                                         {
                                             var effectiveDate = DateTime.Parse(cert.GetEffectiveDateString());
                                             var expiresDate = DateTime.Parse(cert.GetExpirationDateString());
@@ -372,12 +390,13 @@ namespace dexih.remote
                                         renew = true;
                                     }
 
+                                    // generate a new ssl certificate
                                     if (renew)
                                     {
                                         var details = new
                                         {
-                                            Domain = _remoteSettings.AppSettings.DynamicDomain,
-                                            Password = _remoteSettings.AppSettings.CertificatePassword
+                                            Domain = _remoteSettings.Network.DynamicDomain,
+                                            Password = _remoteSettings.Network.CertificatePassword
                                         };
 
                                         var messagesString = Json.SerializeObject(details, SessionEncryptionKey);
@@ -390,7 +409,7 @@ namespace dexih.remote
                                         if (response.IsSuccessStatusCode)
                                         {
                                             var certificate = await response.Content.ReadAsByteArrayAsync();
-                                            File.WriteAllBytes(_remoteSettings.AppSettings.CertificateFilename,
+                                            File.WriteAllBytes(_remoteSettings.Network.CertificateFilename,
                                                 certificate);
                                         }
                                         else
@@ -401,24 +420,24 @@ namespace dexih.remote
                                     }
                                 }
 
-                                if (_remoteSettings.AppSettings.EnforceHttps)
+                                if (_remoteSettings.Network.EnforceHttps)
                                 {
 
-                                    if (string.IsNullOrEmpty(_remoteSettings.AppSettings.CertificateFilename))
+                                    if (string.IsNullOrEmpty(_remoteSettings.Network.CertificateFilename))
                                     {
                                         throw new RemoteException(
                                             "The server requires https, however a CertificateFile name is not specified.");
                                     }
 
-                                    if (!File.Exists(_remoteSettings.AppSettings.CertificateFilename))
+                                    if (!File.Exists(_remoteSettings.Network.CertificateFilename))
                                     {
                                         throw new RemoteException(
-                                            $"The certificate with the filename {_remoteSettings.AppSettings.CertificateFilename} does not exist.");
+                                            $"The certificate with the filename {_remoteSettings.Network.CertificateFilename} does not exist.");
                                     }
 
                                     using (var cert = new X509Certificate2(
-                                        _remoteSettings.AppSettings.CertificateFilename,
-                                        _remoteSettings.AppSettings.CertificatePassword))
+                                        _remoteSettings.Network.CertificateFilename,
+                                        _remoteSettings.Network.CertificatePassword))
                                     {
                                         var effectiveDate = DateTime.Parse(cert.GetEffectiveDateString());
                                         var expiresDate = DateTime.Parse(cert.GetExpirationDateString());
@@ -426,23 +445,60 @@ namespace dexih.remote
                                         if (DateTime.Now < effectiveDate)
                                         {
                                             throw new RemoteException(
-                                                $"The certificate with the filename {_remoteSettings.AppSettings.CertificateFilename} is not valid until {effectiveDate}.");
+                                                $"The certificate with the filename {_remoteSettings.Network.CertificateFilename} is not valid until {effectiveDate}.");
                                         }
 
 
                                         if (DateTime.Now > expiresDate)
                                         {
                                             throw new RemoteException(
-                                                $"The certificate with the filename {_remoteSettings.AppSettings.CertificateFilename} expired on {expiresDate}.");
+                                                $"The certificate with the filename {_remoteSettings.Network.CertificateFilename} expired on {expiresDate}.");
                                         }
 
                                     }
 
                                 }
 
-
-                                if (!useHttps || File.Exists(_remoteSettings.AppSettings.CertificateFilename))
+                                if (!useHttps && _remoteSettings.Network.EnforceHttps)
                                 {
+                                    throw new RemoteException("The remote agent is set to enforceHtts, however no SSL certificate was found or able to be generated.");
+                                }
+
+                                if (!useHttps || File.Exists(_remoteSettings.Network.CertificateFilename))
+                                {
+                                    if (_remoteSettings.Network.DownloadPort == null)
+                                    {
+                                        throw new Exception("The web server download port was not set.");
+                                    }
+                                    
+                                    var port = _remoteSettings.Network.DownloadPort.Value;
+
+                                    if (_remoteSettings.Network.EnableUPnP)
+                                    {
+                                        try
+                                        {
+                                            var discoverer = new NatDiscoverer();
+                                            var cts = new CancellationTokenSource(10000);
+                                            var device = await discoverer.DiscoverDeviceAsync(PortMapper.Upnp, cts);
+                                            var exists = await device.GetSpecificMappingAsync(Protocol.Tcp, port);
+
+                                            if (exists == null)
+                                            {
+                                                await device.CreatePortMapAsync(new Mapping(Protocol.Tcp, port, port,
+                                                    "Data Experts Remote Agent"));
+
+                                                if (cts.IsCancellationRequested)
+                                                {
+                                                    logger.LogError(10, $"A timeout occurred mapping upnp port");
+                                                }
+                                            }
+                                        }
+                                        catch (Exception ex)
+                                        {
+                                            logger.LogError(10, ex, $"Error mapping upnp port: {ex.Message}");
+                                        }
+                                    }
+
                                     logger.LogInformation("Starting the data upload/download web server.");
                                     var host = new WebHostBuilder()
                                         .UseStartup<Startup>()
@@ -450,7 +506,7 @@ namespace dexih.remote
                                         .UseKestrel(options =>
                                         {
                                             options.Listen(IPAddress.Any,
-                                                _remoteSettings.AppSettings.DownloadPort ?? 33944,
+                                                _remoteSettings.Network.DownloadPort ?? 33944,
                                                 listenOptions =>
                                                 {
                                                     // if there is a cerficiate then default to https
@@ -458,13 +514,12 @@ namespace dexih.remote
                                                     {
                                                         listenOptions.UseHttps(
                                                             Path.Combine(Directory.GetCurrentDirectory(),
-                                                                _remoteSettings.AppSettings.CertificateFilename),
-                                                            _remoteSettings.AppSettings.CertificatePassword);
+                                                                _remoteSettings.Network.CertificateFilename),
+                                                            _remoteSettings.Network.CertificatePassword);
                                                     }
                                                 });
                                         })
-                                        .UseUrls((useHttps ? "https://*:" : "http://*:") +
-                                                 _remoteSettings.AppSettings.DownloadPort)
+                                        .UseUrls((useHttps ? "https://*:" : "http://*:") + port)
                                         .Build();
 
                                     var webRunTask = host.RunAsync(ct);
@@ -476,7 +531,7 @@ namespace dexih.remote
                                 else
                                 {
                                     throw new RemoteException(
-                                        $"The certificate {_remoteSettings.AppSettings.CertificateFilename} could not be found.");
+                                        $"The certificate {_remoteSettings.Network.CertificateFilename} could not be found.");
                                 }
                             }
                             catch (Exception e)

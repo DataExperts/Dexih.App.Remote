@@ -1,10 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Drawing;
 using System.IO;
-using System.Security.Cryptography;
-using System.Text;
-using System.Threading;
 using System.Web;
 using dexih.remote.Operations.Services;
 using Dexih.Utils.Crypto;
@@ -14,10 +9,9 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Primitives;
 using Newtonsoft.Json;
 
-namespace dexih.remote
+namespace dexih.remote.operations
 {
     public class Startup
     {
@@ -60,7 +54,7 @@ namespace dexih.remote
 
                 if (segments[1] == "ping")
                 {
-                    await context.Response.WriteAsync("<h1>Remote agent is alive</h1>");
+                    await context.Response.WriteAsync("{ \"status\": \"alive\"}");
                 }
 
                 else if (segments.Length >= 4)
@@ -71,62 +65,29 @@ namespace dexih.remote
 
                     try
                     {
+                        var downloadStream = streams.GetDownloadStream(key, securityKey);
 
                         switch (command)
                         {
-                            case "download":
-
-                                var downloadStream = streams.GetDownloadStream(key, securityKey);
-
-                                context.Response.Headers.Add("application/octet-stream", "");
-                                context.Response.Headers.Add("Content-Disposition",
-                                    "attachment; filename=" + downloadStream.fileName);
-
-                                await downloadStream.stream.CopyToAsync(context.Response.Body);
-                                downloadStream.stream.Close();
-
+                            case "file":
+                                context.Response.ContentType = "application/octet-stream";
                                 break;
-                                
                             case "csv" :
-                                
-                                var downloadStream2 = streams.GetDownloadStream(key, securityKey);
                                 context.Response.ContentType = "text/csv";
-                                context.Response.StatusCode = 200;
-
-                                await downloadStream2.stream.CopyToAsync(context.Response.Body);
-                                downloadStream2.stream.Close();
-
-
                                 break;
-
                             case "json" :
-                                
-                                var downloadStream3 = streams.GetDownloadStream(key, securityKey);
                                 context.Response.ContentType = "application/json";
-                                context.Response.StatusCode = 200;
-
-                                await downloadStream3.stream.CopyToAsync(context.Response.Body);
-                                downloadStream3.stream.Close();
-
                                 break;
-
-                            case "upload":
-                                var memoryStream = new MemoryStream();
-                                await context.Request.Body.CopyToAsync(memoryStream);
-                                memoryStream.Position = 0;
-                                await streams.ProcessUploadAction(key, securityKey, memoryStream);
-                                var result = new ReturnValue(true);
-
-                                context.Response.ContentType = "application/json";
-
-                                using (var writer = new StreamWriter(context.Response.Body))
-                                {
-                                    new JsonSerializer().Serialize(writer, result);
-                                    await writer.FlushAsync().ConfigureAwait(false);
-                                }
-
-                                break;
+                            default:
+                                throw new ArgumentOutOfRangeException($"The command {command} was not recognized.");
                         }
+                        
+                        context.Response.StatusCode = 200;
+                        context.Response.Headers.Add("Content-Disposition", "attachment; filename=" + downloadStream.fileName);
+                        await downloadStream.stream.CopyToAsync(context.Response.Body);
+                        downloadStream.stream.Close();
+
+
                     }
                     catch (Exception e)
                     {

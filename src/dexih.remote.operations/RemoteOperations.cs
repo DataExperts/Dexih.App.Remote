@@ -7,6 +7,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
 using System.Security.Cryptography;
+using System.Security.Policy;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -44,7 +45,6 @@ namespace dexih.remote.operations
         private readonly string _url;
         private readonly IStreams _streams;
         private readonly RemoteSettings _remoteSettings;
-
         private readonly RemoteLibraries _remoteLibraries;
 
         public RemoteOperations(RemoteSettings remoteSettings, string temporaryEncryptionKey, ILogger loggerMessages, HttpClient httpClient, string url, IStreams streams)
@@ -323,7 +323,7 @@ namespace dexih.remote.operations
 
                 }
 
-                var newTask = _managedTasks.Add(reference, clientId, $"Datalink: {datalinkRun.Datalink.Name}.", "Datalink", datalinkRun.Datalink.HubKey, datalinkRun.Datalink.DatalinkKey, datalinkRun.WriterResult, DatalinkRunTask, null, null, dependencies);
+                var newTask = _managedTasks.Add(reference, clientId, $"Datalink: {datalinkRun.Datalink.Name}.", "Datalink", datalinkRun.Datalink.HubKey, _remoteSettings.AppSettings.RemoteAgentId, datalinkRun.Datalink.DatalinkKey, datalinkRun.WriterResult, DatalinkRunTask, null, null, dependencies);
                 if (newTask != null)
                 {
                     return newTask;
@@ -478,6 +478,7 @@ namespace dexih.remote.operations
                         Name = $"Datajob: {dbDatajob.Name}.",
                         Category = "Datajob",
                         CategoryKey = dbDatajob.DatajobKey,
+                        RemoteAgentId = _remoteSettings.AppSettings.RemoteAgentId,
                         HubKey = dbDatajob.HubKey,
                         Data = datajobRun.WriterResult,
                         Action = DatajobRunTask,
@@ -805,11 +806,11 @@ namespace dexih.remote.operations
             }
         }
         
-        public async Task<StreamSecurityKeys> PreviewTable(RemoteMessage message, CancellationToken cancellationToken)
+        public async Task<string> PreviewTable(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
             {
-                if (!_remoteSettings.AppSettings.AllowDataDownload)
+                if (!_remoteSettings.Privacy.AllowDataDownload)
                 {
                     throw new RemoteSecurityException("This remote agent's privacy settings does not allow remote data previews.");
                 }
@@ -818,6 +819,7 @@ namespace dexih.remote.operations
                 var dbHub = message.Value["hub"].ToObject<DexihHub>();
                 var showRejectedData = message.Value["showRejectedData"].ToObject<bool>();
                 var selectQuery = message.Value["selectQuery"].ToObject<SelectQuery>();
+                var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
 
                 //retrieve the source tables into the cache.
                 var settings = GetTransformSettings(message.HubVariables);
@@ -837,9 +839,9 @@ namespace dexih.remote.operations
                 LoggerMessages.LogInformation("Preview for table: " + dbTable.Name + ".");
 
                 var stream = new TransformJsonStream(dbTable.Name, reader, selectQuery.Rows);
-                var keys = _streams.SetDownloadStream("", stream);
 
-                return keys;
+                return await StartDataStream(stream, downloadUrl, "json", "preview_table.json", cancellationToken);
+
             }
             catch (Exception ex)
             {
@@ -848,11 +850,114 @@ namespace dexih.remote.operations
             }
         }
 
-        public async Task<StreamSecurityKeys> PreviewTransform(RemoteMessage message, CancellationToken cancellationToken)
+        private async Task<string> StartDataStream(Stream stream, DownloadUrl downloadUrl, string format, string fileName, CancellationToken cancellationToken)
+        {
+            if (downloadUrl.DownloadUrlType == EDownloadUrlType.Proxy)
+            {
+                
+                var startResult = await _httpClient.GetAsync($"{downloadUrl.Url}/start/{format}/{fileName}", cancellationToken);
+
+                if (!startResult.IsSuccessStatusCode)
+                {
+                    throw new RemoteOperationException($"Failed to connect to the proxy server.  Message: {startResult.ReasonPhrase}");
+                }
+
+                var jsonReuslt = JObject.Parse(await startResult.Content.ReadAsStringAsync());
+
+                var upload = jsonReuslt["UploadUrl"].ToString();
+                var download = jsonReuslt["DownloadUrl"].ToString();
+            
+                async Task UploadDataTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken ct)
+                {
+                    await _httpClient.PostAsync(upload, new StreamContent(stream), ct);
+                }
+            
+                var newManagedTask = new ManagedTask
+                {
+                    Reference = Guid.NewGuid().ToString(),
+                    OriginatorId = "none",
+                    Name = $"Remote Data",
+                    Category = "ProxyDownload",
+                    CategoryKey = 0,
+                    RemoteAgentId = _remoteSettings.AppSettings.RemoteAgentId,
+                    HubKey = 0,
+                    Data = 0,
+                    Action = UploadDataTask,
+                    Triggers = null,
+                    FileWatchers = null,
+                    ScheduleAction = null,
+                    CancelScheduleAction = null
+                };
+
+                _managedTasks.Add(newManagedTask);
+
+                return download;
+            }
+            else
+            {
+                var keys = _streams.SetDownloadStream(fileName, stream);
+                var url = $"{downloadUrl.Url}/{format}/{keys.Key}/{keys.SecurityKey}";
+                return url;
+            }
+        }
+        
+        private async Task<string> StartUploadStream(Func<Stream, Task> uploadAction, DownloadUrl downloadUrl, string format, string fileName, CancellationToken cancellationToken)
+        {
+            if (downloadUrl.DownloadUrlType == EDownloadUrlType.Proxy)
+            {
+                // when uploaing files through proxy, first issue a "start" on the server to get upload/download urls
+                var startResult = await _httpClient.GetAsync($"{downloadUrl.Url}/start/{format}/{fileName}", cancellationToken);
+
+                if (!startResult.IsSuccessStatusCode)
+                {
+                    throw new RemoteOperationException($"Failed to connect to the proxy server.  Message: {startResult.ReasonPhrase}");
+                }
+
+                var jsonReuslt = JObject.Parse(await startResult.Content.ReadAsStringAsync());
+
+                var upload = jsonReuslt["UploadUrl"].ToString();
+                var download = jsonReuslt["DownloadUrl"].ToString();
+            
+                async Task DownloadDataTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken ct)
+                {
+                    var result = await _httpClient.GetAsync(download, ct);
+                    await uploadAction.Invoke(await result.Content.ReadAsStreamAsync());
+                }
+            
+                var newManagedTask = new ManagedTask
+                {
+                    Reference = Guid.NewGuid().ToString(),
+                    OriginatorId = "none",
+                    Name = $"Remote Data",
+                    Category = "ProxyUpload",
+                    CategoryKey = 0,
+                    RemoteAgentId = _remoteSettings.AppSettings.RemoteAgentId,
+                    HubKey = 0,
+                    Data = 0,
+                    Action = DownloadDataTask,
+                    Triggers = null,
+                    FileWatchers = null,
+                    ScheduleAction = null,
+                    CancelScheduleAction = null
+                };
+
+                _managedTasks.Add(newManagedTask);
+
+                return upload;
+            }
+            else
+            {
+                var keys = _streams.SetUploadAction("", uploadAction);
+                var url = $"{downloadUrl.Url}/uplolad/{keys.Key}/{keys.SecurityKey}";
+                return url;
+            }
+        }
+
+        public async Task<string> PreviewTransform(RemoteMessage message, CancellationToken cancellationToken)
         {
            try
            {
-               if (!_remoteSettings.AppSettings.AllowDataDownload)
+               if (!_remoteSettings.Privacy.AllowDataDownload)
                 {
                     throw new RemoteSecurityException("This remote agent's privacy settings does not allow remote data previews.");
                 }
@@ -861,6 +966,7 @@ namespace dexih.remote.operations
                 var datalinkTransformKey = message.Value["datalinkTransformKey"]?.ToObject<long>() ?? 0;
                 var rows = message.Value["rows"]?.ToObject<long>() ?? long.MaxValue;
                var dbDatalink = message.Value["datalink"].ToObject<DexihDatalink>();
+               var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
 
                 var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
                 var runPlan = transformOperations.CreateRunPlan(dbHub, dbDatalink, datalinkTransformKey, null, false);
@@ -874,9 +980,7 @@ namespace dexih.remote.operations
 				transform.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
                
                var stream = new TransformJsonStream(dbDatalink.Name + " " + transform.Name, transform, rows);
-               var keys = _streams.SetDownloadStream("", stream);
-
-               return keys;
+               return await StartDataStream(stream, downloadUrl, "json", "preview_transform.json", cancellationToken);
            }
            catch (Exception ex)
            {
@@ -886,11 +990,11 @@ namespace dexih.remote.operations
 
         }
         
-        public async Task<StreamSecurityKeys> PreviewDatalink(RemoteMessage message, CancellationToken cancellationToken)
+        public async Task<string> PreviewDatalink(RemoteMessage message, CancellationToken cancellationToken)
         {
            try
            {
-               if (!_remoteSettings.AppSettings.AllowDataDownload)
+               if (!_remoteSettings.Privacy.AllowDataDownload)
                 {
                     throw new RemoteSecurityException("This remote agent's privacy settings does not allow remote data previews.");
                 }
@@ -899,6 +1003,7 @@ namespace dexih.remote.operations
                 var datalinkKey = message.Value["datalinkKey"].ToObject<long>();
                var selectQuery = message.Value["selectQuery"].ToObject<SelectQuery>();
                var dbDatalink = dbHub.DexihDatalinks.Single(c => c.DatalinkKey == datalinkKey);
+               var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
                
                 var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
                 var runPlan = transformOperations.CreateRunPlan(dbHub, dbDatalink, null, null, false, selectQuery);
@@ -913,10 +1018,7 @@ namespace dexih.remote.operations
 				transform.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
 
                var stream = new TransformJsonStream(dbDatalink.Name, transform, selectQuery.Rows);
-               var keys = _streams.SetDownloadStream("", stream);
-
-               return keys;
-
+               return await StartDataStream(stream, downloadUrl, "json", "preview_datalink.json", cancellationToken);
            }
            catch (Exception ex)
            {
@@ -926,74 +1028,11 @@ namespace dexih.remote.operations
 
         }
 
-        /// <summary>
-        /// Called by the Remote controller.  Sends a data stream to the server, and returns a refernece to the stream.
-        /// </summary>
-        /// <param name="message"></param>
-        /// <param name="cancellationToken"></param>
-        /// <returns></returns>
-        public async Task<string> GetRemoteData(RemoteMessage message, CancellationToken cancellationToken)
+  public async Task<Table> PreviewProfile(RemoteMessage message, CancellationToken cancellationToken) // (long HubKey, string Cache, long DatalinkAuditKey, bool SummaryOnly, CancellationToken cancellationToken)
         {
             try
             {
-
-                if (!_remoteSettings.AppSettings.AllowDataDownload)
-                {
-                    throw new RemoteSecurityException(
-                        "This remote agent's privacy settings does not allow remote data to be accessed.");
-                }
-
-                var key = (string) message.Value["key"];
-                var securityKey = (string) message.Value["securityKey"];
-                var stream = _streams.GetDownloadStream(key, securityKey);
-                var reference = Guid.NewGuid().ToString();
-
-                using (var content = new MultipartFormDataContent())
-                {
-                    content.Add(new StringContent(message.SecurityToken), "SecurityToken");
-                    // content.Add(new StringContent(null), "ClientId");
-                    content.Add(new StringContent(reference), "Reference");
-                    content.Add(new StringContent(message.HubKey.ToString()), "HubKey");
-                    content.Add(new StringContent("application/json"), "ContentType");
-
-                    var data = new StreamContent(stream.stream);
-                    content.Add(data, "file", string.IsNullOrEmpty(stream.fileName) ? "file.csv": stream.fileName);
-
-                    var response =
-                        await _httpClient.PostAsync(_url + "Remote/SetFileStream", content, cancellationToken);
-                    if (!response.IsSuccessStatusCode)
-                    {
-                        throw new RemoteOperationException(
-                            $"The data download did not complete as the http server returned the response {response.ReasonPhrase}.");
-                    }
-
-                    var returnValue = Json.DeserializeObject<ReturnValue>(await response.Content.ReadAsStringAsync(),
-                        _temporaryEncryptionKey);
-                    if (!returnValue.Success)
-                    {
-                        throw new RemoteOperationException(
-                            $"The data download did not completed.  {returnValue.Message}", returnValue.Exception);
-                    }
-                }
-
-
-                // var streamReader = new StreamReader(stream.stream);
-
-                return reference;
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-                throw;
-            }
-        }
-
-        
-        public async Task<Table> PreviewProfile(RemoteMessage message, CancellationToken cancellationToken) // (long HubKey, string Cache, long DatalinkAuditKey, bool SummaryOnly, CancellationToken cancellationToken)
-        {
-            try
-            {
-                if (!_remoteSettings.AppSettings.AllowDataDownload)
+                if (!_remoteSettings.Privacy.AllowDataDownload)
                 {
                     throw new RemoteSecurityException("This remote agent's privacy settings does not allow remote data to be accessed.");
                 }
@@ -1196,7 +1235,7 @@ namespace dexih.remote.operations
         {
             try
             {
-                if (!_remoteSettings.AppSettings.AllowDataUpload)
+                if (!_remoteSettings.Privacy.AllowDataUpload)
                 {
                     throw new RemoteSecurityException("This remote agent's privacy settings does not allow remote data to be accessed.");
                 }
@@ -1250,7 +1289,8 @@ namespace dexih.remote.operations
                         }
 
                         return true;
-                    } else if (fileName.EndsWith(".gz"))
+                    } 
+                    else if (fileName.EndsWith(".gz"))
                     {
                         var newFileName = fileName.Substring(0, fileName.Length - 3);
 
@@ -1282,16 +1322,17 @@ namespace dexih.remote.operations
             }
         }
 
-        public async Task<StreamSecurityKeys> UploadFile(RemoteMessage message, CancellationToken cancellationToken)
+        public async Task<string> UploadFile(RemoteMessage message, CancellationToken cancellationToken)
         {
              try
             {
-                if (!_remoteSettings.AppSettings.AllowDataUpload)
+                if (!_remoteSettings.Privacy.AllowDataUpload)
                 {
                     throw new RemoteSecurityException("This remote agent's privacy settings does not allow remote data to be accessed.");
                 }
 
-                var dbCache = Json.JTokenToObject<CacheManager>(message.Value, _temporaryEncryptionKey);
+                var dbCache = Json.JTokenToObject<CacheManager>(message.Value["cache"], _temporaryEncryptionKey);
+                var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
                 var dbConnection = dbCache.DexihHub.DexihConnections.FirstOrDefault();
                 if(dbConnection == null)
                 {
@@ -1315,9 +1356,14 @@ namespace dexih.remote.operations
 
                 async Task ProcessTask(Stream stream)
                 {
+                    try
+                    {
+
                     if(fileName.EndsWith(".zip"))
                     {
-                        using (var archive = new ZipArchive(stream, ZipArchiveMode.Read, true))
+                        var memoryStream = new MemoryStream();
+                        await stream.CopyToAsync(memoryStream);
+                        using (var archive = new ZipArchive(memoryStream, ZipArchiveMode.Read, true))
                         {
                             foreach(var entry in archive.Entries)
                             {
@@ -1346,15 +1392,15 @@ namespace dexih.remote.operations
                     {
                         var saveFile = await connection.SaveFileStream(flatFile, EFlatFilePath.Incoming, fileName, stream);
                     }
+                    }
+                    catch (Exception ex)
+                    {
+                        LoggerMessages.LogError(60, ex, "Error processing uploaded file.  {0}", ex.Message);
+                    }
                 }
 
-                // Taks.Run get's rid of the async warning
-                return await Task.Run(() =>
-                {
-                    var keys = _streams.SetUploadAction(fileName, ProcessTask);
-
-                    return keys;
-                }, cancellationToken);
+                var url = await StartUploadStream(ProcessTask, downloadUrl, "file", fileName, cancellationToken);
+                return url;
             }
             catch (Exception ex)
             {
@@ -1367,7 +1413,7 @@ namespace dexih.remote.operations
         {
             try
             {
-                if (!_remoteSettings.AppSettings.AllowDataDownload)
+                if (!_remoteSettings.Privacy.AllowDataDownload)
                 {
                     throw new RemoteSecurityException("This remote agent's privacy settings does not allow remote data to be accessed.");
                 }
@@ -1376,6 +1422,7 @@ namespace dexih.remote.operations
                 var path = message.Value["path"].ToObject<EFlatFilePath>();
                 var files = message.Value["files"].ToObject<string[]>();
                 var clientId = message.Value["clientId"].ToString();
+                var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
 
                 var reference = Guid.NewGuid().ToString();
 
@@ -1389,7 +1436,7 @@ namespace dexih.remote.operations
 
                     progress.Report(100, 2, "Files ready for download...");
 
-                    var keys = _streams.SetDownloadStream(filename, downloadStream);
+                    var result = await StartDataStream(downloadStream, downloadUrl, "file", filename, cancellationToken);
 
                     var downloadMessage = new
                     {
@@ -1397,8 +1444,7 @@ namespace dexih.remote.operations
                         ClientId = clientId,
                         Reference = reference,
                         HubKey = message.HubKey,
-                        StreamKey = keys.Key,
-                        StreamSecurityKey = keys.SecurityKey,
+                        Url = result
                     };
                     
                     var messagesString = JsonConvert.SerializeObject(downloadMessage);
@@ -1422,7 +1468,7 @@ namespace dexih.remote.operations
                 return await Task.Run(() =>
                 {
                     var startdownloadResult = _managedTasks.Add(reference, clientId,
-                        $"Download file: {files[0]} from {path}.", "Download", connectionTable.hubKey, 0, null,
+                        $"Download file: {files[0]} from {path}.", "Download", connectionTable.hubKey, _remoteSettings.AppSettings.RemoteAgentId, 0, null,
                         DownloadTask, null, null, null);
                     return startdownloadResult;
                 }, cancellationToken);
@@ -1438,7 +1484,7 @@ namespace dexih.remote.operations
         {
             try
             {
-                if (!_remoteSettings.AppSettings.AllowDataDownload)
+                if (!_remoteSettings.Privacy.AllowDataDownload)
                 {
                     throw new RemoteSecurityException("This remote agent's privacy settings does not allow remote data to be accessed.");
                 }
@@ -1451,6 +1497,7 @@ namespace dexih.remote.operations
                     var downloadObjects = message.Value["downloadObjects"].ToObject<DownloadData.DownloadObject[]>();
                     var downloadFormat = message.Value["downloadFormat"].ToObject<DownloadData.EDownloadFormat>();
                     var zipFiles = message.Value["zipFiles"].ToObject<bool>();
+                    var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
                     var securityToken = _securityToken;
 
                     var reference = Guid.NewGuid().ToString();
@@ -1466,16 +1513,15 @@ namespace dexih.remote.operations
 
                         progress.Report(100, 2, "Download ready...");
 
-                        var keys = _streams.SetDownloadStream(filename, stream);
-
+                        var result = await StartDataStream(stream, downloadUrl, "file", filename, cancellationToken);
+                        
                         var downloadMessage = new
                         {
                             SecurityToken = securityToken,
                             ClientId = clientId,
                             Reference = reference,
                             HubKey = message.HubKey,
-                            StreamKey = keys.Key,
-                            StreamSecurityKey = keys.SecurityKey,
+                            Url = result
                         };
 
                         var messagesString = JsonConvert.SerializeObject(downloadMessage);
@@ -1492,36 +1538,10 @@ namespace dexih.remote.operations
                         {
                             throw new RemoteOperationException($"The data download did not completed.  {returnValue.Message}", returnValue.Exception);
                         }
-                        
 
-// PREVIOUS DOWNLOAD WHICH USED UPLOAD VIA CENTRAL SERVER
-//                        progress.Report(60, 2, "Downloading data...");
-//
-//                        //progress messages are send and forget as it is not critical that they are received.
-//                        using (var content = new MultipartFormDataContent())
-//                        {
-//                            content.Add(new StringContent(securityToken), "SecurityToken");
-//                            content.Add(new StringContent(clientId), "ClientId");
-//                            content.Add(new StringContent(reference), "Reference");
-//                            content.Add(new StringContent(cache.HubKey.ToString()), "HubKey");
-//
-//                            var data = new StreamContent(stream);
-//                            content.Add(data, "file", filename);
-//
-//                            var response = await _httpClient.PostAsync(_url + "Remote/SetFileStream", content, ct);
-//                            if (!response.IsSuccessStatusCode)
-//                            {
-//                                throw new RemoteOperationException($"The data download did not complete as the http server returned the response {response.ReasonPhrase}.");
-//                            }
-//                            var returnValue = Json.DeserializeObject<ReturnValue>(await response.Content.ReadAsStringAsync(), _temporaryEncryptionKey);
-//                            if (!returnValue.Success)
-//                            {
-//                                throw new RemoteOperationException($"The data download did not completed.  {returnValue.Message}", returnValue.Exception);
-//                            }
-//                        }
                     }
 
-                    var startdownloadResult = _managedTasks.Add(reference, clientId, $"Download Data File", "Download", cache.HubKey, 0, null, DownloadTask, null, null, null);
+                    var startdownloadResult = _managedTasks.Add(reference, clientId, $"Download Data File", "Download", cache.HubKey, _remoteSettings.AppSettings.RemoteAgentId, 0, null, DownloadTask, null, null, null);
                     return startdownloadResult;
                 }, cancellationToken);
             }

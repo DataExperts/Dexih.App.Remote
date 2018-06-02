@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # This script downloads the remote agent binaries and runs the remote agent.
 
+SERVER='http://localhost:5000'
 DIRECTORY='remote.agent'
+OS='osx';
+PRE='pre'
 
 if [ ! -d "${DIRECTORY}" ]; then
     mkdir ${DIRECTORY}
@@ -12,61 +15,61 @@ UPGRADE=20
 
 while [ ${UPGRADE} -eq 20 ]
 do
-    GIT_DATA=`curl -s "https://api.github.com/repos/DataExperts/Dexih.App.Remote/releases/latest"`
-    LATEST_RELEASE_BINARY=`echo $GIT_DATA |  jq -r '.assets[].name' | grep osx`
-    LATEST_RELEASE_URL=`echo $GIT_DATA |  jq -r '.assets[].browser_download_url' | grep osx`
+    VERSION_INFO=`curl -s "${SERVER}/api/Remote/LatestVersion/${OS}/${PRE}"`
+    LATEST_VERSION=$(echo "${VERSION_INFO}" | head -1 | tail -1)
+    LATEST_BINARY=$(echo "${VERSION_INFO}" | head -2 | tail -1)
+    LATEST_URL=$(echo "${VERSION_INFO}" | head -3 | tail -1)
 
-    if [ -f "local_binary.txt" ]; then
-        LOCAL_BINARY=`more local_binary.txt`
+    if [ -f "local_version.txt" ]; then
+        LOCAL_VERSION=`more local_version.txt`
     fi
 
     echo LOCAL_VERSION ${LOCAL_VERSION}
-    echo LOCAL_BUILD ${LOCAL_BUILD}
-    echo LATEST_RELEASE_BINARY ${LATEST_RELEASE_BINARY}
-    echo LATEST_RELEASE_URL ${LATEST_RELEASE_URL}
+    echo LATEST_VERSION ${LATEST_VERSION}
+    echo LATEST_BINARY ${LATEST_BINARY}
+    echo LATEST_URL ${LATEST_URL}
 
-    if [ ! -z "${PREVIOUS_BINARY}" ] && [ "${PREVIOUS_BINARY}" -eq "${LATEST_RELEASE_BINARY}" ]; then
+    if [ ! -z "${PREVIOUS_VERSION}" ] && [ "${PREVIOUS_VERSION}" -eq "${LATEST_VERSION}" ]; then
         echo The latest binary has already been downloaded, and another upgrade has been requested.
         echo The script will exit to avoid a infinte download loop.
         exit
     fi
     
-    if [ ! -z "${LATEST_RELEASE_URL}" ]; then
-        if [ "${LATEST_RELEASE_BINARY}" != "${LOCAL_BINARY}" ]  || [ ! -d ${DIRECTORY}  ]; then
-            curl -L -o "${LATEST_RELEASE_BINARY}" "${LATEST_RELEASE_URL}"
+    if [ "${LATEST_VERSION}" != "${LOCAL_VERSION}" ]  || [ ! -d ${DIRECTORY}  ]; then
+        echo Downloading latest version from "${LATEST_URL}"
+        curl -L -o "${LATEST_BINARY}" "${LATEST_URL}"
 
-            if [ ! -f ${LATEST_RELEASE_BINARY} ]; then
-                echo The file ${LATEST_RELEASE_BINARY} was not downloaded.
-                exit
-            fi
-
-            # back up the appsettings
-            if [ -f "${DIRECTORY}/appsettings.json" ]
-            then
-                mv ${DIRECTORY}/appsettings.json .
-            fi
-
-            # Clean out the previous directory contents.
-            if [ -d ${DIRECTORY} ]; then
-                rm -rf ${DIRECTORY}/*
-            else
-                mkdir ${DIRECTORY}
-            fi
-            
-            unzip ${LATEST_RELEASE_BINARY} -d ${DIRECTORY}
-            rm ${LATEST_RELEASE_BINARY}
-
-            echo $LATEST_RELEASE_BINARY > local_binary.txt
-
-            if [ -f "appsettings.json" ]
-            then
-                mv appsettings.json ${DIRECTORY}/appsettings.json
-            fi
-
-            chmod a+x ./${DIRECTORY}/dexih.remote
-
-            PREVIOUS_BINARY=${LATEST_RELEASE_BINARY}
+        if [ ! -f ${LATEST_BINARY} ]; then
+            echo The file ${LATEST_BINARY} was not downloaded.
+            exit
         fi
+
+        # back up the appsettings
+        if [ -f "${DIRECTORY}/appsettings.json" ]
+        then
+            mv ${DIRECTORY}/appsettings.json .
+        fi
+
+        # Clean out the previous directory contents.
+        if [ -d ${DIRECTORY} ]; then
+            rm -rf ${DIRECTORY}/*
+        else
+            mkdir ${DIRECTORY}
+        fi
+        
+        unzip ${LATEST_BINARY} -d ${DIRECTORY}
+        rm ${LATEST_BINARY}
+
+        echo ${LATEST_VERSION} > local_version.txt
+
+        if [ -f "appsettings.json" ]
+        then
+            mv appsettings.json ${DIRECTORY}/appsettings.json
+        fi
+
+        chmod a+x ./${DIRECTORY}/dexih.remote
+
+        PREVIOUS_BINARY=${LATEST_BINARY}
     fi
 
     if [ ! -f "${DIRECTORY}/dexih.remote" ]; then
