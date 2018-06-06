@@ -75,12 +75,6 @@ namespace dexih.remote.operations
             set => _securityToken = value;
         }
 
-//        private string GetDataDownloadUrl(string command, string key, string securityKey)
-//        {
-//            var url = _remoteSettings.AppSettings.GetDownloadUrl();
-//            return url + "/" + command + "/" + HttpUtility.UrlEncode(key) + "/" + HttpUtility.UrlEncode(securityKey);
-//        }
-
         public TransformSettings GetTransformSettings(IEnumerable<DexihHubVariable> hubVariables)
         {
             var settings = new TransformSettings()
@@ -323,7 +317,7 @@ namespace dexih.remote.operations
 
                 }
 
-                var newTask = _managedTasks.Add(reference, clientId, $"Datalink: {datalinkRun.Datalink.Name}.", "Datalink", datalinkRun.Datalink.HubKey, _remoteSettings.AppSettings.RemoteAgentId, datalinkRun.Datalink.DatalinkKey, datalinkRun.WriterResult, DatalinkRunTask, null, null, dependencies);
+                var newTask = _managedTasks.Add(reference, clientId, $"Datalink: {datalinkRun.Datalink.Name}.", "Datalink", datalinkRun.Datalink.HubKey, null, datalinkRun.Datalink.DatalinkKey, datalinkRun.WriterResult, DatalinkRunTask, null, null, dependencies);
                 if (newTask != null)
                 {
                     return newTask;
@@ -478,7 +472,6 @@ namespace dexih.remote.operations
                         Name = $"Datajob: {dbDatajob.Name}.",
                         Category = "Datajob",
                         CategoryKey = dbDatajob.DatajobKey,
-                        RemoteAgentId = _remoteSettings.AppSettings.RemoteAgentId,
                         HubKey = dbDatajob.HubKey,
                         Data = datajobRun.WriterResult,
                         Action = DatajobRunTask,
@@ -879,7 +872,6 @@ namespace dexih.remote.operations
                     Name = $"Remote Data",
                     Category = "ProxyDownload",
                     CategoryKey = 0,
-                    RemoteAgentId = _remoteSettings.AppSettings.RemoteAgentId,
                     HubKey = 0,
                     Data = 0,
                     Action = UploadDataTask,
@@ -931,7 +923,6 @@ namespace dexih.remote.operations
                     Name = $"Remote Data",
                     Category = "ProxyUpload",
                     CategoryKey = 0,
-                    RemoteAgentId = _remoteSettings.AppSettings.RemoteAgentId,
                     HubKey = 0,
                     Data = 0,
                     Action = DownloadDataTask,
@@ -1468,7 +1459,7 @@ namespace dexih.remote.operations
                 return await Task.Run(() =>
                 {
                     var startdownloadResult = _managedTasks.Add(reference, clientId,
-                        $"Download file: {files[0]} from {path}.", "Download", connectionTable.hubKey, _remoteSettings.AppSettings.RemoteAgentId, 0, null,
+                        $"Download file: {files[0]} from {path}.", "Download", connectionTable.hubKey,null, 0, null,
                         DownloadTask, null, null, null);
                     return startdownloadResult;
                 }, cancellationToken);
@@ -1541,7 +1532,7 @@ namespace dexih.remote.operations
 
                     }
 
-                    var startdownloadResult = _managedTasks.Add(reference, clientId, $"Download Data File", "Download", cache.HubKey, _remoteSettings.AppSettings.RemoteAgentId, 0, null, DownloadTask, null, null, null);
+                    var startdownloadResult = _managedTasks.Add(reference, clientId, $"Download Data File", "Download", cache.HubKey, null, 0, null, DownloadTask, null, null, null);
                     return startdownloadResult;
                 }, cancellationToken);
             }

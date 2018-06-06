@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 PASSWORD=$1
+
+PRERELEASE='false'
+
 # Get the program version (i.e. v0.4.0)
 VERSION_PREFIX=`more version.txt | awk '{print $1}'`
 
@@ -10,7 +13,7 @@ VERSION=${VERSION_PREFIX}-${VERSION_SUFFIX}
 echo $VERSION
 
 # Upload the release to github releases
-RESPONSE=$(curl https://api.github.com/repos/DataExperts/Dexih.App.Remote/releases -d '{"tag_name": "'v${VERSION}'", "target_commitish": "master", "name": "Release version 'v${VERSION}'", "body": "Release notes not available for this release", "draft": false, "prerelease": true }' -u gholland@dataexpertsgroup.com:$PASSWORD )
+RESPONSE=$(curl https://api.github.com/repos/DataExperts/Dexih.App.Remote/releases -d '{"tag_name": "'v${VERSION}'", "target_commitish": "master", "name": "Release version 'v${VERSION}'", "body": "Release notes not available for this release", "draft": false, "prerelease": '${PRERELEASE}' }' -u gholland@dataexpertsgroup.com:$PASSWORD )
 URL=$(echo $RESPONSE | jq -r '.upload_url')
 URL=${URL//"{?name,label}"/}
 echo UPLOAD URL - $URL

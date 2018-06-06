@@ -47,6 +47,9 @@ namespace dexih.remote
             {
                 switch (args[i].ToLower())
                 {
+                    case "-appsettings":
+                        i++;
+                        break;
                     case "-u":
                     case "-user":
                     case "-username":

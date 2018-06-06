@@ -746,7 +746,19 @@ namespace dexih.remote
 
                     if (returnValue.IsFaulted || returnValue.IsCanceled)
                     {
-                        var error = new ReturnValue<JToken>(false, $"The {remoteMessage.Method} failed.  {returnValue.Exception?.Message}", returnValue.Exception);
+                        ReturnValue<JToken> error;
+                        if (returnValue.Exception == null)
+                        {
+                            error = new ReturnValue<JToken>(false, "Unexpected error occurred.");
+                        }
+                        else if (returnValue.Exception.InnerExceptions.Count == 1)
+                        {
+                            error = new ReturnValue<JToken>(false, $"{returnValue.Exception.InnerExceptions[0].Message}", returnValue.Exception);
+                        }
+                        else
+                        {
+                            error = new ReturnValue<JToken>(false, $"{returnValue.Exception?.Message}", returnValue.Exception);
+                        }
                         responseMessage = SendHttpResponseMessage(remoteMessage.MessageId, error);
                     }
                     else if (returnValue.IsCompleted)
