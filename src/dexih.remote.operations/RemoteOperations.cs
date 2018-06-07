@@ -1018,6 +1018,44 @@ namespace dexih.remote.operations
             }
 
         }
+        
+        public async Task<string> GerReaderData(RemoteMessage message, CancellationToken cancellationToken)
+        {
+            try
+            {
+                if (!_remoteSettings.Privacy.AllowDataDownload)
+                {
+                    throw new RemoteSecurityException("This remote agent's privacy settings does not allow remote data previews.");
+                }
+
+                var dbHub = message.Value["hub"].ToObject<DexihHub>();
+                var datalinkKey = message.Value["datalinkKey"].ToObject<long>();
+                var selectQuery = message.Value["selectQuery"].ToObject<SelectQuery>();
+                var dbDatalink = dbHub.DexihDatalinks.Single(c => c.DatalinkKey == datalinkKey);
+                var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
+               
+                var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
+                var runPlan = transformOperations.CreateRunPlan(dbHub, dbDatalink, null, null, false, selectQuery);
+                var transform = runPlan.sourceTransform;
+                var openReturn = await transform.Open(0, selectQuery, cancellationToken);
+                if (!openReturn) 
+                {
+                    throw new RemoteOperationException("Failed to open the transform.");
+                }
+
+                transform.SetCacheMethod(Transform.ECacheMethod.OnDemandCache);
+                transform.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
+
+                var stream = new TransformCsvStream(transform);
+                return await StartDataStream(stream, downloadUrl, "csv", "reader_data.csv", cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                LoggerMessages.LogError(160, ex, "Error in PreviewTransform: {0}", ex.Message);
+                throw;
+            }
+
+        }
 
   public async Task<Table> PreviewProfile(RemoteMessage message, CancellationToken cancellationToken) // (long HubKey, string Cache, long DatalinkAuditKey, bool SummaryOnly, CancellationToken cancellationToken)
         {
