@@ -1,15 +1,11 @@
 ﻿using System;
 using System.IO;
-using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
 using System.Reflection;
 using System.Runtime.InteropServices;
-using System.Runtime.Serialization;
 using System.Threading.Tasks;
 using dexih.repository;
-using Microsoft.EntityFrameworkCore.ValueGeneration.Internal;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json.Linq;
 

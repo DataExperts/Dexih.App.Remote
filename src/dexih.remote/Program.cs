@@ -1,24 +1,11 @@
 ﻿using Microsoft.Extensions.Logging;
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using Microsoft.Extensions.Configuration;
 using System.IO;
-using System.Net.Http;
-using System.Net.NetworkInformation;
 using System.Reflection;
-using System.Runtime.InteropServices;
-using System.Runtime.InteropServices.WindowsRuntime;
 using System.Threading.Tasks;
-using dexih.operations;
 using dexih.repository;
-using Microsoft.AspNetCore;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.EntityFrameworkCore.ValueGeneration.Internal;
-using Microsoft.WindowsAzure.Storage.Blob.Protocol;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 
 namespace dexih.remote
 {

@@ -6,13 +6,9 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
-using System.Security.Cryptography;
-using System.Security.Policy;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Threading.Tasks.Dataflow;
-using System.Web;
 using dexih.functions;
 using dexih.functions.Query;
 using dexih.operations;
@@ -24,11 +20,9 @@ using Dexih.Utils.CopyProperties;
 using Dexih.Utils.Crypto;
 using Dexih.Utils.ManagedTasks;
 using Dexih.Utils.MessageHelpers;
-using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using Remotion.Linq.Parsing.Structure.IntermediateModel;
 
 namespace dexih.remote.operations
 {
@@ -210,8 +204,11 @@ namespace dexih.remote.operations
                     testValue = message.Value["testValue"].ToObject<object>();
                 }
 
-                var validationRun = new ColumnValidationRun(GetTransformSettings(message.HubVariables), dbColumnValidation, dbHub);
-                validationRun.DefaultValue = "<default value>";
+                var validationRun =
+                    new ColumnValidationRun(GetTransformSettings(message.HubVariables), dbColumnValidation, dbHub)
+                    {
+                        DefaultValue = "<default value>"
+                    };
 
                 var validateCleanResult = await validationRun.ValidateClean(testValue, cancellationToken);
 
@@ -1299,7 +1296,7 @@ namespace dexih.remote.operations
                     new KeyValuePair<string, string>("FileReference", fileReference),
                 });
 
-                HttpResponseMessage response = await _httpClient.PostAsync(_url + "Remote/GetFileStream", content, cancellationToken);
+                var response = await _httpClient.PostAsync(_url + "Remote/GetFileStream", content, cancellationToken);
 
                 if (response.IsSuccessStatusCode)
                 {
@@ -1497,7 +1494,7 @@ namespace dexih.remote.operations
                 return await Task.Run(() =>
                 {
                     var startdownloadResult = _managedTasks.Add(reference, clientId,
-                        $"Download file: {files[0]} from {path}.", "Download", connectionTable.hubKey,null, 0, null,
+                        $"Download file: {files[0]} from {path}.", "Download", connectionTable.hubKey, null, 0, null,
                         DownloadTask, null, null, null);
                     return startdownloadResult;
                 }, cancellationToken);
