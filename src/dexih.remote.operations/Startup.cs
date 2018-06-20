@@ -55,7 +55,7 @@ namespace dexih.remote.operations
                 {
                     await context.Response.WriteAsync("{ \"status\": \"alive\"}");
                 }
-
+                
                 else if (segments.Length >= 4)
                 {
                     var command = segments[1];
@@ -64,29 +64,41 @@ namespace dexih.remote.operations
 
                     try
                     {
-                        var downloadStream = streams.GetDownloadStream(key, securityKey);
 
-                        switch (command)
+                        if (command == "upload")
                         {
-                            case "file":
-                                context.Response.ContentType = "application/octet-stream";
-                                break;
-                            case "csv" :
-                                context.Response.ContentType = "text/csv";
-                                break;
-                            case "json" :
-                                context.Response.ContentType = "application/json";
-                                break;
-                            default:
-                                throw new ArgumentOutOfRangeException($"The command {command} was not recognized.");
+                            var memoryStream = new MemoryStream();
+                            await context.Request.Body.CopyToAsync(memoryStream);
+                            memoryStream.Position = 0;
+                            await streams.ProcessUploadAction(key, securityKey, memoryStream);
                         }
-                        
-                        context.Response.StatusCode = 200;
-                        context.Response.Headers.Add("Content-Disposition", "attachment; filename=" + downloadStream.fileName);
-                        await downloadStream.stream.CopyToAsync(context.Response.Body);
-                        downloadStream.stream.Close();
+                        else
+                        {
 
+                            var downloadStream = streams.GetDownloadStream(key, securityKey);
 
+                            switch (command)
+                            {
+                                case "file":
+                                    context.Response.ContentType = "application/octet-stream";
+                                    break;
+                                case "csv":
+                                    context.Response.ContentType = "text/csv";
+                                    break;
+                                case "json":
+                                    context.Response.ContentType = "application/json";
+                                    break;
+                                default:
+                                    throw new ArgumentOutOfRangeException($"The command {command} was not recognized.");
+                            }
+
+                            context.Response.StatusCode = 200;
+                            context.Response.Headers.Add("Content-Disposition",
+                                "attachment; filename=" + downloadStream.fileName);
+                            await downloadStream.stream.CopyToAsync(context.Response.Body);
+                            downloadStream.stream.Close();
+
+                        }
                     }
                     catch (Exception e)
                     {

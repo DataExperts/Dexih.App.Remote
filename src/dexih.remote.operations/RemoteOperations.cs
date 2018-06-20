@@ -936,7 +936,7 @@ namespace dexih.remote.operations
             else
             {
                 var keys = _streams.SetUploadAction("", uploadAction);
-                var url = $"{downloadUrl.Url}/uplolad/{keys.Key}/{keys.SecurityKey}";
+                var url = $"{downloadUrl.Url}/upload/{keys.Key}/{keys.SecurityKey}";
                 return url;
             }
         }
@@ -957,7 +957,7 @@ namespace dexih.remote.operations
                var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
 
                 var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
-                var runPlan = transformOperations.CreateRunPlan(dbHub, dbDatalink, datalinkTransformKey, null, false);
+                var runPlan = transformOperations.CreateRunPlan(dbHub, dbDatalink, datalinkTransformKey, null, false, previewMode: true);
                 var transform = runPlan.sourceTransform;
                 var openReturn = await transform.Open(0, null, cancellationToken);
                 if (!openReturn) {
@@ -994,7 +994,7 @@ namespace dexih.remote.operations
                var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
                
                 var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
-                var runPlan = transformOperations.CreateRunPlan(dbHub, dbDatalink, null, null, false, selectQuery);
+                var runPlan = transformOperations.CreateRunPlan(dbHub, dbDatalink, null, null, false, selectQuery, previewMode:true);
                 var transform = runPlan.sourceTransform;
                 var openReturn = await transform.Open(0, null, cancellationToken);
                 if (!openReturn) 
@@ -1010,7 +1010,7 @@ namespace dexih.remote.operations
            }
            catch (Exception ex)
            {
-               LoggerMessages.LogError(160, ex, "Error in PreviewTransform: {0}", ex.Message);
+               LoggerMessages.LogError(160, ex, "Error in PreviewDatalink: {0}", ex.Message);
                 throw;
             }
 
@@ -1032,7 +1032,7 @@ namespace dexih.remote.operations
                 var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
                
                 var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
-                var runPlan = transformOperations.CreateRunPlan(dbHub, dbDatalink, null, null, false, selectQuery);
+                var runPlan = transformOperations.CreateRunPlan(dbHub, dbDatalink, null, null, false, selectQuery, previewMode:true);
                 var transform = runPlan.sourceTransform;
                 var openReturn = await transform.Open(0, selectQuery, cancellationToken);
                 if (!openReturn) 
@@ -1048,7 +1048,7 @@ namespace dexih.remote.operations
             }
             catch (Exception ex)
             {
-                LoggerMessages.LogError(160, ex, "Error in PreviewTransform: {0}", ex.Message);
+                LoggerMessages.LogError(160, ex, "Error in GerReaderData: {0}", ex.Message);
                 throw;
             }
 
@@ -1385,39 +1385,40 @@ namespace dexih.remote.operations
                     try
                     {
 
-                    if(fileName.EndsWith(".zip"))
-                    {
-                        var memoryStream = new MemoryStream();
-                        await stream.CopyToAsync(memoryStream);
-                        using (var archive = new ZipArchive(memoryStream, ZipArchiveMode.Read, true))
+                        if (fileName.EndsWith(".zip"))
                         {
-                            foreach(var entry in archive.Entries)
+                            var memoryStream = new MemoryStream();
+                            await stream.CopyToAsync(memoryStream);
+                            using (var archive = new ZipArchive(memoryStream, ZipArchiveMode.Read, true))
                             {
-                                var saveArchiveFile = await connection.SaveFileStream(flatFile, EFlatFilePath.Incoming, entry.Name, entry.Open());
-                                if(!saveArchiveFile)
+                                foreach (var entry in archive.Entries)
+                                {
+                                    var saveArchiveFile = await connection.SaveFileStream(flatFile, EFlatFilePath.Incoming, entry.Name, entry.Open());
+                                    if (!saveArchiveFile)
+                                    {
+                                        throw new RemoteOperationException("The save file stream failed.");
+                                    }
+                                }
+                            }
+
+                        }
+                        else if (fileName.EndsWith(".gz"))
+                        {
+                            var newFileName = fileName.Substring(0, fileName.Length - 3);
+
+                            using (var decompressionStream = new GZipStream(stream, CompressionMode.Decompress))
+                            {
+                                var saveArchiveFile = await connection.SaveFileStream(flatFile, EFlatFilePath.Incoming, newFileName, decompressionStream);
+                                if (!saveArchiveFile)
                                 {
                                     throw new RemoteOperationException("The save file stream failed.");
                                 }
                             }
                         }
-
-                    } else if (fileName.EndsWith(".gz"))
-                    {
-                        var newFileName = fileName.Substring(0, fileName.Length - 3);
-
-                        using (var decompressionStream = new GZipStream(stream, CompressionMode.Decompress))
+                        else
                         {
-                            var saveArchiveFile = await connection.SaveFileStream(flatFile, EFlatFilePath.Incoming, newFileName, decompressionStream);
-                            if(!saveArchiveFile)
-                            {
-                                throw new RemoteOperationException("The save file stream failed.");
-                            }
+                            var saveFile = await connection.SaveFileStream(flatFile, EFlatFilePath.Incoming, fileName, stream);
                         }
-                    }
-                    else
-                    {
-                        var saveFile = await connection.SaveFileStream(flatFile, EFlatFilePath.Incoming, fileName, stream);
-                    }
                     }
                     catch (Exception ex)
                     {

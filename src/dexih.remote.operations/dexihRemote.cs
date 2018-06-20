@@ -180,7 +180,8 @@ namespace dexih.remote
                             SystemSettings = _remoteSettings.SystemSettings,
                             Network = _remoteSettings.Network,
                             Privacy = _remoteSettings.Privacy,
-                            Permissions = _remoteSettings.Permissions
+                            Permissions = _remoteSettings.Permissions,
+                            NamingStandards = _remoteSettings.NamingStandards
                         };
                         
                         File.WriteAllText(appSettingsFile, JsonConvert.SerializeObject(tmpSettings, Formatting.Indented));

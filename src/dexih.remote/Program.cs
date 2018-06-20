@@ -72,6 +72,8 @@ namespace dexih.remote
             // get user input for any settings which are not complete.
             configureSettings.GetUserInput();
             
+            configureSettings.RemoteSettings.NamingStandards.LoadDefault();
+            
             // dispose the old logger, and create a new one now the log level is known.
             loggerFactory.Dispose();
             
