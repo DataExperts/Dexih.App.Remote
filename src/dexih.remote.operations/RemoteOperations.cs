@@ -978,6 +978,84 @@ namespace dexih.remote.operations
 
         }
         
+        public async Task<string[]> ImportFunctionMappings(RemoteMessage message, CancellationToken cancellationToken)
+        {
+            try
+            {
+                if (!_remoteSettings.Privacy.AllowDataDownload)
+                {
+                    throw new RemoteSecurityException("This remote agent's privacy settings does not allow remote data previews.");
+                }
+
+                var dbHub = message.Value["hub"].ToObject<DexihHub>();
+                var datalinkTransformKey = message.Value["datalinkTransformKey"]?.ToObject<long>() ?? 0;
+                var dbDatalink = message.Value["datalink"].ToObject<DexihDatalink>();
+                var datalinkTransformItem = message.Value["datalinkTransformItem"].ToObject<DexihDatalinkTransformItem>();
+
+                // get the previous datalink transform, which will be used as input for the import function
+                var datalinkTransform = dbDatalink.DexihDatalinkTransforms.Single(c => c.DatalinkTransformKey == datalinkTransformKey);
+                var previousDatalinkTransform = dbDatalink.DexihDatalinkTransforms.OrderBy(c => c.Position).SingleOrDefault(c => c.Position < datalinkTransform.Position);
+
+                Transform transform;
+                var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
+                if(previousDatalinkTransform != null) 
+                {
+                    var runPlan = transformOperations.CreateRunPlan(dbHub, dbDatalink, previousDatalinkTransform.DatalinkTransformKey, null, false, previewMode: true);
+                    transform = runPlan.sourceTransform;
+                }
+                else
+                {
+                    var sourceTransform = transformOperations.GetSourceTransform(dbHub, dbDatalink.SourceDatalinkTable, true);
+                    transform = sourceTransform.sourceTransform;
+                }
+
+                var openReturn = await transform.Open(0, null, cancellationToken);
+                if (!openReturn)
+                {
+                    throw new RemoteOperationException("Failed to open the transform.");
+                }
+
+                transform.SetCacheMethod(Transform.ECacheMethod.OnDemandCache);
+                transform.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
+                var hasRow = await transform.ReadAsync(cancellationToken);
+                if (!hasRow)
+                {
+                    throw new RemoteOperationException("Could not import function mappings, as the source contains no data.");
+                }
+
+                var function = datalinkTransformItem.CreateFunctionMethod(dbHub);
+
+                var parameterInfos = function.ImportMethod.GetParameters();
+                var values = new object[parameterInfos.Length];
+
+                // loop through the import function parameters, and match them to the parameters in the run function.
+                for (var i = 0; i < parameterInfos.Length; i++)
+                {
+                    var parameter = function.Inputs.SingleOrDefault(c => c.Name == parameterInfos[i].Name);
+                    if (parameter == null)
+                    {
+                        continue;
+                    }
+                    if (parameter.Column != null)
+                    {
+                        values[i] = transform[parameter.Column.Name];
+                    } 
+                    else 
+                    {
+                        values[i] = parameter.Value;
+                    }
+                }
+                
+                return function.Import(values);
+            }
+            catch (Exception ex)
+            {
+                LoggerMessages.LogError(160, ex, "Error in import function mappings: {0}", ex.Message);
+                throw new RemoteOperationException(ex.Message, ex);
+            }
+
+        }
+        
         public async Task<string> PreviewDatalink(RemoteMessage message, CancellationToken cancellationToken)
         {
            try
