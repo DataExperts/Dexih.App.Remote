@@ -18,16 +18,16 @@ URL=$(echo $RESPONSE | jq -r '.upload_url')
 URL=${URL//"{?name,label}"/}
 echo UPLOAD URL - $URL
 
-echo UPLOAD OSX BINARY
-FILE=/Users/garyholland/Source/Dexih.App.Remote/src/dexih.remote/releases/dexih.remote.osx_${VERSION}.zip
-UPLOADURL="${URL}?name=dexih.remote.osx_${VERSION}.zip"
+echo UPLOAD LINUX BINARY
+FILE=/Users/garyholland/Source/Dexih.App.Remote/src/dexih.remote/releases/dexih.remote.linux_${VERSION}.zip
+UPLOADURL="${URL}?name=dexih.remote.linux${VERSION}.zip"
 echo FILE - ${FILE}
 echo UPLOADURL - ${UPLOADURL}
 curl --progress-bar  -o upload.txt -u gholland@dataexpertsgroup.com:$PASSWORD  -H "Content-Type: application/octet-stream" --data-binary @"${FILE}" "${UPLOADURL}"
 
-echo UPLOAD LINUX BINARY
-FILE=/Users/garyholland/Source/Dexih.App.Remote/src/dexih.remote/releases/dexih.remote.linux_${VERSION}.zip
-UPLOADURL="${URL}?name=dexih.remote.linux${VERSION}.zip"
+echo UPLOAD OSX BINARY
+FILE=/Users/garyholland/Source/Dexih.App.Remote/src/dexih.remote/releases/dexih.remote.osx_${VERSION}.zip
+UPLOADURL="${URL}?name=dexih.remote.osx_${VERSION}.zip"
 echo FILE - ${FILE}
 echo UPLOADURL - ${UPLOADURL}
 curl --progress-bar  -o upload.txt -u gholland@dataexpertsgroup.com:$PASSWORD  -H "Content-Type: application/octet-stream" --data-binary @"${FILE}" "${UPLOADURL}"
