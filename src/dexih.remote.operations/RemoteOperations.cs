@@ -261,7 +261,7 @@ namespace dexih.remote.operations
                             throw new RemoteOperationException($"The datalink with the key {datalinkKey} was not found.");
                         }
 
-                        var datalinkRun = new DatalinkRun(GetTransformSettings(message.HubVariables), LoggerMessages, dbDatalink, dbHub, "Datalink", dbDatalink.DatalinkKey, 0, TransformWriterResult.ETriggerMethod.Manual, "Started manually at " + DateTime.Now.ToString(CultureInfo.InvariantCulture), truncateTarget, resetIncremental, resetIncrementalValue, null);
+                        var datalinkRun = new DatalinkRun(GetTransformSettings(message.HubVariables), LoggerMessages, dbDatalink, dbHub, "Datalink", dbDatalink.DatalinkKey, 0, TransformWriterResult.ETriggerMethod.Manual, "Started manually at " + DateTime.Now.ToString(CultureInfo.InvariantCulture), truncateTarget, resetIncremental, resetIncrementalValue, null, null);
 
                         var runReturn = RunDataLink(clientId, datalinkRun, null, null);
                     }
@@ -546,7 +546,7 @@ namespace dexih.remote.operations
                                         var transformSetting = GetTransformSettings(message.HubVariables);
 
                                         var connection = dbConnection.GetConnection(transformSetting);
-                                        var table = dbTable.GetTable(connection, transformSetting);
+                                        var table = dbTable.GetTable(connection, step.DexihDatalinkStepColumns, transformSetting);
 
                                         if (table is FlatFile flatFile && connection is ConnectionFlatFile connectionFlatFile)
                                         {
@@ -668,7 +668,7 @@ namespace dexih.remote.operations
 
                     var transformSettings = GetTransformSettings(message.HubVariables);
                     var connection = dbConnection.GetConnection(transformSettings);
-                    var table = dbTable.GetTable(connection, transformSettings);
+                    var table = dbTable.GetTable(connection, null, transformSettings);
 
                     try
                     {
@@ -718,7 +718,7 @@ namespace dexih.remote.operations
 
                     var transformSettings = GetTransformSettings(message.HubVariables);
                     var connection = dbConnection.GetConnection(transformSettings);
-                    var table = dbTable.GetTable(connection, transformSettings);
+                    var table = dbTable.GetTable(connection, null, transformSettings);
                     try
                     {
                         await connection.CreateTable(table, dropTables, cancellationToken);
@@ -771,7 +771,7 @@ namespace dexih.remote.operations
 
                         var transformSettings = GetTransformSettings(message.HubVariables);
                         var connection = dbConnection.GetConnection(transformSettings);
-                        var table = dbTable.GetTable(connection, transformSettings);
+                        var table = dbTable.GetTable(connection, null, transformSettings);
                         await connection.TruncateTable(table, cancellationToken);
 
                         LoggerMessages.LogTrace("Clear database table for table {table} and connection {connection} completed.", dbTable.Name, dbConnection.Name);
@@ -810,6 +810,7 @@ namespace dexih.remote.operations
                 var showRejectedData = message.Value["showRejectedData"].ToObject<bool>();
                 var selectQuery = message.Value["selectQuery"].ToObject<SelectQuery>();
                 var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
+                var inputColumns = message.Value["inputColumns"].ToObject<DexihColumnBase[]>();
 
                 //retrieve the source tables into the cache.
                 var settings = GetTransformSettings(message.HubVariables);
@@ -821,10 +822,11 @@ namespace dexih.remote.operations
                 }
                 
                 var connection = dbConnection.GetConnection(settings);
-                var table = showRejectedData ? dbTable.GetRejectedTable(connection, settings) : dbTable.GetTable(connection, settings);
-
+                var table = showRejectedData ? dbTable.GetRejectedTable(connection, settings) : dbTable.GetTable(connection, inputColumns, settings);
+                
                 var reader = connection.GetTransformReader(table);
-                await reader.Open(0, selectQuery, cancellationToken);
+                reader = new TransformQuery(reader, selectQuery);
+                await reader.Open(0, null, cancellationToken);
                 
                 LoggerMessages.LogInformation("Preview for table: " + dbTable.Name + ".");
 
@@ -844,7 +846,7 @@ namespace dexih.remote.operations
         {
             if (downloadUrl.DownloadUrlType == EDownloadUrlType.Proxy)
             {
-                
+                // if downloading through a proxy, start a process to upload to the proxy.
                 var startResult = await _httpClient.GetAsync($"{downloadUrl.Url}/start/{format}/{fileName}", cancellationToken);
 
                 if (!startResult.IsSuccessStatusCode)
@@ -884,6 +886,7 @@ namespace dexih.remote.operations
             }
             else
             {
+                // if downloading directly, then just get the stream ready for when the client connects.
                 var keys = _streams.SetDownloadStream(fileName, stream);
                 var url = $"{downloadUrl.Url}/{format}/{keys.Key}/{keys.SecurityKey}";
                 return url;
@@ -957,7 +960,7 @@ namespace dexih.remote.operations
                var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
 
                 var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
-                var runPlan = transformOperations.CreateRunPlan(dbHub, dbDatalink, datalinkTransformKey, null, false, previewMode: true);
+                var runPlan = transformOperations.CreateRunPlan(dbHub, dbDatalink, null, datalinkTransformKey, null, false, previewMode: true);
                 var transform = runPlan.sourceTransform;
                 var openReturn = await transform.Open(0, null, cancellationToken);
                 if (!openReturn) {
@@ -1000,12 +1003,12 @@ namespace dexih.remote.operations
                 var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
                 if(previousDatalinkTransform != null) 
                 {
-                    var runPlan = transformOperations.CreateRunPlan(dbHub, dbDatalink, previousDatalinkTransform.DatalinkTransformKey, null, false, previewMode: true);
+                    var runPlan = transformOperations.CreateRunPlan(dbHub, dbDatalink, null, previousDatalinkTransform.DatalinkTransformKey, null, false, previewMode: true);
                     transform = runPlan.sourceTransform;
                 }
                 else
                 {
-                    var sourceTransform = transformOperations.GetSourceTransform(dbHub, dbDatalink.SourceDatalinkTable, true);
+                    var sourceTransform = transformOperations.GetSourceTransform(dbHub, dbDatalink.SourceDatalinkTable, null, true);
                     transform = sourceTransform.sourceTransform;
                 }
 
@@ -1070,9 +1073,10 @@ namespace dexih.remote.operations
                var selectQuery = message.Value["selectQuery"].ToObject<SelectQuery>();
                var dbDatalink = dbHub.DexihDatalinks.Single(c => c.DatalinkKey == datalinkKey);
                var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
+               var inputColumns = message.Value["inputColumns"].ToObject<DexihColumnBase[]>();
                
                 var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
-                var runPlan = transformOperations.CreateRunPlan(dbHub, dbDatalink, null, null, false, selectQuery, previewMode:true);
+                var runPlan = transformOperations.CreateRunPlan(dbHub, dbDatalink, inputColumns, null, null, false, selectQuery, previewMode:true);
                 var transform = runPlan.sourceTransform;
                 var openReturn = await transform.Open(0, null, cancellationToken);
                 if (!openReturn) 
@@ -1094,7 +1098,7 @@ namespace dexih.remote.operations
 
         }
         
-        public async Task<string> GerReaderData(RemoteMessage message, CancellationToken cancellationToken)
+        public async Task<string> GetReaderData(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
             {
@@ -1110,7 +1114,7 @@ namespace dexih.remote.operations
                 var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
                
                 var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
-                var runPlan = transformOperations.CreateRunPlan(dbHub, dbDatalink, null, null, false, selectQuery, previewMode:true);
+                var runPlan = transformOperations.CreateRunPlan(dbHub, dbDatalink, null, null, null, false, selectQuery, previewMode:true);
                 var transform = runPlan.sourceTransform;
                 var openReturn = await transform.Open(0, selectQuery, cancellationToken);
                 if (!openReturn) 
@@ -1126,7 +1130,7 @@ namespace dexih.remote.operations
             }
             catch (Exception ex)
             {
-                LoggerMessages.LogError(160, ex, "Error in GerReaderData: {0}", ex.Message);
+                LoggerMessages.LogError(160, ex, "Error in GetReaderData: {0}", ex.Message);
                 throw;
             }
 
@@ -1242,7 +1246,7 @@ namespace dexih.remote.operations
             var dbConnection =dbHub.DexihConnections.First();
 		    var transformSettings = GetTransformSettings(message.HubVariables);
 		    var connection = (ConnectionFlatFile)dbConnection.GetConnection(transformSettings);
-            var table = dbTable.GetTable(connection,  transformSettings);
+            var table = dbTable.GetTable(connection, null, transformSettings);
 			return (dbConnection.HubKey, connection, (FlatFile) table);
 		}
 
@@ -1358,7 +1362,7 @@ namespace dexih.remote.operations
 
                 var transformSettings = GetTransformSettings(message.HubVariables);
                 var connection = (ConnectionFlatFile)dbConnection.GetConnection(transformSettings);
-                var table = dbTable.GetTable(connection, transformSettings);
+                var table = dbTable.GetTable(connection, null, transformSettings);
 
                 var flatFile = (FlatFile)table;
 
@@ -1450,7 +1454,7 @@ namespace dexih.remote.operations
 
                 var transformSettings = GetTransformSettings(message.HubVariables);
                 var connection = (ConnectionFlatFile)dbConnection.GetConnection(transformSettings);
-                var table = dbTable.GetTable(connection, transformSettings);
+                var table = dbTable.GetTable(connection, null, transformSettings);
 
                 var flatFile = (FlatFile)table;
                 var fileName = message.GetParameter("FileName");
