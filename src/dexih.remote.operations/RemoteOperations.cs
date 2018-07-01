@@ -239,7 +239,7 @@ namespace dexih.remote.operations
         {
             try
             {
-                return await Task.Run<bool>(() =>
+                return await Task.Run(() =>
                 {
 
                     var timer = Stopwatch.StartNew();
@@ -955,13 +955,15 @@ namespace dexih.remote.operations
 
                 var dbHub = message.Value["hub"].ToObject<DexihHub>();
                 var datalinkTransformKey = message.Value["datalinkTransformKey"]?.ToObject<long>() ?? 0;
-                var rows = message.Value["rows"]?.ToObject<long>() ?? long.MaxValue;
                var dbDatalink = message.Value["datalink"].ToObject<DexihDatalink>();
+               var selectQuery = message.Value["selectQuery"].ToObject<SelectQuery>();
                var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
+               var inputColumns = message.Value["inputColumns"].ToObject<DexihColumnBase[]>();
 
                 var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
-                var runPlan = transformOperations.CreateRunPlan(dbHub, dbDatalink, null, datalinkTransformKey, null, false, previewMode: true);
+                var runPlan = transformOperations.CreateRunPlan(dbHub, dbDatalink, inputColumns, datalinkTransformKey, null, false, previewMode: true);
                 var transform = runPlan.sourceTransform;
+                   transform = new TransformQuery(transform, selectQuery);
                 var openReturn = await transform.Open(0, null, cancellationToken);
                 if (!openReturn) {
                     throw new RemoteOperationException("Failed to open the transform.");
@@ -970,7 +972,8 @@ namespace dexih.remote.operations
                 transform.SetCacheMethod(Transform.ECacheMethod.OnDemandCache);
 				transform.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
                
-               var stream = new TransformJsonStream(dbDatalink.Name + " " + transform.Name, transform, rows);
+               
+               var stream = new TransformJsonStream(dbDatalink.Name + " " + transform.Name, transform, selectQuery.Rows);
                return await StartDataStream(stream, downloadUrl, "json", "preview_transform.json", cancellationToken);
            }
            catch (Exception ex)
@@ -1213,9 +1216,9 @@ namespace dexih.remote.operations
                 var previousResult = message.Value["previousResult"]?.ToObject<bool>()??false;
                 var previousSuccessResult = message.Value["previousSuccessResult"]?.ToObject<bool>()??false;
                 var currentResult = message.Value["currentResult"]?.ToObject<bool>()??false;
-                var startTime = message.Value["startTime"]?.ToObject<DateTime>()??null;
+                var startTime = message.Value["startTime"]?.ToObject<DateTime>();
                 var rows = message.Value["rows"]?.ToObject<int>()??int.MaxValue;
-                var parentAuditKey = message.Value["parentAuditKey"]?.ToObject<long>()??null;
+                var parentAuditKey = message.Value["parentAuditKey"]?.ToObject<long>();
                 var childItems = message.Value["childItems"]?.ToObject<bool>()??false;
 
                 var transformWriterResults = new List<TransformWriterResult>();
