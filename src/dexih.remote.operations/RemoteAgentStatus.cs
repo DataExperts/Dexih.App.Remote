@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using dexih.operations;
 using Dexih.Utils.ManagedTasks;
 
 namespace dexih.remote.operations
