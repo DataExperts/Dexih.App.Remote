@@ -10,7 +10,7 @@
     <RuntimeIdentifiers>win-x64;linux-x64,osx-x64;alpine.3.6-x64</RuntimeIdentifiers>
     <OutputType>Exe</OutputType>
     <PackageId>dexih.remote</PackageId>
-    <UserSecretsId>aspnet-dexih.remote-20160527083443</UserSecretsId>
+    <UserSecretsId>dexih.remote</UserSecretsId>
     <PreserveCompilationContext>true</PreserveCompilationContext>
     <GenerateAssemblyTitleAttribute>false</GenerateAssemblyTitleAttribute>
     <GenerateAssemblyDescriptionAttribute>false</GenerateAssemblyDescriptionAttribute>

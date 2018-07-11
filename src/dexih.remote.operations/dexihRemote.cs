@@ -593,7 +593,7 @@ namespace dexih.remote
                 {
                     await ProcessMessage(message);
                 });
-                
+
                 con.On("Abort", async () =>
                 {
                     logger.LogInformation("SignalR connection aborted.");
@@ -717,72 +717,99 @@ namespace dexih.remote
                     return;
                 }
 
-                var returnValue = (Task)method.Invoke(_remoteOperations, new object[] { remoteMessage, commandCancel });
-
                 if (remoteMessage.SecurityToken == SecurityToken)
                 {
-					var timeout = remoteMessage.TimeOut ?? _remoteSettings.SystemSettings.ResponseTimeout;
+                    var returnValue = method.Invoke(_remoteOperations, new object[] { remoteMessage, commandCancel });
 
-                    var checkTimeout = new Stopwatch();
-                    checkTimeout.Start();
-
-                    //This loop waits for task to finish with a maxtimeout of "ResponseTimeout", and send a "still running" message back every "MaxAcknowledgeWait" period.
-                    while (!returnValue.IsCompleted && checkTimeout.ElapsedMilliseconds < timeout)
+                    if (returnValue is Task task)
                     {
-                        if (await Task.WhenAny(returnValue, Task.Delay(_remoteSettings.SystemSettings.MaxAcknowledgeWait)) == returnValue)
+                        var timeout = remoteMessage.TimeOut ?? _remoteSettings.SystemSettings.ResponseTimeout;
+
+                        var checkTimeout = new Stopwatch();
+                        checkTimeout.Start();
+
+                        //This loop waits for task to finish with a maxtimeout of "ResponseTimeout", and send a "still running" message back every "MaxAcknowledgeWait" period.
+                        while (!task.IsCompleted && checkTimeout.ElapsedMilliseconds < timeout)
                         {
-                            break;
+                            if (await Task.WhenAny(task,
+                                    Task.Delay(_remoteSettings.SystemSettings.MaxAcknowledgeWait)) == task)
+                            {
+                                break;
+                            }
+
+                            SendHttpResponseMessage(remoteMessage.MessageId,
+                                new ReturnValue<JToken>(true, "running", null));
                         }
-                        SendHttpResponseMessage(remoteMessage.MessageId, new ReturnValue<JToken>(true, "running", null));
-                    }
 
-                    //if the task hasn't finished.  attempt to cancel and wait a small time longer.
-                    if (returnValue.IsCompleted == false)
-                    {
-                        cancellationTokenSource.Cancel();
-                        await Task.WhenAny(returnValue, Task.Delay(_remoteSettings.SystemSettings.CancelDelay));
-                    }
-
-                    ReturnValue responseMessage;
-
-                    if (returnValue.IsFaulted || returnValue.IsCanceled)
-                    {
-                        ReturnValue<JToken> error;
-                        if (returnValue.Exception == null)
+                        //if the task hasn't finished.  attempt to cancel and wait a small time longer.
+                        if (task.IsCompleted == false)
                         {
-                            error = new ReturnValue<JToken>(false, "Unexpected error occurred.");
+                            cancellationTokenSource.Cancel();
+                            await Task.WhenAny(task, Task.Delay(_remoteSettings.SystemSettings.CancelDelay));
                         }
-                        else if (returnValue.Exception.InnerExceptions.Count == 1)
+
+                        ReturnValue responseMessage;
+
+                        if (task.IsFaulted || task.IsCanceled)
                         {
-                            error = new ReturnValue<JToken>(false, $"{returnValue.Exception.InnerExceptions[0].Message}", returnValue.Exception);
+                            ReturnValue<JToken> error;
+                            if (task.Exception == null)
+                            {
+                                error = new ReturnValue<JToken>(false, "Unexpected error occurred.");
+                            }
+                            else if (task.Exception.InnerExceptions.Count == 1)
+                            {
+                                error = new ReturnValue<JToken>(false,
+                                    $"{task.Exception.InnerExceptions[0].Message}", task.Exception);
+                            }
+                            else
+                            {
+                                error = new ReturnValue<JToken>(false, $"{task.Exception?.Message}",
+                                    task.Exception);
+                            }
+
+                            responseMessage = SendHttpResponseMessage(remoteMessage.MessageId, error);
+                        }
+                        else if (task.IsCompleted)
+                        {
+                            try
+                            {
+                                var value = returnValue.GetType().GetProperty("Result")?.GetValue(returnValue);
+                                var jToken = Json.JTokenFromObject(value, SessionEncryptionKey);
+                                responseMessage = SendHttpResponseMessage(remoteMessage.MessageId,
+                                    new ReturnValue<JToken>(true, jToken));
+                            }
+                            catch (Exception ex)
+                            {
+                                var error = new ReturnValue<JToken>(false,
+                                    $"The {remoteMessage.Method} failed when serializing the response message.  {ex.Message}",
+                                    ex);
+                                responseMessage = SendHttpResponseMessage(remoteMessage.MessageId, error);
+                            }
                         }
                         else
                         {
-                            error = new ReturnValue<JToken>(false, $"{returnValue.Exception?.Message}", returnValue.Exception);
+                            responseMessage = SendHttpResponseMessage(remoteMessage.MessageId,
+                                new ReturnValue<JToken>(false,
+                                    "The " + remoteMessage.Method + " failed due to a timeout.", null));
                         }
-                        responseMessage = SendHttpResponseMessage(remoteMessage.MessageId, error);
-                    }
-                    else if (returnValue.IsCompleted)
-                    {
-                        try
-                        {
-                            var value = returnValue.GetType().GetProperty("Result")?.GetValue(returnValue);
-                            var jToken = Json.JTokenFromObject(value, SessionEncryptionKey);
-                            responseMessage = SendHttpResponseMessage(remoteMessage.MessageId, new ReturnValue<JToken>(true, jToken));
-                        }
-                        catch(Exception ex)
-                        {
-                            var error = new ReturnValue<JToken>(false, $"The {remoteMessage.Method} failed when serializing the response message.  {ex.Message}", ex);
-                            responseMessage = SendHttpResponseMessage(remoteMessage.MessageId, error);
-                        }
+
+                        if (!responseMessage.Success)
+                            LoggerMessages.LogError(
+                                "Error occurred sending a response to the web server.  Error was: " +
+                                responseMessage.Message);
                     }
                     else
                     {
-                        responseMessage = SendHttpResponseMessage(remoteMessage.MessageId, new ReturnValue<JToken>(false, "The " + remoteMessage.Method + " failed due to a timeout.", null));
+                        var jToken = Json.JTokenFromObject(returnValue, SessionEncryptionKey);
+                        var responseMessage = SendHttpResponseMessage(remoteMessage.MessageId,
+                            new ReturnValue<JToken>(true, jToken));
+                        
+                        if (!responseMessage.Success)
+                            LoggerMessages.LogError(
+                                "Error occurred sending a response to the web server.  Error was: " +
+                                responseMessage.Message);
                     }
-
-                    if (!responseMessage.Success)
-                        LoggerMessages.LogError("Error occurred sending a response to the web server.  Error was: " + responseMessage.Message);
                 }
                 else
                 {

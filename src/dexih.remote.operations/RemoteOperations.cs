@@ -121,13 +121,13 @@ namespace dexih.remote.operations
         /// <param name="message"></param>
         /// <param name="cancellationToken"></param>
         /// <returns></returns>
-        public Task<string> Encrypt(RemoteMessage message, CancellationToken cancellationToken)
+        public string Encrypt(RemoteMessage message, CancellationToken cancellationToken)
         {
            try
            {
                 var value  = message.Value.ToObject<string>();
                 var result = EncryptString.Encrypt(value, _remoteSettings.AppSettings.EncryptionKey, _remoteSettings.SystemSettings.EncryptionIterations);
-                return Task.FromResult(result);
+                return result;
            }
            catch (Exception ex)
            {
@@ -141,13 +141,13 @@ namespace dexih.remote.operations
 		/// to ensure the passwords cannot be decrypted without access to the remote server.
 		/// </summary>
 		/// <returns></returns>
-		public Task<string> Decrypt(RemoteMessage message, CancellationToken cancellationToken)
+		public string Decrypt(RemoteMessage message, CancellationToken cancellationToken)
 		{
 			try
 			{
 				var value = message.Value.ToObject<string>();
 				var result = EncryptString.Decrypt(value, _remoteSettings.AppSettings.EncryptionKey, _remoteSettings.SystemSettings.EncryptionIterations);
-                return Task.FromResult(result);
+                return result;
             }
             catch (Exception ex)
 			{
@@ -156,34 +156,28 @@ namespace dexih.remote.operations
 			}
 		}
 
-
-
-        public async Task<List<object>> TestCustomFunction(RemoteMessage message, CancellationToken cancellationToken)
+        public List<object> TestCustomFunction(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
             {
-				return await Task.Run(() =>
-				{
-					var dbDatalinkTransformItem = message.Value["datalinkTransformItem"].ToObject<DexihDatalinkTransformItem>();
-				    var dbHub = message.Value["hub"].ToObject<DexihHub>();
-					var testValues = message.Value["testValues"]?.ToObject<object[]>();
+                var dbDatalinkTransformItem = message.Value["datalinkTransformItem"].ToObject<DexihDatalinkTransformItem>();
+                var dbHub = message.Value["hub"].ToObject<DexihHub>();
+                var testValues = message.Value["testValues"]?.ToObject<object[]>();
 
-					var createFunction = dbDatalinkTransformItem.CreateFunctionMethod(dbHub, false);
+                var createFunction = dbDatalinkTransformItem.CreateFunctionMethod(dbHub, false);
 
-				    var outputNames = dbDatalinkTransformItem.DexihFunctionParameters
-				        .Where(c => c.Direction == DexihParameterBase.EParameterDirection.Output).Select(c => c.ParameterName).ToArray();
+                var outputNames = dbDatalinkTransformItem.DexihFunctionParameters
+                    .Where(c => c.Direction == DexihParameterBase.EParameterDirection.Output).Select(c => c.ParameterName).ToArray();
 
 
-					if (testValues != null)
-					{
-						var runFunctionResult = createFunction.RunFunction(testValues, outputNames);
-						var outputs = createFunction.Outputs.Select(c => c.Value).ToList();
-						outputs.Insert(0, runFunctionResult);
-						return outputs;
-					}
-					return null;
-
-				});
+                if (testValues != null)
+                {
+                    var runFunctionResult = createFunction.RunFunction(testValues, outputNames);
+                    var outputs = createFunction.Outputs.Select(c => c.Value).ToList();
+                    outputs.Insert(0, runFunctionResult);
+                    return outputs;
+                }
+                return null;
             }
             catch (Exception ex)
             {
@@ -235,42 +229,38 @@ namespace dexih.remote.operations
             public string RejectReason { get; set; }
         }
 
-        public async Task<bool> RunDatalinks(RemoteMessage message, CancellationToken cancellationToken)
+        public bool RunDatalinks(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
             {
-                return await Task.Run(() =>
+                var timer = Stopwatch.StartNew();
+
+                var datalinkKeys = message.Value["datalinkKeys"].ToObject<long[]>();
+                var cache = Json.JTokenToObject<CacheManager>(message.Value["cache"], _temporaryEncryptionKey);
+                var truncateTarget = message.Value["truncateTarget"]?.ToObject<bool>() ?? false;
+                var resetIncremental = message.Value["resetIncremental"]?.ToObject<bool>() ?? false;
+                var resetIncrementalValue = message.Value["resetIncrementalValue"]?.ToObject<object>();
+                var clientId = message.Value["clientId"].ToString();
+
+                LoggerMessages.LogInformation(25, "Run datalinks timer1: {0}", timer.Elapsed);
+
+                foreach (var datalinkKey in datalinkKeys)
                 {
-
-                    var timer = Stopwatch.StartNew();
-
-                    var datalinkKeys = message.Value["datalinkKeys"].ToObject<long[]>();
-                    var dbHub = message.Value["hub"].ToObject<DexihHub>();
-                    var truncateTarget = message.Value["truncateTarget"]?.ToObject<bool>() ?? false;
-                    var resetIncremental = message.Value["resetIncremental"]?.ToObject<bool>() ?? false;
-                    var resetIncrementalValue = message.Value["resetIncrementalValue"]?.ToObject<object>();
-                    var clientId = message.Value["clientId"].ToString();
-
-                    LoggerMessages.LogInformation(25, "Run datalinks timer1: {0}", timer.Elapsed);
-
-                    foreach (var datalinkKey in datalinkKeys)
+                    var dbDatalink = cache.Hub.DexihDatalinks.SingleOrDefault(c => c.DatalinkKey == datalinkKey);
+                    if (dbDatalink == null)
                     {
-                        var dbDatalink = dbHub.DexihDatalinks.SingleOrDefault(c => c.DatalinkKey == datalinkKey);
-                        if (dbDatalink == null)
-                        {
-                            throw new RemoteOperationException($"The datalink with the key {datalinkKey} was not found.");
-                        }
-
-                        var datalinkRun = new DatalinkRun(GetTransformSettings(message.HubVariables), LoggerMessages, dbDatalink, dbHub, "Datalink", dbDatalink.DatalinkKey, 0, TransformWriterResult.ETriggerMethod.Manual, "Started manually at " + DateTime.Now.ToString(CultureInfo.InvariantCulture), truncateTarget, resetIncremental, resetIncrementalValue, null, null);
-
-                        var runReturn = RunDataLink(clientId, datalinkRun, null, null);
+                        throw new RemoteOperationException($"The datalink with the key {datalinkKey} was not found.");
                     }
 
-                    timer.Stop();
-                    LoggerMessages.LogInformation(25, "Run datalinks timer4: {0}", timer.Elapsed);
+                    var datalinkRun = new DatalinkRun(GetTransformSettings(message.HubVariables), LoggerMessages, dbDatalink, cache.Hub, cache.CacheEncryptionKey, "Datalink", dbDatalink.DatalinkKey, 0, TransformWriterResult.ETriggerMethod.Manual, "Started manually at " + DateTime.Now.ToString(CultureInfo.InvariantCulture), truncateTarget, resetIncremental, resetIncrementalValue, null, null);
 
-                    return true;
-                });
+                    var runReturn = RunDataLink(clientId, datalinkRun, null, null);
+                }
+
+                timer.Stop();
+                LoggerMessages.LogInformation(25, "Run datalinks timer4: {0}", timer.Elapsed);
+
+                return true;
             }
             catch (Exception ex)
             {
@@ -328,27 +318,23 @@ namespace dexih.remote.operations
             }
         }
 
-        public async Task<bool> CancelTasks(RemoteMessage message, CancellationToken cancellationToken)
+        public bool CancelTasks(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
             {
-                return await Task.Run<bool>(() =>
+                var references = message.Value.ToObject<string[]>();
+                var hubKey = message.HubKey;
+
+                foreach (var reference in references)
                 {
-
-                    var references = message.Value.ToObject<string[]>();
-                    var hubKey = message.HubKey;
-
-                    foreach (var reference in references)
+                    var managedTask = _managedTasks.GetTask(reference);
+                    if (managedTask?.HubKey == hubKey)
                     {
-                        var managedTask = _managedTasks.GetTask(reference);
-                        if (managedTask?.HubKey == hubKey)
-                        {
-                            managedTask.Cancel();
-                        }
+                        managedTask.Cancel();
                     }
+                }
 
-                    return true;
-                });
+                return true;
             }
             catch (Exception ex)
             {
@@ -362,7 +348,7 @@ namespace dexih.remote.operations
             try
             {
                 var datajobKeys = message.Value["datajobKeys"].ToObject<long[]>();
-                var dbHub = message.Value["hub"].ToObject<DexihHub>();
+                var cache = message.Value["cache"].ToObject<CacheManager>();
                 var truncateTarget = message.Value["truncateTarget"]?.ToObject<bool>()??false;
                 var resetIncremental = message.Value["resetIncremental"]?.ToObject<bool>()??false;
                 var resetIncrementalValue = message.Value["resetIncrementalValue"]?.ToObject<object>();
@@ -376,13 +362,13 @@ namespace dexih.remote.operations
                     {
                         if (cancellationToken.IsCancellationRequested) break;
 
-                        var dbDatajob = dbHub.DexihDatajobs.SingleOrDefault(c => c.DatajobKey == datajobKey);
+                        var dbDatajob = cache.Hub.DexihDatajobs.SingleOrDefault(c => c.DatajobKey == datajobKey);
                         if (dbDatajob == null)
                         {
                             throw new Exception($"Datajob with key {datajobKey} was not found");
                         }
 
-                        var addJobResult = await AddDataJobTask(dbHub, GetTransformSettings(message.HubVariables), clientId, dbDatajob, truncateTarget, resetIncremental, resetIncrementalValue, null, null, TransformWriterResult.ETriggerMethod.Manual, cancellationToken);
+                        var addJobResult = AddDataJobTask(cache.Hub, cache.CacheEncryptionKey, GetTransformSettings(message.HubVariables), clientId, dbDatajob, truncateTarget, resetIncremental, resetIncrementalValue, null, null, TransformWriterResult.ETriggerMethod.Manual, cancellationToken);
                         if (!addJobResult)
                         {
                             throw new Exception($"Failed to start data job {dbDatajob.Name} task.");
@@ -412,76 +398,72 @@ namespace dexih.remote.operations
             }
         }
 
-		private async Task<bool> AddDataJobTask(DexihHub dbHub, TransformSettings transformSettings, string clientId, DexihDatajob dbDatajob, bool truncateTarget, bool resetIncremental, object resetIncrementalValue, IEnumerable<ManagedTaskSchedule> managedTaskSchedules, IEnumerable<ManagedTaskFileWatcher> fileWatchers, TransformWriterResult.ETriggerMethod triggerMethod, CancellationToken cancellationToken)
+		private bool AddDataJobTask(DexihHub dbHub, string encryptionKey, TransformSettings transformSettings, string clientId, DexihDatajob dbDatajob, bool truncateTarget, bool resetIncremental, object resetIncrementalValue, IEnumerable<ManagedTaskSchedule> managedTaskSchedules, IEnumerable<ManagedTaskFileWatcher> fileWatchers, TransformWriterResult.ETriggerMethod triggerMethod, CancellationToken cancellationToken)
 		{
             try
             {
-                return await Task.Run<bool>(() =>
+                var datajobRun = new DatajobRun(transformSettings, LoggerMessages, dbDatajob, dbHub, encryptionKey, truncateTarget, resetIncremental, resetIncrementalValue);
+
+                async Task DatajobScheduleTask(ManagedTask managedTask, DateTime scheduleTime, CancellationToken ct)
                 {
+                    datajobRun.Reset();
+                    managedTask.Data = datajobRun.WriterResult;
+                    await datajobRun.Schedule(scheduleTime, ct);
+                }
 
-                    var datajobRun = new DatajobRun(transformSettings, LoggerMessages, dbDatajob, dbHub, truncateTarget, resetIncremental, resetIncrementalValue);
+                async Task DatajobCancelScheduledTask(ManagedTask managedTask, CancellationToken ct)
+                {
+                    await datajobRun.CancelSchedule(ct);
+                }
 
-                    async Task DatajobScheduleTask(ManagedTask managedTask, DateTime scheduleTime, CancellationToken ct)
+                async Task DatajobRunTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken ct)
+                {
+                    managedTask.Data = datajobRun.WriterResult;
+
+                    void OnDatajobProgressUpdate(TransformWriterResult writerResult)
                     {
-                        datajobRun.Reset();
-                        managedTask.Data = datajobRun.WriterResult;
-                        await datajobRun.Schedule(scheduleTime, ct);
+                        progress.Report(writerResult.PercentageComplete, writerResult.RowsTotal);
                     }
 
-                    async Task DatajobCancelScheduledTask(ManagedTask managedTask, CancellationToken ct)
+                    void OnDatalinkStart(DatalinkRun datalinkRun)
                     {
-                        await datajobRun.CancelSchedule(ct);
+                        RunDataLink(clientId, datalinkRun, datajobRun, null);
                     }
 
-                    async Task DatajobRunTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken ct)
-                    {
-                        managedTask.Data = datajobRun.WriterResult;
+                    datajobRun.ResetEvents();
 
-                        void OnDatajobProgressUpdate(TransformWriterResult writerResult)
-                        {
-                            progress.Report(writerResult.PercentageComplete, writerResult.RowsTotal);
-                        }
+                    datajobRun.OnDatajobProgressUpdate += OnDatajobProgressUpdate;
+                    datajobRun.OnDatajobStatusUpdate += OnDatajobProgressUpdate;
+                    datajobRun.OnDatalinkStart += OnDatalinkStart;
 
-                        void OnDatalinkStart(DatalinkRun datalinkRun)
-                        {
-                            RunDataLink(clientId, datalinkRun, datajobRun, null);
-                        }
+                    progress.Report(0, 0, "Initializing datajob...");
 
-                        datajobRun.ResetEvents();
+                    await datajobRun.Initialize(ct);
 
-                        datajobRun.OnDatajobProgressUpdate += OnDatajobProgressUpdate;
-                        datajobRun.OnDatajobStatusUpdate += OnDatajobProgressUpdate;
-                        datajobRun.OnDatalinkStart += OnDatalinkStart;
+                    progress.Report(0, 0, "Running datajob...");
 
-                        progress.Report(0, 0, "Initializing datajob...");
+                    await datajobRun.Run(triggerMethod, "", ct);
+                }
 
-                        await datajobRun.Initialize(ct);
+                var newManagedTask = new ManagedTask
+                {
+                    Reference = Guid.NewGuid().ToString(),
+                    OriginatorId = clientId,
+                    Name = $"Datajob: {dbDatajob.Name}.",
+                    Category = "Datajob",
+                    CategoryKey = dbDatajob.DatajobKey,
+                    HubKey = dbDatajob.HubKey,
+                    Data = datajobRun.WriterResult,
+                    Action = DatajobRunTask,
+                    Triggers = managedTaskSchedules,
+                    FileWatchers = fileWatchers,
+                    ScheduleAction = DatajobScheduleTask,
+                    CancelScheduleAction = DatajobCancelScheduledTask
+                };
 
-                        progress.Report(0, 0, "Running datajob...");
+                _managedTasks.Add(newManagedTask);
 
-                        await datajobRun.Run(triggerMethod, "", ct);
-                    }
-
-                    var newManagedTask = new ManagedTask
-                    {
-                        Reference = Guid.NewGuid().ToString(),
-                        OriginatorId = clientId,
-                        Name = $"Datajob: {dbDatajob.Name}.",
-                        Category = "Datajob",
-                        CategoryKey = dbDatajob.DatajobKey,
-                        HubKey = dbDatajob.HubKey,
-                        Data = datajobRun.WriterResult,
-                        Action = DatajobRunTask,
-                        Triggers = managedTaskSchedules,
-                        FileWatchers = fileWatchers,
-                        ScheduleAction = DatajobScheduleTask,
-                        CancelScheduleAction = DatajobCancelScheduledTask
-                    };
-
-                    _managedTasks.Add(newManagedTask);
-
-                    return true;
-                });
+                return true;
             }
             catch (Exception ex)
             {
@@ -489,12 +471,12 @@ namespace dexih.remote.operations
             }
 		}
 
-        public async Task<bool> ActivateDatajobs(RemoteMessage message, CancellationToken cancellationToken)
+        public bool ActivateDatajobs(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
             {
 				var datajobKeys = message.Value["datajobKeys"].ToObject<long[]>();
-				var dbHub = message.Value["hub"].ToObject<DexihHub>();
+				var cache = Json.JTokenToObject<CacheManager>(message.Value["cache"], _temporaryEncryptionKey);
 				var truncateTarget = message.Value["truncateTarget"]?.ToObject<bool>() ?? false;
 				var resetIncremental = message.Value["resetIncremental"]?.ToObject<bool>() ?? false;
 				var resetIncrementalValue = message.Value["resetIncrementalValue"]?.ToObject<object>();
@@ -508,7 +490,7 @@ namespace dexih.remote.operations
                     {
                         if (cancellationToken.IsCancellationRequested) break;
 
-                        var dbDatajob = dbHub.DexihDatajobs.SingleOrDefault(c => c.DatajobKey == datajobKey);
+                        var dbDatajob = cache.Hub.DexihDatajobs.SingleOrDefault(c => c.DatajobKey == datajobKey);
                         if (dbDatajob == null)
                         {
                             throw new Exception($"Datajob with key {datajobKey} was not found");
@@ -529,14 +511,14 @@ namespace dexih.remote.operations
                             paths = new List<ManagedTaskFileWatcher>();
                             foreach (var step in dbDatajob.DexihDatalinkSteps)
                             {
-                                var datalink = dbHub.DexihDatalinks.SingleOrDefault(d => d.DatalinkKey == step.DatalinkKey);
+                                var datalink = cache.Hub.DexihDatalinks.SingleOrDefault(d => d.DatalinkKey == step.DatalinkKey);
                                 if (datalink != null)
                                 {
-                                    var tables = datalink.GetAllSourceTables(dbHub);
+                                    var tables = datalink.GetAllSourceTables(cache.Hub);
 
                                     foreach (var dbTable in tables.Where(c => c.FileFormatKey != null))
                                     {
-                                        var dbConnection = dbHub.DexihConnections.SingleOrDefault(c => c.ConnectionKey == dbTable.ConnectionKey);
+                                        var dbConnection = cache.Hub.DexihConnections.SingleOrDefault(c => c.ConnectionKey == dbTable.ConnectionKey);
 
                                         if (dbConnection == null)
                                         {
@@ -558,7 +540,7 @@ namespace dexih.remote.operations
                             }
                         }
 
-                        var addJobResult = await AddDataJobTask(dbHub, GetTransformSettings(message.HubVariables), clientId, dbDatajob, truncateTarget, resetIncremental, resetIncrementalValue, triggers, paths, TransformWriterResult.ETriggerMethod.Schedule, cancellationToken);
+                        var addJobResult = AddDataJobTask(cache.Hub, cache.CacheEncryptionKey, GetTransformSettings(message.HubVariables), clientId, dbDatajob, truncateTarget, resetIncremental, resetIncrementalValue, triggers, paths, TransformWriterResult.ETriggerMethod.Schedule, cancellationToken);
                         if (!addJobResult)
                         {
                             throw new Exception($"Failed to activate data job {dbDatajob.Name} task.");
@@ -729,8 +711,6 @@ namespace dexih.remote.operations
                     catch (Exception ex)
                     {
                         throw new RemoteOperationException($"Error occurred creating tables: {ex.Message}.", ex);
-                        //                        dbTable.EntityStatus.LastStatus = EntityStatus.EStatus.Error;
-                        //                        dbTable.EntityStatus.Message = ex.Message;
                     }
 
                     LoggerMessages.LogTrace("Create database table for table {table} and connection {connection} completed.", dbTable.Name, dbConnection.Name);
@@ -806,7 +786,7 @@ namespace dexih.remote.operations
                 }
 
                 var dbTable = message.Value["table"].ToObject<DexihTable>();
-                var dbHub = message.Value["hub"].ToObject<DexihHub>();
+                var cache = Json.JTokenToObject<CacheManager>(message.Value["cache"], _temporaryEncryptionKey);
                 var showRejectedData = message.Value["showRejectedData"].ToObject<bool>();
                 var selectQuery = message.Value["selectQuery"].ToObject<SelectQuery>();
                 var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
@@ -815,7 +795,7 @@ namespace dexih.remote.operations
                 //retrieve the source tables into the cache.
                 var settings = GetTransformSettings(message.HubVariables);
 
-                var dbConnection = dbHub.DexihConnections.SingleOrDefault(c => c.ConnectionKey == dbTable.ConnectionKey && c.IsValid);
+                var dbConnection = cache.Hub.DexihConnections.SingleOrDefault(c => c.ConnectionKey == dbTable.ConnectionKey && c.IsValid);
                 if (dbConnection == null)
                 {
                     throw new TransformManagerException($"The connection with the key {dbTable.ConnectionKey} was not found.");
@@ -826,6 +806,7 @@ namespace dexih.remote.operations
                 
                 var reader = connection.GetTransformReader(table);
                 reader = new TransformQuery(reader, selectQuery);
+                reader.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
                 await reader.Open(0, null, cancellationToken);
                 
                 LoggerMessages.LogInformation("Preview for table: " + dbTable.Name + ".");
@@ -953,7 +934,7 @@ namespace dexih.remote.operations
                     throw new RemoteSecurityException("This remote agent's privacy settings does not allow remote data previews.");
                 }
 
-                var dbHub = message.Value["hub"].ToObject<DexihHub>();
+                var cache = Json.JTokenToObject<CacheManager>(message.Value["cache"], _temporaryEncryptionKey);
                 var datalinkTransformKey = message.Value["datalinkTransformKey"]?.ToObject<long>() ?? 0;
                var dbDatalink = message.Value["datalink"].ToObject<DexihDatalink>();
                var selectQuery = message.Value["selectQuery"].ToObject<SelectQuery>();
@@ -961,7 +942,7 @@ namespace dexih.remote.operations
                var inputColumns = message.Value["inputColumns"].ToObject<DexihColumnBase[]>();
 
                 var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
-                var runPlan = transformOperations.CreateRunPlan(dbHub, dbDatalink, inputColumns, datalinkTransformKey, null, false, previewMode: true);
+                var runPlan = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, inputColumns, datalinkTransformKey, null, false, previewMode: true);
                 var transform = runPlan.sourceTransform;
                    transform = new TransformQuery(transform, selectQuery);
                 var openReturn = await transform.Open(0, null, cancellationToken);
@@ -993,7 +974,7 @@ namespace dexih.remote.operations
                     throw new RemoteSecurityException("This remote agent's privacy settings does not allow remote data previews.");
                 }
 
-                var dbHub = message.Value["hub"].ToObject<DexihHub>();
+                var cache =Json.JTokenToObject<CacheManager>(message.Value["cache"], _temporaryEncryptionKey);
                 var datalinkTransformKey = message.Value["datalinkTransformKey"]?.ToObject<long>() ?? 0;
                 var dbDatalink = message.Value["datalink"].ToObject<DexihDatalink>();
                 var datalinkTransformItem = message.Value["datalinkTransformItem"].ToObject<DexihDatalinkTransformItem>();
@@ -1006,12 +987,12 @@ namespace dexih.remote.operations
                 var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
                 if(previousDatalinkTransform != null) 
                 {
-                    var runPlan = transformOperations.CreateRunPlan(dbHub, dbDatalink, null, previousDatalinkTransform.DatalinkTransformKey, null, false, previewMode: true);
+                    var runPlan = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, null, previousDatalinkTransform.DatalinkTransformKey, null, false, previewMode: true);
                     transform = runPlan.sourceTransform;
                 }
                 else
                 {
-                    var sourceTransform = transformOperations.GetSourceTransform(dbHub, dbDatalink.SourceDatalinkTable, null, true);
+                    var sourceTransform = transformOperations.GetSourceTransform(cache.Hub, dbDatalink.SourceDatalinkTable, null, true);
                     transform = sourceTransform.sourceTransform;
                 }
 
@@ -1029,7 +1010,7 @@ namespace dexih.remote.operations
                     throw new RemoteOperationException("Could not import function mappings, as the source contains no data.");
                 }
 
-                var function = datalinkTransformItem.CreateFunctionMethod(dbHub);
+                var function = datalinkTransformItem.CreateFunctionMethod(cache.Hub);
 
                 var parameterInfos = function.ImportMethod.GetParameters();
                 var values = new object[parameterInfos.Length];
@@ -1071,15 +1052,15 @@ namespace dexih.remote.operations
                     throw new RemoteSecurityException("This remote agent's privacy settings does not allow remote data previews.");
                 }
 
-                var dbHub = message.Value["hub"].ToObject<DexihHub>();
+                var cache = Json.JTokenToObject<CacheManager>(message.Value["cache"], _temporaryEncryptionKey);
                 var datalinkKey = message.Value["datalinkKey"].ToObject<long>();
                var selectQuery = message.Value["selectQuery"].ToObject<SelectQuery>();
-               var dbDatalink = dbHub.DexihDatalinks.Single(c => c.DatalinkKey == datalinkKey);
+               var dbDatalink = cache.Hub.DexihDatalinks.Single(c => c.DatalinkKey == datalinkKey);
                var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
                var inputColumns = message.Value["inputColumns"].ToObject<DexihColumnBase[]>();
                
                 var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
-                var runPlan = transformOperations.CreateRunPlan(dbHub, dbDatalink, inputColumns, null, null, false, selectQuery, previewMode:true);
+                var runPlan = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, inputColumns, null, null, false, selectQuery, previewMode:true);
                 var transform = runPlan.sourceTransform;
                 var openReturn = await transform.Open(0, null, cancellationToken);
                 if (!openReturn) 
@@ -1110,14 +1091,14 @@ namespace dexih.remote.operations
                     throw new RemoteSecurityException("This remote agent's privacy settings does not allow remote data previews.");
                 }
 
-                var dbHub = message.Value["hub"].ToObject<DexihHub>();
+                var cache = Json.JTokenToObject<CacheManager>(message.Value["cache"], _temporaryEncryptionKey);
                 var datalinkKey = message.Value["datalinkKey"].ToObject<long>();
                 var selectQuery = message.Value["selectQuery"].ToObject<SelectQuery>();
-                var dbDatalink = dbHub.DexihDatalinks.Single(c => c.DatalinkKey == datalinkKey);
+                var dbDatalink = cache.Hub.DexihDatalinks.Single(c => c.DatalinkKey == datalinkKey);
                 var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
                
                 var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
-                var runPlan = transformOperations.CreateRunPlan(dbHub, dbDatalink, null, null, null, false, selectQuery, previewMode:true);
+                var runPlan = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, null, null, null, false, selectQuery, previewMode:true);
                 var transform = runPlan.sourceTransform;
                 var openReturn = await transform.Open(0, selectQuery, cancellationToken);
                 if (!openReturn) 
@@ -1352,7 +1333,7 @@ namespace dexih.remote.operations
                 }
 
                 var dbCache = Json.JTokenToObject<CacheManager>(message.Value, _temporaryEncryptionKey);
-                var dbConnection = dbCache.DexihHub.DexihConnections.FirstOrDefault();
+                var dbConnection = dbCache.Hub.DexihConnections.FirstOrDefault();
                 if(dbConnection == null)
                 {
                     throw new RemoteOperationException("The connection could not be found.");
@@ -1444,7 +1425,7 @@ namespace dexih.remote.operations
 
                 var dbCache = Json.JTokenToObject<CacheManager>(message.Value["cache"], _temporaryEncryptionKey);
                 var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
-                var dbConnection = dbCache.DexihHub.DexihConnections.FirstOrDefault();
+                var dbConnection = dbCache.Hub.DexihConnections.FirstOrDefault();
                 if(dbConnection == null)
                 {
                     throw new RemoteOperationException("The connection could not be found.");
@@ -1604,7 +1585,7 @@ namespace dexih.remote.operations
                 return await Task.Run(() =>
                 {
 
-                    var cache = message.Value["cache"].ToObject<CacheManager>();
+                    var cache = Json.JTokenToObject<CacheManager>(message.Value["cache"], _temporaryEncryptionKey);
                     var clientId = message.Value["clientId"].ToString();
                     var downloadObjects = message.Value["downloadObjects"].ToObject<DownloadData.DownloadObject[]>();
                     var downloadFormat = message.Value["downloadFormat"].ToObject<DownloadData.EDownloadFormat>();
