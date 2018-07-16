@@ -343,7 +343,7 @@ namespace dexih.remote.operations
             }
         }
 
-        public async Task<bool> RunDatajobs(RemoteMessage message, CancellationToken cancellationToken)
+        public bool RunDatajobs(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
             {
@@ -1120,7 +1120,7 @@ namespace dexih.remote.operations
 
         }
 
-  public async Task<Table> PreviewProfile(RemoteMessage message, CancellationToken cancellationToken) // (long HubKey, string Cache, long DatalinkAuditKey, bool SummaryOnly, CancellationToken cancellationToken)
+        public async Task<string> PreviewProfile(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
             {
@@ -1130,52 +1130,38 @@ namespace dexih.remote.operations
                 }
 
                 //Import the datalink metadata.
-                var dbConnections = message.Value["connections"].ToObject<DexihConnection[]>();
+                var dbConnection = message.Value["connection"].ToObject<DexihConnection>();
                 var profileTableName = message.Value["profileTableName"].ToString();
+                var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
                 var auditKey = message.Value["auditKey"].ToObject<long>();
                 var summaryOnly = message.Value["summaryOnly"].ToObject<bool>();
 
                 var profileTable = new TransformProfile().GetProfileTable(profileTableName);
 
-                Table data = null;
+                var connection = dbConnection.GetConnection(GetTransformSettings(message.HubVariables));
 
-                var resultsFound = false;
-                foreach (var dbConnection in dbConnections)
+                var existsResult = await connection.TableExists(profileTable, cancellationToken);
+                
+                if(existsResult)
                 {
-                    var connection = dbConnection.GetConnection(GetTransformSettings(message.HubVariables));
+                    var query = profileTable.DefaultSelectQuery();
 
-                    var existsResult = await connection.TableExists(profileTable, cancellationToken);
-                    if(existsResult)
-                    {
-                        var query = profileTable.DefaultSelectQuery();
+                    query.Filters.Add(new Filter(profileTable.GetDeltaColumn(TableColumn.EDeltaType.CreateAuditKey), Filter.ECompare.IsEqual, auditKey));
+                    if (summaryOnly)
+                        query.Filters.Add(new Filter(new TableColumn("IsSummary"), Filter.ECompare.IsEqual, true));
 
-                        query.Filters.Add(new Filter(profileTable.GetDeltaColumn(TableColumn.EDeltaType.CreateAuditKey), Filter.ECompare.IsEqual, auditKey));
-                        if (summaryOnly)
-                            query.Filters.Add(new Filter(new TableColumn("IsSummary"), Filter.ECompare.IsEqual, true));
+                    var reader = connection.GetTransformReader(profileTable);
+                    reader = new TransformQuery(reader, query);
+                    reader.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
+                    await reader.Open(0, null, cancellationToken);
+            
+                    LoggerMessages.LogInformation("Preview for profile results: " + profileTable.Name + ".");
+                    var stream = new TransformJsonStream(profileTable.Name, reader, query.Rows);
 
-                        //retrieve the source tables into the cache.
-                        data = await connection.GetPreview(profileTable, query, cancellationToken);
-
-                        if(data != null && data.Data.Any())
-                        {
-                            resultsFound = true;
-                            break;
-                        }
-                    }
+                    return await StartDataStream(stream, downloadUrl, "json", "preview_table.json", cancellationToken);
                 }
 
-                LoggerMessages.LogInformation("Preview of profile data for audit: {0}.", auditKey);
-
-                if (resultsFound)
-                {
-                    data.Data.ClearDbNullValues();
-
-                    return data;
-                }
-                else
-                {
-                    throw new RemoteOperationException("The profile results could not be found on existing managed connections.");
-                }
+                throw new RemoteOperationException("The profile results could not be found on existing managed connections.");
             }
             catch (Exception ex)
             {
@@ -1209,7 +1195,7 @@ namespace dexih.remote.operations
                 foreach (var dbConnection in dbConnections)
                 {
                     var connection = dbConnection.GetConnection(GetTransformSettings(message.HubVariables));
-                    var writerResults = await connection.GetTransformWriterResults(hubKey, referenceKeys, auditType, auditKey, runStatus, previousResult, previousSuccessResult, currentResult, startTime, rows, parentAuditKey, childItems, cancellationToken);
+                    var writerResults = await connection.GetTransformWriterResults(hubKey, dbConnection.ConnectionKey, referenceKeys, auditType, auditKey, runStatus, previousResult, previousSuccessResult, currentResult, startTime, rows, parentAuditKey, childItems, cancellationToken);
                     transformWriterResults.AddRange(writerResults);
                 }
 
@@ -1502,7 +1488,7 @@ namespace dexih.remote.operations
             }
         }
 
-        public async Task<ManagedTask> DownloadFiles(RemoteMessage message, CancellationToken cancellationToken)
+        public ManagedTask DownloadFiles(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
             {
@@ -1558,13 +1544,10 @@ namespace dexih.remote.operations
                 }
 
                 // Taks.Run get's rid of the async warning
-                return await Task.Run(() =>
-                {
-                    var startdownloadResult = _managedTasks.Add(reference, clientId,
-                        $"Download file: {files[0]} from {path}.", "Download", connectionTable.hubKey, null, 0, null,
-                        DownloadTask, null, null, null);
-                    return startdownloadResult;
-                }, cancellationToken);
+                var startdownloadResult = _managedTasks.Add(reference, clientId,
+                    $"Download file: {files[0]} from {path}.", "Download", connectionTable.hubKey, null, 0, null,
+                    DownloadTask, null, null, null);
+                return startdownloadResult;
             }
             catch (Exception ex)
             {
@@ -1573,7 +1556,7 @@ namespace dexih.remote.operations
             }
         }
 
-        public async Task<ManagedTask> DownloadData(RemoteMessage message, CancellationToken cancellationToken)
+        public ManagedTask DownloadData(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
             {
@@ -1582,61 +1565,57 @@ namespace dexih.remote.operations
                     throw new RemoteSecurityException("This remote agent's privacy settings does not allow remote data to be accessed.");
                 }
 
-                return await Task.Run(() =>
+                var cache = Json.JTokenToObject<CacheManager>(message.Value["cache"], _temporaryEncryptionKey);
+                var clientId = message.Value["clientId"].ToString();
+                var downloadObjects = message.Value["downloadObjects"].ToObject<DownloadData.DownloadObject[]>();
+                var downloadFormat = message.Value["downloadFormat"].ToObject<DownloadData.EDownloadFormat>();
+                var zipFiles = message.Value["zipFiles"].ToObject<bool>();
+                var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
+                var securityToken = _securityToken;
+
+                var reference = Guid.NewGuid().ToString();
+
+                // put the download into an action and allow to complete in the scheduler.
+                async Task DownloadTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken ct)
                 {
+                    progress.Report(50, 1, "Running data extract...");
+                    var downloadData = new DownloadData(GetTransformSettings(message.HubVariables));
+                    var downloadStream = await downloadData.GetStream(cache, downloadObjects, downloadFormat, zipFiles, cancellationToken);
+                    var filename = downloadStream.FileName;
+                    var stream = downloadStream.Stream;
 
-                    var cache = Json.JTokenToObject<CacheManager>(message.Value["cache"], _temporaryEncryptionKey);
-                    var clientId = message.Value["clientId"].ToString();
-                    var downloadObjects = message.Value["downloadObjects"].ToObject<DownloadData.DownloadObject[]>();
-                    var downloadFormat = message.Value["downloadFormat"].ToObject<DownloadData.EDownloadFormat>();
-                    var zipFiles = message.Value["zipFiles"].ToObject<bool>();
-                    var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
-                    var securityToken = _securityToken;
+                    progress.Report(100, 2, "Download ready...");
 
-                    var reference = Guid.NewGuid().ToString();
-
-                    // put the download into an action and allow to complete in the scheduler.
-                    async Task DownloadTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken ct)
+                    var result = await StartDataStream(stream, downloadUrl, "file", filename, cancellationToken);
+                    
+                    var downloadMessage = new
                     {
-                        progress.Report(50, 1, "Running data extract...");
-                        var downloadData = new DownloadData(GetTransformSettings(message.HubVariables));
-                        var downloadStream = await downloadData.GetStream(cache, downloadObjects, downloadFormat, zipFiles, cancellationToken);
-                        var filename = downloadStream.FileName;
-                        var stream = downloadStream.Stream;
+                        SecurityToken = securityToken,
+                        ClientId = clientId,
+                        Reference = reference,
+                        HubKey = message.HubKey,
+                        Url = result
+                    };
 
-                        progress.Report(100, 2, "Download ready...");
+                    var messagesString = JsonConvert.SerializeObject(downloadMessage);
+                    var content = new StringContent(messagesString, Encoding.UTF8, "application/json");
 
-                        var result = await StartDataStream(stream, downloadUrl, "file", filename, cancellationToken);
-                        
-                        var downloadMessage = new
-                        {
-                            SecurityToken = securityToken,
-                            ClientId = clientId,
-                            Reference = reference,
-                            HubKey = message.HubKey,
-                            Url = result
-                        };
-
-                        var messagesString = JsonConvert.SerializeObject(downloadMessage);
-                        var content = new StringContent(messagesString, Encoding.UTF8, "application/json");
-
-                        var address = _url + "Remote/DownloadReady";
-                        var response = await _httpClient.PostAsync(address, content, ct);
-                        if (!response.IsSuccessStatusCode)
-                        {
-                            throw new RemoteOperationException($"The data download did not complete as the http server returned the response {response.ReasonPhrase}.");
-                        }
-                        var returnValue = Json.DeserializeObject<ReturnValue>(await response.Content.ReadAsStringAsync(), _temporaryEncryptionKey);
-                        if (!returnValue.Success)
-                        {
-                            throw new RemoteOperationException($"The data download did not completed.  {returnValue.Message}", returnValue.Exception);
-                        }
-
+                    var address = _url + "Remote/DownloadReady";
+                    var response = await _httpClient.PostAsync(address, content, ct);
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        throw new RemoteOperationException($"The data download did not complete as the http server returned the response {response.ReasonPhrase}.");
+                    }
+                    var returnValue = Json.DeserializeObject<ReturnValue>(await response.Content.ReadAsStringAsync(), _temporaryEncryptionKey);
+                    if (!returnValue.Success)
+                    {
+                        throw new RemoteOperationException($"The data download did not completed.  {returnValue.Message}", returnValue.Exception);
                     }
 
-                    var startdownloadResult = _managedTasks.Add(reference, clientId, $"Download Data File", "Download", cache.HubKey, null, 0, null, DownloadTask, null, null, null);
-                    return startdownloadResult;
-                }, cancellationToken);
+                }
+
+                var startdownloadResult = _managedTasks.Add(reference, clientId, $"Download Data File", "Download", cache.HubKey, null, 0, null, DownloadTask, null, null, null);
+                return startdownloadResult;
             }
             catch (Exception ex)
             {
