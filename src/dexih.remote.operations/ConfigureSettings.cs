@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using dexih.repository;
+using Dexih.Utils.Crypto;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json.Linq;
 
@@ -509,7 +510,29 @@ namespace dexih.remote
                 {
                     if (string.IsNullOrEmpty(RemoteSettings.AppSettings.EncryptionKey))
                     {
-                        RemoteSettings.AppSettings.EncryptionKey = Dexih.Utils.Crypto.EncryptString.GenerateRandomKey();
+                        RemoteSettings.AppSettings.EncryptionKey = EncryptString.GenerateRandomKey();
+                    }
+
+                    if (RemoteSettings.Network.AutoGenerateCertificate)
+                    {
+                        if (string.IsNullOrEmpty(RemoteSettings.Network.CertificateFilename))
+                        {
+                            RemoteSettings.Network.CertificateFilename = "dexih.pfx";
+                        }
+
+                        if (string.IsNullOrEmpty(RemoteSettings.Network.CertificatePassword))
+                        {
+                            if (File.Exists(RemoteSettings.Network.CerfificateFilePath()))
+                            {
+                                RemoteSettings.Network.CertificatePassword = GetStringInput(
+                                    $"Enter the password for the certificate with the name {RemoteSettings.Network.CertificateFilename}.",
+                                    RemoteSettings.Network.CertificatePassword, false);
+                            }
+                            else
+                            {
+                                RemoteSettings.Network.CertificatePassword = EncryptString.GenerateRandomKey();
+                            }
+                        }
                     }
                 }
 

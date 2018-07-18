@@ -166,8 +166,12 @@ namespace dexih.remote
 
                     if (!savedSettings && saveSettings)
                     {
-                        _remoteSettings.AppSettings.UserToken = loginResult.userToken;
-                        
+                        // if login via password, then store the returned authentication token.
+                        if (!string.IsNullOrEmpty(_remoteSettings.Runtime.Password))
+                        {
+                            _remoteSettings.AppSettings.UserToken = loginResult.userToken;
+                        }
+
                         var appSettingsFile = Directory.GetCurrentDirectory() + "/appsettings.json";
 
                         _remoteSettings.AppSettings.FirstRun = false;
@@ -186,11 +190,6 @@ namespace dexih.remote
                         
                         File.WriteAllText(appSettingsFile, JsonConvert.SerializeObject(tmpSettings, Formatting.Indented));
                         logger.LogInformation("The appsettings.json file has been updated with the current settings.");
-
-                        if (!string.IsNullOrEmpty(_remoteSettings.Runtime.Password))
-                        {
-                            logger.LogWarning("The password is not saved to the appsettings.json file.  Create a RemoteId/UserToken combination to authenticate without a password.");
-                        }
 
                         savedSettings = true;
                     }
@@ -324,8 +323,6 @@ namespace dexih.remote
             var logger = LoggerFactory.CreateLogger("Listen");
             try
             {
-
-
                 using (var signalrTs = new CancellationTokenSource())
                 {
                     var signalrCt = signalrTs.Token;
@@ -358,29 +355,41 @@ namespace dexih.remote
                             try
                             {
                                 var useHttps = !string.IsNullOrEmpty(_remoteSettings.Network.CertificateFilename);
+                                var certificatePath = _remoteSettings.Network.CerfificateFilePath();
+                                
+                                logger.LogInformation($"Using the ssl certificate at {certificatePath}");
 
                                 if (_remoteSettings.Network.AutoGenerateCertificate)
                                 {
+                                    // if no cerficiate name or password are specified, generate them automatically.
                                     if (string.IsNullOrEmpty(_remoteSettings.Network.CertificateFilename))
                                     {
-                                        _remoteSettings.Network.CertificateFilename = "dexih.pfx";
-                                        useHttps = true;
+                                        throw new RemoteException("The applicationSettings -> Network -> AutoGenerateCertificate is true, however there no setting for CerficiateFilename");
                                     }
+
+                                    if (string.IsNullOrEmpty(_remoteSettings.Network.CertificatePassword))
+                                    {
+                                        throw new RemoteException("The applicationSettings -> Network -> AutoGenerateCertificate is true, however there no setting for CertificatePassword");
+                                    }
+
+                                    useHttps = true;
 
                                     var renew = false;
 
-                                    if (File.Exists(_remoteSettings.Network.CertificateFilename))
+                                    
+                                    
+                                    if (File.Exists(certificatePath))
                                     {
                                         // Create a collection object and populate it using the PFX file
                                         using (var cert = new X509Certificate2(
-                                            _remoteSettings.Network.CertificateFilename,
+                                            certificatePath,
                                             _remoteSettings.Network.CertificatePassword))
                                         {
                                             var effectiveDate = DateTime.Parse(cert.GetEffectiveDateString());
                                             var expiresDate = DateTime.Parse(cert.GetExpirationDateString());
 
-                                            // if cert expires in next 7 days, then renew.
-                                            if (DateTime.Now > expiresDate.AddDays(-7))
+                                            // if cert expires in next 14 days, then renew.
+                                            if (DateTime.Now > expiresDate.AddDays(-14))
                                             {
                                                 renew = true;
                                             }
@@ -410,7 +419,7 @@ namespace dexih.remote
                                         if (response.IsSuccessStatusCode)
                                         {
                                             var certificate = await response.Content.ReadAsByteArrayAsync();
-                                            File.WriteAllBytes(_remoteSettings.Network.CertificateFilename,
+                                            File.WriteAllBytes(certificatePath,
                                                 certificate);
                                         }
                                         else
@@ -430,14 +439,14 @@ namespace dexih.remote
                                             "The server requires https, however a CertificateFile name is not specified.");
                                     }
 
-                                    if (!File.Exists(_remoteSettings.Network.CertificateFilename))
+                                    if (!File.Exists(certificatePath))
                                     {
                                         throw new RemoteException(
-                                            $"The certificate with the filename {_remoteSettings.Network.CertificateFilename} does not exist.");
+                                            $"The certificate with the filename {certificatePath} does not exist.");
                                     }
 
                                     using (var cert = new X509Certificate2(
-                                        _remoteSettings.Network.CertificateFilename,
+                                        certificatePath,
                                         _remoteSettings.Network.CertificatePassword))
                                     {
                                         var effectiveDate = DateTime.Parse(cert.GetEffectiveDateString());
@@ -446,14 +455,14 @@ namespace dexih.remote
                                         if (DateTime.Now < effectiveDate)
                                         {
                                             throw new RemoteException(
-                                                $"The certificate with the filename {_remoteSettings.Network.CertificateFilename} is not valid until {effectiveDate}.");
+                                                $"The certificate with the filename {certificatePath} is not valid until {effectiveDate}.");
                                         }
 
 
                                         if (DateTime.Now > expiresDate)
                                         {
                                             throw new RemoteException(
-                                                $"The certificate with the filename {_remoteSettings.Network.CertificateFilename} expired on {expiresDate}.");
+                                                $"The certificate with the filename {certificatePath} expired on {expiresDate}.");
                                         }
 
                                     }
@@ -462,10 +471,10 @@ namespace dexih.remote
 
                                 if (!useHttps && _remoteSettings.Network.EnforceHttps)
                                 {
-                                    throw new RemoteException("The remote agent is set to enforceHtts, however no SSL certificate was found or able to be generated.");
+                                    throw new RemoteException("The remote agent is set to EnforceHttps, however no SSL certificate was found or able to be generated.");
                                 }
 
-                                if (!useHttps || File.Exists(_remoteSettings.Network.CertificateFilename))
+                                if (!useHttps || File.Exists(certificatePath))
                                 {
                                     if (_remoteSettings.Network.DownloadPort == null)
                                     {
@@ -514,8 +523,7 @@ namespace dexih.remote
                                                     if (useHttps)
                                                     {
                                                         listenOptions.UseHttps(
-                                                            Path.Combine(Directory.GetCurrentDirectory(),
-                                                                _remoteSettings.Network.CertificateFilename),
+                                                            certificatePath,
                                                             _remoteSettings.Network.CertificatePassword);
                                                     }
                                                 });
@@ -527,12 +535,18 @@ namespace dexih.remote
 
                                     // remote agent will wait here until a cancel is issued.
                                     await Task.WhenAny(sender, webRunTask);
+
+                                    if (webRunTask.IsFaulted)
+                                    {
+                                        throw new RemoteException($"Error running http server: {webRunTask.Exception?.Message}", webRunTask.Exception);
+                                    }
+                                    
                                     host.Dispose();
                                 }
                                 else
                                 {
                                     throw new RemoteException(
-                                        $"The certificate {_remoteSettings.Network.CertificateFilename} could not be found.");
+                                        $"The certificate {certificatePath} could not be found.");
                                 }
                             }
                             catch (Exception e)
