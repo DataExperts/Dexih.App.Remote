@@ -418,6 +418,13 @@ namespace dexih.remote
 
                                         if (response.IsSuccessStatusCode)
                                         {
+                                            if (response.Content.Headers.ContentType.MediaType == "application/json")
+                                            {
+                                                var jsonContent = await response.Content.ReadAsStringAsync();
+                                                var message = JsonConvert.DeserializeObject<ReturnValue>(jsonContent);
+                                                logger.LogDebug("GenerateCertficate details: " + message.ExceptionDetails);
+                                                throw new RemoteException(message.Message, message.Exception);
+                                            }
                                             var certificate = await response.Content.ReadAsByteArrayAsync();
                                             File.WriteAllBytes(certificatePath,
                                                 certificate);
@@ -464,9 +471,7 @@ namespace dexih.remote
                                             throw new RemoteException(
                                                 $"The certificate with the filename {certificatePath} expired on {expiresDate}.");
                                         }
-
                                     }
-
                                 }
 
                                 if (!useHttps && _remoteSettings.Network.EnforceHttps)
