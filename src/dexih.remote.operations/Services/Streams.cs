@@ -102,7 +102,7 @@ namespace dexih.remote.Operations.Services
     {
         public UploadObject(Func<Stream, Task> processAction)
         {
-            SecurityKey = Dexih.Utils.Crypto.EncryptString.GenerateRandomKey();
+            SecurityKey = Dexih.Utils.Crypto.EncryptString.GenerateRandomKey(); // the / values cause problems when 
             AddedDateTime = DateTime.Now;
             ProcessAction = processAction;
         }

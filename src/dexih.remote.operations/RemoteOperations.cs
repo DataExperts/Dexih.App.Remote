@@ -9,6 +9,7 @@ using System.Net.Http;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Web;
 using dexih.functions;
 using dexih.functions.Query;
 using dexih.operations;
@@ -328,7 +329,7 @@ namespace dexih.remote.operations
                 foreach (var reference in references)
                 {
                     var managedTask = _managedTasks.GetTask(reference);
-                    if (managedTask?.HubKey == hubKey)
+                    if (managedTask?.ReferenceKey == hubKey)
                     {
                         managedTask.Cancel();
                     }
@@ -452,7 +453,7 @@ namespace dexih.remote.operations
                     Name = $"Datajob: {dbDatajob.Name}.",
                     Category = "Datajob",
                     CategoryKey = dbDatajob.DatajobKey,
-                    HubKey = dbDatajob.HubKey,
+                    ReferenceKey = dbDatajob.HubKey,
                     Data = datajobRun.WriterResult,
                     Action = DatajobRunTask,
                     Triggers = managedTaskSchedules,
@@ -567,6 +568,46 @@ namespace dexih.remote.operations
             {
                 LoggerMessages.LogError(40, ex, "Error in ActivateDatajobs: {0}", ex.Message);
                 throw new RemoteOperationException("Error activating datajobs.  " + ex.Message, ex);
+            }
+        }
+        
+        public bool DeactivateDatajobs(RemoteMessage message, CancellationToken cancellationToken)
+        {
+            try
+            {
+				var datajobKeys = message.Value["datajobKeys"].ToObject<long[]>();
+
+                var exceptions = new List<Exception>();
+
+                foreach (var datajobKey in datajobKeys)
+				{
+                    try
+                    {
+                        if (cancellationToken.IsCancellationRequested) break;
+                        var task = _managedTasks.GetTask("Datajob", datajobKey);
+                        task.Cancel();
+                    }
+                    catch (Exception ex)
+                    {
+                        var error = $"Failed to cancel datajob.  {ex.Message}";
+                        LoggerMessages.LogError(error);
+                        exceptions.Add(ex);
+                    }
+                }
+
+                if (exceptions.Count > 0)
+                {
+                    throw new AggregateException(exceptions);
+                }
+
+                cancellationToken.ThrowIfCancellationRequested();
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                LoggerMessages.LogError(40, ex, "Error in DeactivateDatajobs: {0}", ex.Message);
+                throw new RemoteOperationException("Error DeactivateDatajobs datajobs.  " + ex.Message, ex);
             }
         }
 
@@ -852,7 +893,7 @@ namespace dexih.remote.operations
                     Name = $"Remote Data",
                     Category = "ProxyDownload",
                     CategoryKey = 0,
-                    HubKey = 0,
+                    ReferenceKey = 0,
                     Data = 0,
                     Action = UploadDataTask,
                     Triggers = null,
@@ -869,7 +910,7 @@ namespace dexih.remote.operations
             {
                 // if downloading directly, then just get the stream ready for when the client connects.
                 var keys = _streams.SetDownloadStream(fileName, stream);
-                var url = $"{downloadUrl.Url}/{format}/{keys.Key}/{keys.SecurityKey}";
+                var url = $"{downloadUrl.Url}/{format}/{HttpUtility.UrlEncode(keys.Key)}/{HttpUtility.UrlEncode(keys.SecurityKey)}";
                 return url;
             }
         }
@@ -904,7 +945,7 @@ namespace dexih.remote.operations
                     Name = $"Remote Data",
                     Category = "ProxyUpload",
                     CategoryKey = 0,
-                    HubKey = 0,
+                    ReferenceKey = 0,
                     Data = 0,
                     Action = DownloadDataTask,
                     Triggers = null,
@@ -920,7 +961,7 @@ namespace dexih.remote.operations
             else
             {
                 var keys = _streams.SetUploadAction("", uploadAction);
-                var url = $"{downloadUrl.Url}/upload/{keys.Key}/{keys.SecurityKey}";
+                var url = $"{downloadUrl.Url}/upload/{HttpUtility.UrlEncode(keys.Key)}/{HttpUtility.UrlEncode(keys.SecurityKey)}";
                 return url;
             }
         }
