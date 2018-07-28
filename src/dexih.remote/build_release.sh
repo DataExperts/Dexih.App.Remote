@@ -19,22 +19,22 @@ dotnet publish -c release -r linux-x64 -f netcoreapp2.1 --version-suffix ${VERSI
 dotnet publish -c release -r alpine.3.6-x64 -f netcoreapp2.1 --version-suffix ${VERSION_SUFFIX} -p:VersionPrefix=${VERSION_PREFIX}
 
 pushd ./bin/release/netcoreapp2.1/win7-x64/publish
-zip -r ../../../../../releases/dexih.remote.windows_${VERSION_PREFIX}-${VERSION_SUFFIX}.zip *
+zip -qr ../../../../../releases/dexih.remote.windows_${VERSION_PREFIX}-${VERSION_SUFFIX}.zip *
 popd
 
 pushd ./bin/release/netcoreapp2.1/osx-x64/publish
 chmod a+x dexih.remote
-zip -r ../../../../../releases/dexih.remote.osx_${VERSION_PREFIX}-${VERSION_SUFFIX}.zip *
+zip -qr ../../../../../releases/dexih.remote.osx_${VERSION_PREFIX}-${VERSION_SUFFIX}.zip *
 popd
 
 pushd ./bin/release/netcoreapp2.1/linux-x64/publish
 chmod a+x dexih.remote
-zip -r ../../../../../releases/dexih.remote.linux_${VERSION_PREFIX}-${VERSION_SUFFIX}.zip *
+zip -qr ../../../../../releases/dexih.remote.linux_${VERSION_PREFIX}-${VERSION_SUFFIX}.zip *
 popd
 
 pushd ./bin/release/netcoreapp2.1/alpine.3.6-x64/publish
 chmod a+x dexih.remote
-zip -r ../../../../../releases/dexih.remote.alpine_${VERSION_PREFIX}-${VERSION_SUFFIX}.zip *
+zip -qr ../../../../../releases/dexih.remote.alpine_${VERSION_PREFIX}-${VERSION_SUFFIX}.zip *
 popd
 
-docker build . -t dexih/remote:${VERSION_PREFIX}-${VERSION_SUFFIX}
+# docker build . -t dexih/remote:${VERSION_PREFIX}-${VERSION_SUFFIX}

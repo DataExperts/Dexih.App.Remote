@@ -288,7 +288,7 @@ namespace dexih.remote.operations
 
                     void OnProgressUpdate(TransformWriterResult writerResult)
                     {
-                        progress.Report(writerResult.PercentageComplete, writerResult.RowsTotal);
+                        progress.Report(writerResult.PercentageComplete, writerResult.RowsTotal, writerResult.IsFinished ? "" : "Running datalink...");
                     }
 
                     datalinkRun.OnProgressUpdate += OnProgressUpdate;
@@ -302,7 +302,6 @@ namespace dexih.remote.operations
 
                     progress.Report(0, 0, "Running datalink...");
                     await datalinkRun.Run(cancellationToken);
-
                 }
 
                 var newTask = _managedTasks.Add(reference, clientId, $"Datalink: {datalinkRun.Datalink.Name}.", "Datalink", datalinkRun.Datalink.HubKey, null, datalinkRun.Datalink.DatalinkKey, datalinkRun.WriterResult, DatalinkRunTask, null, null, dependencies);
@@ -423,7 +422,7 @@ namespace dexih.remote.operations
 
                     void OnDatajobProgressUpdate(TransformWriterResult writerResult)
                     {
-                        progress.Report(writerResult.PercentageComplete, writerResult.RowsTotal);
+                        progress.Report(writerResult.PercentageComplete, writerResult.RowsTotal, writerResult.IsFinished ? "" : "Running datajob...");
                     }
 
                     void OnDatalinkStart(DatalinkRun datalinkRun)
