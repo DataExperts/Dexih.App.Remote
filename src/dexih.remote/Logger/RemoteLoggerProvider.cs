@@ -11,7 +11,7 @@ namespace dexih.remote
     [ProviderAlias("Remote")]
     public class RemoteLoggerProvider : ILoggerProvider
     {
-   private readonly ConcurrentDictionary<string, RemoteLogger> _loggers = new ConcurrentDictionary<string, RemoteLogger>();
+        private readonly ConcurrentDictionary<string, RemoteLogger> _loggers = new ConcurrentDictionary<string, RemoteLogger>();
 
         private readonly Func<string, LogLevel, bool> _filter;
         private IConsoleLoggerSettings _settings;
@@ -140,8 +140,7 @@ namespace dexih.remote
             {
                 foreach (var prefix in GetKeyPrefixes(name))
                 {
-                    LogLevel level;
-                    if (settings.TryGetSwitch(prefix, out level))
+                    if (settings.TryGetSwitch(prefix, out var level))
                     {
                         return (n, l) => l >= level;
                     }

@@ -113,8 +113,6 @@ namespace dexih.remote.operations
             }
         }
 
-
-        
         /// <summary>
         /// This encrypts a string using the remoteservers encryption key.  This is used for passwords and connection strings
         /// to ensure the passwords cannot be decrypted without access to the remote server.
@@ -1085,38 +1083,40 @@ namespace dexih.remote.operations
         
         public async Task<string> PreviewDatalink(RemoteMessage message, CancellationToken cancellationToken)
         {
-           try
-           {
-               if (!_remoteSettings.Privacy.AllowDataDownload)
+            try
+            {
+                if (!_remoteSettings.Privacy.AllowDataDownload)
                 {
-                    throw new RemoteSecurityException("This remote agent's privacy settings does not allow remote data previews.");
+                    throw new RemoteSecurityException(
+                        "This remote agent's privacy settings does not allow remote data previews.");
                 }
 
                 var cache = Json.JTokenToObject<CacheManager>(message.Value["cache"], _temporaryEncryptionKey);
                 var datalinkKey = message.Value["datalinkKey"].ToObject<long>();
-               var selectQuery = message.Value["selectQuery"].ToObject<SelectQuery>();
-               var dbDatalink = cache.Hub.DexihDatalinks.Single(c => c.DatalinkKey == datalinkKey);
-               var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
-               var inputColumns = message.Value["inputColumns"].ToObject<DexihColumnBase[]>();
-               
+                var selectQuery = message.Value["selectQuery"].ToObject<SelectQuery>();
+                var dbDatalink = cache.Hub.DexihDatalinks.Single(c => c.DatalinkKey == datalinkKey);
+                var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
+                var inputColumns = message.Value["inputColumns"].ToObject<DexihColumnBase[]>();
+
                 var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
-                var runPlan = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, inputColumns, null, null, false, selectQuery, previewMode:true);
+                var runPlan = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, inputColumns, null, null, false,
+                    selectQuery, previewMode: true);
                 var transform = runPlan.sourceTransform;
                 var openReturn = await transform.Open(0, null, cancellationToken);
-                if (!openReturn) 
+                if (!openReturn)
                 {
                     throw new RemoteOperationException("Failed to open the transform.");
                 }
 
                 transform.SetCacheMethod(Transform.ECacheMethod.OnDemandCache);
-				transform.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
+                transform.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
 
-               var stream = new TransformJsonStream(dbDatalink.Name, transform, selectQuery.Rows);
-               return await StartDataStream(stream, downloadUrl, "json", "preview_datalink.json", cancellationToken);
-           }
-           catch (Exception ex)
-           {
-               LoggerMessages.LogError(160, ex, "Error in PreviewDatalink: {0}", ex.Message);
+                var stream = new TransformJsonStream(dbDatalink.Name, transform, selectQuery.Rows);
+                return await StartDataStream(stream, downloadUrl, "json", "preview_datalink.json", cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                LoggerMessages.LogError(160, ex, "Error in PreviewDatalink: {0}", ex.Message);
                 throw;
             }
 

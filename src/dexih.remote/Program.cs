@@ -97,7 +97,7 @@ namespace dexih.remote
 |  '--'  ||  |____  /  .  \  |  | |  |  |  | 
 |_______/ |_______|/__/ \__\ |__| |__|  |__| 
 
-Welcome to Dexih - The Data Experts Integration Hub
+Welcome to Dexih - The Data Experts Information Hub
 ");
             
             // introduction message, with file version

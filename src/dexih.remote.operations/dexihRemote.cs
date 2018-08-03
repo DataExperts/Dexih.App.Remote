@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -711,7 +712,7 @@ namespace dexih.remote
                     return;
 
                 //a method with "Response" is a special case where central server is responding to agent call.  This requires no response and can be exited.
-                if(remoteMessage.Method == "Response")
+                if (remoteMessage.Method == "Response")
                 {
                     _responseMessages.TryAdd(remoteMessage.MessageId, remoteMessage);
                     return;
@@ -738,7 +739,7 @@ namespace dexih.remote
 
                 if (remoteMessage.SecurityToken == SecurityToken)
                 {
-                    var returnValue = method.Invoke(_remoteOperations, new object[] { remoteMessage, commandCancel });
+                    var returnValue = method.Invoke(_remoteOperations, new object[] {remoteMessage, commandCancel});
 
                     if (returnValue is Task task)
                     {
@@ -823,7 +824,7 @@ namespace dexih.remote
                         var jToken = Json.JTokenFromObject(returnValue, SessionEncryptionKey);
                         var responseMessage = SendHttpResponseMessage(remoteMessage.MessageId,
                             new ReturnValue<JToken>(true, jToken));
-                        
+
                         if (!responseMessage.Success)
                             LoggerMessages.LogError(
                                 "Error occurred sending a response to the web server.  Error was: " +
@@ -832,14 +833,32 @@ namespace dexih.remote
                 }
                 else
                 {
-                    var messageString = "The command " + remoteMessage.Method + " failed due to mismatching security tokens.";
-                    SendHttpResponseMessage(remoteMessage.MessageId, new ReturnValue<JToken>(false, messageString, null));
+                    var messageString = "The command " + remoteMessage.Method +
+                                        " failed due to mismatching security tokens.";
+                    SendHttpResponseMessage(remoteMessage.MessageId,
+                        new ReturnValue<JToken>(false, messageString, null));
                     LoggerMessages.LogWarning(messageString);
                 }
             }
-            catch (Exception ex)
+            catch (TargetInvocationException ex)
             {
                 LoggerMessages.LogError(100, ex, "Unknown error processing incoming message: " + ex.Message);
+                var exception = ex.InnerException == null ? ex : ex.InnerException;
+                var error = new ReturnValue<JToken>(false, $"{exception.Message}", ex);
+                var responseMessage = SendHttpResponseMessage(remoteMessage.MessageId, error);
+                
+                if (!responseMessage.Success)
+                    LoggerMessages.LogError("Error occurred sending a response to the web server.  Error was: " + responseMessage.Message);
+                
+            }
+            catch  (Exception ex)
+            {
+                LoggerMessages.LogError(100, ex, "Unknown error processing incoming message: " + ex.Message);
+                var error = new ReturnValue<JToken>(false, $"{ex.Message}", ex);
+                var responseMessage = SendHttpResponseMessage(remoteMessage.MessageId, error);
+                
+                if (!responseMessage.Success)
+                    LoggerMessages.LogError("Error occurred sending a response to the web server.  Error was: " + responseMessage.Message);
             }
 
         }
