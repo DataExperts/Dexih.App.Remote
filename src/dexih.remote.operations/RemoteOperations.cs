@@ -333,6 +333,46 @@ namespace dexih.remote.operations
                 throw new RemoteOperationException($"The datalink {datalinkRun.Datalink.Name} task encountered an error {ex.Message}.", ex);
             }
         }
+        
+        public bool CancelDatalinks(RemoteMessage message, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var datalinkKeys = message.Value["datalinkKeys"].ToObject<long[]>();
+
+                var exceptions = new List<Exception>();
+
+                foreach (var datalinkKey in datalinkKeys)
+                {
+                    try
+                    {
+                        if (cancellationToken.IsCancellationRequested) break;
+                        var task = _managedTasks.GetTask("Datalink", datalinkKey);
+                        task.Cancel();
+                    }
+                    catch (Exception ex)
+                    {
+                        var error = $"Failed to cancel datalink.  {ex.Message}";
+                        LoggerMessages.LogError(error);
+                        exceptions.Add(ex);
+                    }
+                }
+
+                if (exceptions.Count > 0)
+                {
+                    throw new AggregateException(exceptions);
+                }
+
+                cancellationToken.ThrowIfCancellationRequested();
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                LoggerMessages.LogError(40, ex, "Error in Cancel DataLinks: {0}", ex.Message);
+                throw new RemoteOperationException("Error Cancel Datalinks.  " + ex.Message, ex);
+            }
+        }
 
         public bool CancelTasks(RemoteMessage message, CancellationToken cancellationToken)
         {
