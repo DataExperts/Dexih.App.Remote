@@ -900,7 +900,7 @@ namespace dexih.remote.operations
                 var connection = dbConnection.GetConnection(settings);
                 var table = showRejectedData ? dbTable.GetRejectedTable(connection, settings) : dbTable.GetTable(connection, inputColumns, settings);
                 
-                var reader = connection.GetTransformReader(table);
+                var reader = connection.GetTransformReader(table, true);
                 reader = new TransformQuery(reader, selectQuery);
                 reader.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
                 await reader.Open(0, null, cancellationToken);
