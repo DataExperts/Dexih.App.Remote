@@ -11,6 +11,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
 using dexih.functions;
+using dexih.functions.Mappings;
+using dexih.functions.Parameter;
 using dexih.functions.Query;
 using dexih.operations;
 using dexih.remote.Operations.Services;
@@ -173,7 +175,7 @@ namespace dexih.remote.operations
 			}
 		}
 
-        public List<object> TestCustomFunction(RemoteMessage message, CancellationToken cancellationToken)
+        public IEnumerable<object> TestCustomFunction(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
             {
@@ -189,10 +191,12 @@ namespace dexih.remote.operations
 
                 if (testValues != null)
                 {
-                    var runFunctionResult = createFunction.RunFunction(testValues, outputNames);
-                    var outputs = createFunction.Outputs.Select(c => c.Value).ToList();
-                    outputs.Insert(0, runFunctionResult);
-                    return outputs;
+                    // var runFunctionResult = createFunction.RunFunction(testValues, outputNames);
+                    // var outputs = createFunction.Outputs.Select(c => c.Value).ToList();
+                    // outputs.Insert(0, runFunctionResult);
+
+                    var result = createFunction.function.Invoke(new FunctionVariables(), testValues, out object[] outputs);
+                    return new object[] {result}.Concat(outputs);
                 }
                 return null;
             }
@@ -1061,6 +1065,8 @@ namespace dexih.remote.operations
 
         }
         
+        
+        
         public async Task<string[]> ImportFunctionMappings(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
@@ -1108,20 +1114,20 @@ namespace dexih.remote.operations
 
                 var function = datalinkTransformItem.CreateFunctionMethod(cache.Hub, CreateGlobalVariables(cache));
 
-                var parameterInfos = function.ImportMethod.GetParameters();
+                var parameterInfos = function.function.ImportMethod.GetParameters();
                 var values = new object[parameterInfos.Length];
 
                 // loop through the import function parameters, and match them to the parameters in the run function.
                 for (var i = 0; i < parameterInfos.Length; i++)
                 {
-                    var parameter = function.Inputs.SingleOrDefault(c => c.Name == parameterInfos[i].Name);
+                    var parameter = function.parameters.Inputs.SingleOrDefault(c => c.Name == parameterInfos[i].Name);
                     if (parameter == null)
                     {
                         continue;
                     }
-                    if (parameter.Column != null)
+                    if (parameter is ParameterColumn parameterColumn && parameterColumn.Column != null)
                     {
-                        values[i] = transform[parameter.Column.Name];
+                        values[i] = transform[parameterColumn.Column.Name];
                     } 
                     else 
                     {
@@ -1129,7 +1135,7 @@ namespace dexih.remote.operations
                     }
                 }
                 
-                return function.Import(values);
+                return function.function.Import(values);
             }
             catch (Exception ex)
             {
