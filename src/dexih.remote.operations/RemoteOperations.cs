@@ -195,7 +195,7 @@ namespace dexih.remote.operations
                     // var outputs = createFunction.Outputs.Select(c => c.Value).ToList();
                     // outputs.Insert(0, runFunctionResult);
 
-                    var result = createFunction.function.Invoke(new FunctionVariables(), testValues, out object[] outputs);
+                    var result = createFunction.function.RunFunction(new FunctionVariables(), testValues, out object[] outputs);
                     return new object[] {result}.Concat(outputs);
                 }
                 return null;
