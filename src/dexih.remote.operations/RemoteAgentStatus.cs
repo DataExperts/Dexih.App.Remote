@@ -8,8 +8,10 @@ namespace dexih.remote.operations
     {
         public IEnumerable<ManagedTask> ActiveDatajobs { get; set; }
         public IEnumerable<ManagedTask> ActiveDatalinks { get; set; }
+        public IEnumerable<ManagedTask> ActiveDatalinkTests { get; set; }
         public IEnumerable<ManagedTask> PreviousDatajobs { get; set; }
         public IEnumerable<ManagedTask> PreviousDatalinks { get; set; }
+        public IEnumerable<ManagedTask> PreviousDatalinkTests { get; set; }
         public RemoteLibraries RemoteLibraries { get; set; }
     }
 }

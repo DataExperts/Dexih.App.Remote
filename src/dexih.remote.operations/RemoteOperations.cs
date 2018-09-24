@@ -18,6 +18,7 @@ using dexih.operations;
 using dexih.remote.Operations.Services;
 using dexih.repository;
 using dexih.transforms;
+using dexih.transforms.Exceptions;
 using dexih.transforms.Transforms;
 using Dexih.Utils.CopyProperties;
 using Dexih.Utils.Crypto;
@@ -119,8 +120,10 @@ namespace dexih.remote.operations
                 {
                     ActiveDatajobs = _managedTasks.GetActiveTasks("Datajob"),
                     ActiveDatalinks = _managedTasks.GetActiveTasks("Datalink"),
+                    ActiveDatalinkTests = _managedTasks.GetActiveTasks("DatalinkTest"),
                     PreviousDatajobs = _managedTasks.GetCompletedTasks("Datajob"),
                     PreviousDatalinks = _managedTasks.GetCompletedTasks("Datalink"),
+                    PreviousDatalinkTests = _managedTasks.GetCompletedTasks("DatalinkTest"),
                     RemoteLibraries = _remoteLibraries
                 };
 
@@ -378,6 +381,46 @@ namespace dexih.remote.operations
             }
         }
 
+        public bool CancelDatalinkTests(RemoteMessage message, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var datalinkTestKeys = message.Value["datalinkTestKeys"].ToObject<long[]>();
+
+                var exceptions = new List<Exception>();
+
+                foreach (var key in datalinkTestKeys)
+                {
+                    try
+                    {
+                        if (cancellationToken.IsCancellationRequested) break;
+                        var task = _managedTasks.GetTask("DatalinkTest", key);
+                        task.Cancel();
+                    }
+                    catch (Exception ex)
+                    {
+                        var error = $"Failed to cancel datalink test.  {ex.Message}";
+                        LoggerMessages.LogError(error);
+                        exceptions.Add(ex);
+                    }
+                }
+
+                if (exceptions.Count > 0)
+                {
+                    throw new AggregateException(exceptions);
+                }
+
+                cancellationToken.ThrowIfCancellationRequested();
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                LoggerMessages.LogError(40, ex, "Error in Cancel DataLink tests: {0}", ex.Message);
+                throw new RemoteOperationException("Error Cancel Datalink tests.  " + ex.Message, ex);
+            }
+        }
+        
         public bool CancelTasks(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
@@ -400,6 +443,143 @@ namespace dexih.remote.operations
             {
                 LoggerMessages.LogError(30, ex, "Error in CancelTasks: {0}", ex.Message);
                 throw;
+            }
+        }
+        
+        public bool RunDatalinkTests(RemoteMessage message, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var datalinkTestKeys = message.Value["datalinkTestKeys"].ToObject<long[]>();
+                var cache = message.Value["cache"].ToObject<CacheManager>();
+                var clientId = message.Value["clientId"].ToString();
+
+                var exceptions = new List<Exception>();
+                
+                foreach (var datalinkTestKey in datalinkTestKeys)
+                {
+                    var reference = Guid.NewGuid().ToString();
+                    
+                    try
+                    {
+                        if (cancellationToken.IsCancellationRequested) break;
+
+                        var datalinkTest = cache.Hub.DexihDatalinkTests.Single(c => c.DatalinkTestKey == datalinkTestKey);
+                        var datalinkTestRun = new DatalinkTestRun(GetTransformSettings(message.HubVariables), LoggerMessages, datalinkTest, cache.Hub, CreateGlobalVariables(cache), datalinkTestKey );
+
+                        async Task DatalinkTestTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken cancellationToken2)
+                        {
+                            void OnProgressUpdate(TransformWriterResult writerResult)
+                            {
+                                progress.Report(writerResult.PercentageComplete, writerResult.Passed + writerResult.Failed, writerResult.IsFinished ? "" : "Running datalink tests...");
+                            }
+
+                            datalinkTestRun.OnProgressUpdate += OnProgressUpdate;
+
+                            progress.Report(0, 0, $"Running datalink test {datalinkTest.Name}...");
+                            await datalinkTestRun.Run(cancellationToken2);
+                        }
+                        
+                        var newTask = _managedTasks.Add(reference, clientId, $"Datalink Test: {datalinkTest.Name}.", "DatalinkTest", datalinkTest.HubKey, null, datalinkTest.DatalinkTestKey, datalinkTestRun.WriterResult, DatalinkTestTask, null, null, null);
+                        if (newTask == null)
+                        {
+                            throw new RemoteOperationException("Run datalink tests failed, as the task failed to initialize.");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        var error = $"The datalink test failed.  {ex.Message}";
+                        LoggerMessages.LogError(error);
+                        exceptions.Add(ex);
+                    }
+                }
+
+                if(exceptions.Count > 0)
+                {
+                    throw new AggregateException(exceptions);
+                }
+
+                cancellationToken.ThrowIfCancellationRequested();
+
+                return true;
+			}
+            catch (Exception ex)
+            {
+                LoggerMessages.LogError(40, ex, "Error in RunDatalinkTests: {0}", ex.Message);
+                throw new RemoteOperationException("Error running data link tests.  " + ex.Message, ex);
+            }
+        }
+        
+        /// <summary>
+        /// Takes a snapshot of the datalink source/target data and uses this as the test data.
+        /// </summary>
+        /// <param name="message"></param>
+        /// <param name="cancellationToken"></param>
+        /// <returns></returns>
+        /// <exception cref="RemoteOperationException"></exception>
+        /// <exception cref="AggregateException"></exception>
+        public bool RunDatalinkTestSnapshots(RemoteMessage message, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var datalinkTestKeys = message.Value["datalinkTestKeys"].ToObject<long[]>();
+                var cache = message.Value["cache"].ToObject<CacheManager>();
+                var clientId = message.Value["clientId"].ToString();
+
+                var exceptions = new List<Exception>();
+                
+                foreach (var datalinkTestKey in datalinkTestKeys)
+                {
+                    var reference = Guid.NewGuid().ToString();
+                    
+                    try
+                    {
+                        if (cancellationToken.IsCancellationRequested) break;
+
+                        var datalinkTest = cache.Hub.DexihDatalinkTests.Single(c => c.DatalinkTestKey == datalinkTestKey);
+                        var datalinkTestRun = new DatalinkTestRun(GetTransformSettings(message.HubVariables), LoggerMessages, datalinkTest, cache.Hub, CreateGlobalVariables(cache), datalinkTestKey);
+
+                        async Task DatalinkTestSnapshotTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken cancellationToken2)
+                        {
+                            void OnProgressUpdate(TransformWriterResult writerResult)
+                            {
+                                progress.Report(writerResult.PercentageComplete, writerResult.Passed + writerResult.Failed, writerResult.IsFinished ? "" : "Running datalink test snapshot...");
+                            }
+
+                            datalinkTestRun.OnProgressUpdate += OnProgressUpdate;
+
+                            progress.Report(0, 0, $"Running datalink test {datalinkTest.Name}...");
+                            await datalinkTestRun.RunSnapshot(cancellationToken2);
+                        }
+                        
+
+                        var newTask = _managedTasks.Add(reference, clientId, $"Datalink Test Snapshot: {datalinkTest.Name}.", "DatalinkTestSnapshot", datalinkTest.HubKey, null, datalinkTest.DatalinkTestKey, datalinkTestRun.WriterResult, DatalinkTestSnapshotTask, null, null, null);
+                        if (newTask == null)
+                        {
+                            throw new RemoteOperationException("Run datalink test snapshot failed, as the task failed to initialize.");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        var error = $"The datalink test failed.  {ex.Message}";
+                        LoggerMessages.LogError(error);
+                        exceptions.Add(ex);
+                    }
+                }
+
+                if(exceptions.Count > 0)
+                {
+                    throw new AggregateException(exceptions);
+                }
+
+                cancellationToken.ThrowIfCancellationRequested();
+
+                return true;
+			}
+            catch (Exception ex)
+            {
+                LoggerMessages.LogError(40, ex, "Error in RunDatalinkTests: {0}", ex.Message);
+                throw new RemoteOperationException("Error running data link tests.  " + ex.Message, ex);
             }
         }
 
