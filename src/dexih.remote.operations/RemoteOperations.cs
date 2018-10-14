@@ -1294,7 +1294,7 @@ namespace dexih.remote.operations
 
                 var function = datalinkTransformItem.CreateFunctionMethod(cache.Hub, CreateGlobalVariables(cache));
 
-                var parameterInfos = function.function.ImportMethod.GetParameters();
+                var parameterInfos = function.function.ImportMethod.ParameterInfo;
                 var values = new object[parameterInfos.Length];
 
                 // loop through the import function parameters, and match them to the parameters in the run function.
