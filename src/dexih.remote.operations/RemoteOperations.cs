@@ -228,7 +228,8 @@ namespace dexih.remote.operations
                         DefaultValue = "<default value>"
                     };
 
-                var validateCleanResult = await validationRun.ValidateClean(testValue, cancellationToken);
+                await validationRun.Initialize(cancellationToken);
+                var validateCleanResult = validationRun.ValidateClean(testValue);
 
                 var result = new TestColumnValidationResult()
                 {
