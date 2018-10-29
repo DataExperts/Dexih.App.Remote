@@ -32,7 +32,6 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="2.1.1" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="2.1.1" />
     <PackageReference Include="Microsoft.Extensions.Configuration.FileExtensions" Version="2.1.1" />
-    <PackageReference Include="Microsoft.NETCore.App" Version="2.1.2" />
   </ItemGroup>
   <ItemGroup>
     <None Update=".dockerignore">

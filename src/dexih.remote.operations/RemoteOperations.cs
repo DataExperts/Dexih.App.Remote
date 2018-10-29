@@ -1087,9 +1087,9 @@ namespace dexih.remote.operations
                 
                 var reader = connection.GetTransformReader(table, true);
                 reader = new TransformQuery(reader, selectQuery);
-                reader.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
                 await reader.Open(0, null, cancellationToken);
-                
+                reader.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
+
                 LoggerMessages.LogInformation("Preview for table: " + dbTable.Name + ".");
 
                 var stream = new TransformJsonStream(dbTable.Name, reader, selectQuery.Rows);
@@ -1436,9 +1436,9 @@ namespace dexih.remote.operations
 
                     var reader = connection.GetTransformReader(profileTable);
                     reader = new TransformQuery(reader, query);
-                    reader.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
                     await reader.Open(0, null, cancellationToken);
-            
+                    reader.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
+
                     LoggerMessages.LogInformation("Preview for profile results: " + profileTable.Name + ".");
                     var stream = new TransformJsonStream(profileTable.Name, reader, query.Rows);
 
