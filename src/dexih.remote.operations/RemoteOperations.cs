@@ -1092,7 +1092,7 @@ namespace dexih.remote.operations
 
                 LoggerMessages.LogInformation("Preview for table: " + dbTable.Name + ".");
 
-                var stream = new TransformJsonStream(dbTable.Name, reader, selectQuery.Rows);
+                var stream = new StreamJson(dbTable.Name, reader, selectQuery.Rows);
 
                 return await StartDataStream(stream, downloadUrl, "json", "preview_table.json", cancellationToken);
 
@@ -1235,7 +1235,7 @@ namespace dexih.remote.operations
 				transform.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
                
                
-               var stream = new TransformJsonStream(dbDatalink.Name + " " + transform.Name, transform, selectQuery.Rows);
+               var stream = new StreamJson(dbDatalink.Name + " " + transform.Name, transform, selectQuery.Rows);
                return await StartDataStream(stream, downloadUrl, "json", "preview_transform.json", cancellationToken);
            }
            catch (Exception ex)
@@ -1355,7 +1355,7 @@ namespace dexih.remote.operations
                 transform.SetCacheMethod(Transform.ECacheMethod.OnDemandCache);
                 transform.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
 
-                var stream = new TransformJsonStream(dbDatalink.Name, transform, selectQuery.Rows);
+                var stream = new StreamJson(dbDatalink.Name, transform, selectQuery.Rows);
                 return await StartDataStream(stream, downloadUrl, "json", "preview_datalink.json", cancellationToken);
             }
             catch (Exception ex)
@@ -1393,7 +1393,7 @@ namespace dexih.remote.operations
                 transform.SetCacheMethod(Transform.ECacheMethod.OnDemandCache);
                 transform.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
 
-                var stream = new TransformCsvStream(transform);
+                var stream = new StreamCsv(transform);
                 return await StartDataStream(stream, downloadUrl, "csv", "reader_data.csv", cancellationToken);
             }
             catch (Exception ex)
@@ -1440,7 +1440,7 @@ namespace dexih.remote.operations
                     reader.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
 
                     LoggerMessages.LogInformation("Preview for profile results: " + profileTable.Name + ".");
-                    var stream = new TransformJsonStream(profileTable.Name, reader, query.Rows);
+                    var stream = new StreamJson(profileTable.Name, reader, query.Rows);
 
                     return await StartDataStream(stream, downloadUrl, "json", "preview_table.json", cancellationToken);
                 }
