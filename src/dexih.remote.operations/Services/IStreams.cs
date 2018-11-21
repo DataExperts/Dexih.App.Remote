@@ -14,6 +14,6 @@ namespace dexih.remote.Operations.Services
         Task ProcessUploadAction(string key, string securityKey, Stream stream);
 
         StreamSecurityKeys SetDownloadStream(string fileName, Stream stream);
-        (string fileName, Stream stream) GetDownloadStream(string key, string securityKey);
+        DownloadObject GetDownloadStream(string key, string securityKey);
     }
 }

@@ -5,7 +5,6 @@
     <VersionPrefix>0.4.0-beta</VersionPrefix>
     <VersionSuffix>00103</VersionSuffix>
     <Authors>Gary</Authors>
-    <TargetFrameworks>netcoreapp2.1</TargetFrameworks>
     <AssemblyName>dexih.remote</AssemblyName>
     <RuntimeIdentifiers>win-x64;linux-x64,osx-x64;alpine.3.6-x64</RuntimeIdentifiers>
     <OutputType>Exe</OutputType>
@@ -19,6 +18,7 @@
     <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
     <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
     <LangVersion>7.1</LangVersion>
+    <TargetFramework>netcoreapp2.1</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
     <Content Include="dexih_start.sh;dexih_unblock.ps1;version.txt">

@@ -39,7 +39,6 @@ namespace dexih.remote.Operations.Services
             if (!_uploadStreams.TryRemove(key, out var uploadObject))
             {
                 throw new Exception("The upload could not complete due to missing upload object.  This could be due to a timeout.");
-                
             }
             
             if (securityKey == uploadObject.SecurityKey)
@@ -54,11 +53,11 @@ namespace dexih.remote.Operations.Services
 
         private void CleanUpOldStreams(object o, EventArgs args)
         {
-            foreach (var downloadObject in _uploadStreams)
+            foreach (var uploadObject in _uploadStreams)
             {
-                if (downloadObject.Value.AddedDateTime.AddMinutes(5) < DateTime.Now)
+                if (uploadObject.Value.AddedDateTime.AddMinutes(5) < DateTime.Now)
                 {
-                    _uploadStreams.TryRemove(downloadObject.Key, out _);
+                    _uploadStreams.TryRemove(uploadObject.Key, out _);
                 }
             }
             
@@ -66,7 +65,8 @@ namespace dexih.remote.Operations.Services
             {
                 if (downloadObject.Value.AddedDateTime.AddMinutes(5) < DateTime.Now)
                 {
-                    _downloadStreams.TryRemove(downloadObject.Key, out _);
+                    _downloadStreams.TryRemove(downloadObject.Key, out var value);
+                    value.Dispose();
                 }
             }
         }
@@ -80,17 +80,17 @@ namespace dexih.remote.Operations.Services
             return new StreamSecurityKeys(key, downloadObject.SecurityKey);
         }
 
-        public (string fileName, Stream stream) GetDownloadStream(string key, string securityKey)
+        public DownloadObject GetDownloadStream(string key, string securityKey)
         {
             if (!_downloadStreams.TryRemove(key, out var stream))
             {
                 throw new Exception("The download could not complete due to missing download stream.  This could be due to a timeout.");
-                
             }
+            
             
             if (securityKey == stream.SecurityKey)
             {
-                return (stream.FileName, stream.DownloadStream);
+                return stream;
             }
 
             throw new Exception("The download could not complete due to mismatching security key.");
@@ -113,7 +113,7 @@ namespace dexih.remote.Operations.Services
     }
 
     
-    public class DownloadObject
+    public class DownloadObject : IDisposable
     {
         public DownloadObject(string fileName, Stream stream)
         {
@@ -127,5 +127,10 @@ namespace dexih.remote.Operations.Services
         public Stream DownloadStream { get; private set; }
         public string FileName { get; private set; }
         public DateTime AddedDateTime { get; private set; }
+
+        public void Dispose()
+        {
+            DownloadStream?.Dispose();
+        }
     }
 }

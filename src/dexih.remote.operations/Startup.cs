@@ -94,10 +94,9 @@ namespace dexih.remote.operations
 
                             context.Response.StatusCode = 200;
                             context.Response.Headers.Add("Content-Disposition",
-                                "attachment; filename=" + downloadStream.fileName);
-                            await downloadStream.stream.CopyToAsync(context.Response.Body);
-                            downloadStream.stream.Close();
-
+                                "attachment; filename=" + downloadStream.FileName);
+                            await downloadStream.DownloadStream.CopyToAsync(context.Response.Body);
+                            downloadStream.Dispose();
                         }
                     }
                     catch (Exception e)

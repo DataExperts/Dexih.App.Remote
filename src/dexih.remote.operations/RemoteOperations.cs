@@ -769,7 +769,7 @@ namespace dexih.remote.operations
                                         var transformSetting = GetTransformSettings(message.HubVariables);
 
                                         var connection = dbConnection.GetConnection(transformSetting);
-                                        var table = dbTable.GetTable(connection, null, transformSetting);
+                                        var table = dbTable.GetTable(connection, step.DexihDatalinkStepColumns, transformSetting);
 
                                         if (table is FlatFile flatFile && connection is ConnectionFlatFile connectionFlatFile)
                                         {
@@ -931,7 +931,7 @@ namespace dexih.remote.operations
 
                     var transformSettings = GetTransformSettings(message.HubVariables);
                     var connection = dbConnection.GetConnection(transformSettings);
-                    var table = dbTable.GetTable(connection, null, transformSettings);
+                    var table = dbTable.GetTable(connection, transformSettings);
 
                     try
                     {
@@ -981,7 +981,7 @@ namespace dexih.remote.operations
 
                     var transformSettings = GetTransformSettings(message.HubVariables);
                     var connection = dbConnection.GetConnection(transformSettings);
-                    var table = dbTable.GetTable(connection, null, transformSettings);
+                    var table = dbTable.GetTable(connection, transformSettings);
                     try
                     {
                         await connection.CreateTable(table, dropTables, cancellationToken);
@@ -1032,7 +1032,7 @@ namespace dexih.remote.operations
 
                         var transformSettings = GetTransformSettings(message.HubVariables);
                         var connection = dbConnection.GetConnection(transformSettings);
-                        var table = dbTable.GetTable(connection, null, transformSettings);
+                        var table = dbTable.GetTable(connection, transformSettings);
                         await connection.TruncateTable(table, cancellationToken);
 
                         LoggerMessages.LogTrace("Clear database table for table {table} and connection {connection} completed.", dbTable.Name, dbConnection.Name);
@@ -1500,7 +1500,7 @@ namespace dexih.remote.operations
             var dbConnection =dbHub.DexihConnections.First();
 		    var transformSettings = GetTransformSettings(message.HubVariables);
 		    var connection = (ConnectionFlatFile)dbConnection.GetConnection(transformSettings);
-            var table = dbTable.GetTable(connection, null, transformSettings);
+            var table = dbTable.GetTable(connection, transformSettings);
 			return (dbConnection.HubKey, connection, (FlatFile) table);
 		}
 
@@ -1616,7 +1616,7 @@ namespace dexih.remote.operations
 
                 var transformSettings = GetTransformSettings(message.HubVariables);
                 var connection = (ConnectionFlatFile)dbConnection.GetConnection(transformSettings);
-                var table = dbTable.GetTable(connection, null, transformSettings);
+                var table = dbTable.GetTable(connection, transformSettings);
 
                 var flatFile = (FlatFile)table;
 
@@ -1708,7 +1708,7 @@ namespace dexih.remote.operations
 
                 var transformSettings = GetTransformSettings(message.HubVariables);
                 var connection = (ConnectionFlatFile)dbConnection.GetConnection(transformSettings);
-                var table = dbTable.GetTable(connection, null, transformSettings);
+                var table = dbTable.GetTable(connection, transformSettings);
 
                 var flatFile = (FlatFile)table;
                 var fileName = message.GetParameter("FileName");
