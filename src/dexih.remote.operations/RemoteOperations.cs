@@ -769,7 +769,7 @@ namespace dexih.remote.operations
                                         var transformSetting = GetTransformSettings(message.HubVariables);
 
                                         var connection = dbConnection.GetConnection(transformSetting);
-                                        var table = dbTable.GetTable(connection, step.DexihDatalinkStepColumns, transformSetting);
+                                        var table = dbTable.GetTable(connection, null, transformSetting);
 
                                         if (table is FlatFile flatFile && connection is ConnectionFlatFile connectionFlatFile)
                                         {
@@ -1071,7 +1071,7 @@ namespace dexih.remote.operations
                 var showRejectedData = message.Value["showRejectedData"].ToObject<bool>();
                 var selectQuery = message.Value["selectQuery"].ToObject<SelectQuery>();
                 var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
-                var inputColumns = message.Value["inputColumns"].ToObject<DexihColumnBase[]>();
+                var inputColumns = message.Value["inputColumns"].ToObject<InputColumn[]>();
 
                 //retrieve the source tables into the cache.
                 var settings = GetTransformSettings(message.HubVariables);
@@ -1220,7 +1220,7 @@ namespace dexih.remote.operations
                var dbDatalink = message.Value["datalink"].ToObject<DexihDatalink>();
                var selectQuery = message.Value["selectQuery"].ToObject<SelectQuery>();
                var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
-               var inputColumns = message.Value["inputColumns"].ToObject<DexihColumnBase[]>();
+               var inputColumns = message.Value["inputColumns"].ToObject<InputColumn[]>();
 
                 var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
                 var runPlan = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, inputColumns, CreateGlobalVariables(cache), datalinkTransformKey, null, false, previewMode: true);
@@ -1341,7 +1341,7 @@ namespace dexih.remote.operations
                 var selectQuery = message.Value["selectQuery"].ToObject<SelectQuery>();
                 var dbDatalink = cache.Hub.DexihDatalinks.Single(c => c.DatalinkKey == datalinkKey);
                 var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
-                var inputColumns = message.Value["inputColumns"].ToObject<DexihColumnBase[]>();
+                var inputColumns = message.Value["inputColumns"].ToObject<InputColumn[]>();
 
                 var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
                 var runPlan = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, inputColumns, CreateGlobalVariables(cache), null, null, false, selectQuery, previewMode: true);
