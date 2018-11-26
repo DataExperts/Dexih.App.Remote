@@ -33,8 +33,6 @@ namespace dexih.remote.operations
     
     public class RemoteOperations
     {
-        
-       
         private readonly string _temporaryEncryptionKey;
         private ILogger LoggerMessages { get; }
         private readonly ManagedTasks _managedTasks;
@@ -81,7 +79,11 @@ namespace dexih.remote.operations
                 encryptionKey = cache.CacheEncryptionKey + _remoteSettings.AppSettings.EncryptionKey;
             }
 
-            var globalVariables = new GlobalVariables(encryptionKey);
+                var globalVariables = new GlobalVariables()
+                {
+                    EncryptionKey = encryptionKey,
+                    FilePermissions = _remoteSettings.Permissions.GetFilePermissions()
+                };
 
             return globalVariables;
         }
@@ -91,7 +93,7 @@ namespace dexih.remote.operations
             set => _securityToken = value;
         }
 
-        public TransformSettings GetTransformSettings(IEnumerable<DexihHubVariable> hubVariables)
+        public TransformSettings GetTransformSettings(DexihHubVariable[] hubVariables)
         {
             var settings = new TransformSettings()
             {

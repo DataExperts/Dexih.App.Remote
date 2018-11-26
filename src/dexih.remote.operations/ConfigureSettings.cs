@@ -522,7 +522,7 @@ namespace dexih.remote
 
                         if (string.IsNullOrEmpty(RemoteSettings.Network.CertificatePassword))
                         {
-                            if (File.Exists(RemoteSettings.Network.CerfificateFilePath()))
+                            if (File.Exists(RemoteSettings.Network.CertificateFilePath()))
                             {
                                 RemoteSettings.Network.CertificatePassword = GetStringInput(
                                     $"Enter the password for the certificate with the name {RemoteSettings.Network.CertificateFilename}.",

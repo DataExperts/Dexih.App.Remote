@@ -356,7 +356,7 @@ namespace dexih.remote
                             try
                             {
                                 var useHttps = !string.IsNullOrEmpty(_remoteSettings.Network.CertificateFilename);
-                                var certificatePath = _remoteSettings.Network.CerfificateFilePath();
+                                var certificatePath = _remoteSettings.Network.CertificateFilePath();
                                 
                                 logger.LogInformation($"Using the ssl certificate at {certificatePath}");
 
