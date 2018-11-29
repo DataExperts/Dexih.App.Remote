@@ -40,6 +40,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\dexih.application\dexih.functions.builtIn\dexih.functions.builtIn.csproj" />
+    <ProjectReference Include="..\..\..\dexih.application\dexih.functions.external\dexih.functions.external.csproj" />
     <ProjectReference Include="..\..\..\dexih.application\dexih.functions.ml\dexih.functions.ml.csproj" />
     <ProjectReference Include="..\..\..\dexih.application\src\dexih.functions.financial\dexih.functions.financial.csproj" />
     <ProjectReference Include="..\..\..\dexih.application\src\dexih.functions.maths\dexih.functions.maths.csproj" />

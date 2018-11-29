@@ -322,8 +322,20 @@ namespace dexih.remote
         {
 
             var logger = LoggerFactory.CreateLogger("Listen");
+            IWebHost host = null;
             try
             {
+                if ((_remoteSettings.Privacy.AllowDataUpload || _remoteSettings.Privacy.AllowDataDownload) &&
+                    (_remoteSettings.Privacy.AllowLanAccess || _remoteSettings.Privacy.AllowExternalAccess))
+                {
+                    host = await StartHttpServer(cancellationToken);
+                }
+                else
+                {
+                    logger.LogWarning(10,
+                        $"HttpServer not started, this agent will not be able to upload/download data.");
+                }
+
                 using (var signalrTs = new CancellationTokenSource())
                 {
                     var signalrCt = signalrTs.Token;
@@ -339,8 +351,6 @@ namespace dexih.remote
                             return signalrConnectionResult;
                         }
 
-                        // start the send message handler.
-                        var sender = SendMessageHandler(ct);
 
                         //set the repeating tasks
                         TimerCallback datalinkProgressCallBack = SendDatalinkProgress;
@@ -349,238 +359,224 @@ namespace dexih.remote
                         _streams.OriginUrl = _remoteSettings.AppSettings.WebServer;
                         _streams.RemoteSettings = _remoteSettings;
 
-
-                        // if direct upload/downloads are enabled, startup the upload/download web server.
-                        if ((_remoteSettings.Privacy.AllowDataUpload || _remoteSettings.Privacy.AllowDataDownload) && (_remoteSettings.Privacy.AllowLanAccess || _remoteSettings.Privacy.AllowExternalAccess))
-                        {
-                            try
-                            {
-                                var useHttps = !string.IsNullOrEmpty(_remoteSettings.Network.CertificateFilename);
-                                var certificatePath = _remoteSettings.Network.CertificateFilePath();
-                                
-                                logger.LogInformation($"Using the ssl certificate at {certificatePath}");
-
-                                if (_remoteSettings.Network.AutoGenerateCertificate)
-                                {
-                                    // if no cerficiate name or password are specified, generate them automatically.
-                                    if (string.IsNullOrEmpty(_remoteSettings.Network.CertificateFilename))
-                                    {
-                                        throw new RemoteException("The applicationSettings -> Network -> AutoGenerateCertificate is true, however there no setting for CerficiateFilename");
-                                    }
-
-                                    if (string.IsNullOrEmpty(_remoteSettings.Network.CertificatePassword))
-                                    {
-                                        throw new RemoteException("The applicationSettings -> Network -> AutoGenerateCertificate is true, however there no setting for CertificatePassword");
-                                    }
-
-                                    useHttps = true;
-
-                                    var renew = false;
-
-                                    
-                                    
-                                    if (File.Exists(certificatePath))
-                                    {
-                                        // Create a collection object and populate it using the PFX file
-                                        using (var cert = new X509Certificate2(
-                                            certificatePath,
-                                            _remoteSettings.Network.CertificatePassword))
-                                        {
-                                            var effectiveDate = DateTime.Parse(cert.GetEffectiveDateString());
-                                            var expiresDate = DateTime.Parse(cert.GetExpirationDateString());
-
-                                            // if cert expires in next 14 days, then renew.
-                                            if (DateTime.Now > expiresDate.AddDays(-14))
-                                            {
-                                                renew = true;
-                                            }
-                                        }
-                                    }
-                                    else
-                                    {
-                                        renew = true;
-                                    }
-
-                                    // generate a new ssl certificate
-                                    if (renew)
-                                    {
-                                        var details = new
-                                        {
-                                            Domain = _remoteSettings.Network.DynamicDomain,
-                                            Password = _remoteSettings.Network.CertificatePassword
-                                        };
-
-                                        var messagesString = Json.SerializeObject(details, SessionEncryptionKey);
-                                        var content = new StringContent(messagesString, Encoding.UTF8,
-                                            "application/json");
-
-                                        var response = await _httpClient.PostAsync(Url + "Remote/GenerateCertificate",
-                                            content, ct);
-
-                                        if (response.IsSuccessStatusCode)
-                                        {
-                                            if (response.Content.Headers.ContentType.MediaType == "application/json")
-                                            {
-                                                var jsonContent = await response.Content.ReadAsStringAsync();
-                                                var message = JsonConvert.DeserializeObject<ReturnValue>(jsonContent);
-                                                logger.LogDebug("GenerateCertficate details: " + message.ExceptionDetails);
-                                                throw new RemoteException(message.Message, message.Exception);
-                                            }
-                                            var certificate = await response.Content.ReadAsByteArrayAsync();
-                                            File.WriteAllBytes(certificatePath,
-                                                certificate);
-                                        }
-                                        else
-                                        {
-                                            throw new RemoteException(
-                                                $"The certificate renewal failed.  {response.ReasonPhrase}.");
-                                        }
-                                    }
-                                }
-
-                                if (_remoteSettings.Network.EnforceHttps)
-                                {
-
-                                    if (string.IsNullOrEmpty(_remoteSettings.Network.CertificateFilename))
-                                    {
-                                        throw new RemoteException(
-                                            "The server requires https, however a CertificateFile name is not specified.");
-                                    }
-
-                                    if (!File.Exists(certificatePath))
-                                    {
-                                        throw new RemoteException(
-                                            $"The certificate with the filename {certificatePath} does not exist.");
-                                    }
-
-                                    using (var cert = new X509Certificate2(
-                                        certificatePath,
-                                        _remoteSettings.Network.CertificatePassword))
-                                    {
-                                        var effectiveDate = DateTime.Parse(cert.GetEffectiveDateString());
-                                        var expiresDate = DateTime.Parse(cert.GetExpirationDateString());
-
-                                        if (DateTime.Now < effectiveDate)
-                                        {
-                                            throw new RemoteException(
-                                                $"The certificate with the filename {certificatePath} is not valid until {effectiveDate}.");
-                                        }
-
-
-                                        if (DateTime.Now > expiresDate)
-                                        {
-                                            throw new RemoteException(
-                                                $"The certificate with the filename {certificatePath} expired on {expiresDate}.");
-                                        }
-                                    }
-                                }
-
-                                if (!useHttps && _remoteSettings.Network.EnforceHttps)
-                                {
-                                    throw new RemoteException("The remote agent is set to EnforceHttps, however no SSL certificate was found or able to be generated.");
-                                }
-
-                                if (!useHttps || File.Exists(certificatePath))
-                                {
-                                    if (_remoteSettings.Network.DownloadPort == null)
-                                    {
-                                        throw new Exception("The web server download port was not set.");
-                                    }
-                                    
-                                    var port = _remoteSettings.Network.DownloadPort.Value;
-
-                                    if (_remoteSettings.Network.EnableUPnP)
-                                    {
-                                        try
-                                        {
-                                            var discoverer = new NatDiscoverer();
-                                            var cts = new CancellationTokenSource(10000);
-                                            var device = await discoverer.DiscoverDeviceAsync(PortMapper.Upnp, cts);
-                                            var exists = await device.GetSpecificMappingAsync(Protocol.Tcp, port);
-
-                                            if (exists == null)
-                                            {
-                                                await device.CreatePortMapAsync(new Mapping(Protocol.Tcp, port, port,
-                                                    "Data Experts Remote Agent"));
-
-                                                if (cts.IsCancellationRequested)
-                                                {
-                                                    logger.LogError(10, $"A timeout occurred mapping upnp port");
-                                                }
-                                            }
-                                        }
-                                        catch (Exception ex)
-                                        {
-                                            logger.LogError(10, ex, $"Error mapping upnp port: {ex.Message}");
-                                        }
-                                    }
-
-                                    logger.LogInformation("Starting the data upload/download web server.");
-                                    var host = new WebHostBuilder()
-                                        .UseStartup<Startup>()
-                                        .ConfigureServices(s => s.AddSingleton(_streams))
-                                        .UseKestrel(options =>
-                                        {
-                                            options.Listen(IPAddress.Any,
-                                                _remoteSettings.Network.DownloadPort ?? 33944,
-                                                listenOptions =>
-                                                {
-                                                    // if there is a cerficiate then default to https
-                                                    if (useHttps)
-                                                    {
-                                                        listenOptions.UseHttps(
-                                                            certificatePath,
-                                                            _remoteSettings.Network.CertificatePassword);
-                                                    }
-                                                });
-                                        })
-                                        .UseUrls((useHttps ? "https://*:" : "http://*:") + port)
-                                        .Build();
-
-                                    var webRunTask = host.RunAsync(ct);
-
-                                    // remote agent will wait here until a cancel is issued.
-                                    await Task.WhenAny(sender, webRunTask);
-
-                                    if (webRunTask.IsFaulted)
-                                    {
-                                        throw new RemoteException($"Error running http server: {webRunTask.Exception?.Message}", webRunTask.Exception);
-                                    }
-                                    
-                                    host.Dispose();
-                                }
-                                else
-                                {
-                                    throw new RemoteException(
-                                        $"The certificate {certificatePath} could not be found.");
-                                }
-                            }
-                            catch (Exception e)
-                            {
-                                logger.LogError(10, e,
-                                    $"HttpServer not started, this agent will not be able to upload/download data.");
-                                await sender;
-                            }
-                        }
-                        else
-                        {
-                            logger.LogWarning(10,
-                                $"HttpServer not started, this agent will not be able to upload/download data.");
-                            await sender;
-                        }
+                        // start the send message handler.
+                        await SendMessageHandler(ct);
 
                         datalinkProgressTimer.Dispose();
                         await HubConnection.DisposeAsync();
 
+                        if (host != null)
+                        {
+                            await host.StopAsync(ct);
+                            host.Dispose();
+                        }
+
                         return EConnectionResult.Disconnected;
                     }
                 }
+
+                
             }
             catch (Exception ex)
             {
                 logger.LogError(10, ex, "Error connecting to hub: " + ex.Message);
                 return EConnectionResult.UnhandledException;
             }
+        }
+
+        private async Task<IWebHost> StartHttpServer(CancellationToken cancellationToken)
+        {
+            var logger = LoggerFactory.CreateLogger("WebHost");
+
+            var useHttps = !string.IsNullOrEmpty(_remoteSettings.Network.CertificateFilename);
+            var certificatePath = _remoteSettings.Network.CertificateFilePath();
+
+            logger.LogInformation($"Using the ssl certificate at {certificatePath}");
+
+            if (_remoteSettings.Network.AutoGenerateCertificate)
+            {
+                // if no certificate name or password are specified, generate them automatically.
+                if (string.IsNullOrEmpty(_remoteSettings.Network.CertificateFilename))
+                {
+                    throw new RemoteException(
+                        "The applicationSettings -> Network -> AutoGenerateCertificate is true, however there no setting for CerficiateFilename");
+                }
+
+                if (string.IsNullOrEmpty(_remoteSettings.Network.CertificatePassword))
+                {
+                    throw new RemoteException(
+                        "The applicationSettings -> Network -> AutoGenerateCertificate is true, however there no setting for CertificatePassword");
+                }
+
+                useHttps = true;
+
+                var renew = false;
+
+
+                if (File.Exists(certificatePath))
+                {
+                    // Create a collection object and populate it using the PFX file
+                    using (var cert = new X509Certificate2(
+                        certificatePath,
+                        _remoteSettings.Network.CertificatePassword))
+                    {
+                        var effectiveDate = DateTime.Parse(cert.GetEffectiveDateString());
+                        var expiresDate = DateTime.Parse(cert.GetExpirationDateString());
+
+                        // if cert expires in next 14 days, then renew.
+                        if (DateTime.Now > expiresDate.AddDays(-14))
+                        {
+                            renew = true;
+                        }
+                    }
+                }
+                else
+                {
+                    renew = true;
+                }
+
+                // generate a new ssl certificate
+                if (renew)
+                {
+                    var details = new
+                    {
+                        Domain = _remoteSettings.Network.DynamicDomain,
+                        Password = _remoteSettings.Network.CertificatePassword
+                    };
+
+                    var messagesString = Json.SerializeObject(details, SessionEncryptionKey);
+                    var content = new StringContent(messagesString, Encoding.UTF8,
+                        "application/json");
+
+                    var response = await _httpClient.PostAsync(Url + "Remote/GenerateCertificate",
+                        content, cancellationToken);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        if (response.Content.Headers.ContentType.MediaType == "application/json")
+                        {
+                            var jsonContent = await response.Content.ReadAsStringAsync();
+                            var message = JsonConvert.DeserializeObject<ReturnValue>(jsonContent);
+                            logger.LogDebug("GenerateCertficate details: " + message.ExceptionDetails);
+                            throw new RemoteException(message.Message, message.Exception);
+                        }
+
+                        var certificate = await response.Content.ReadAsByteArrayAsync();
+                        File.WriteAllBytes(certificatePath,
+                            certificate);
+                    }
+                    else
+                    {
+                        throw new RemoteException(
+                            $"The certificate renewal failed.  {response.ReasonPhrase}.");
+                    }
+                }
+            }
+
+            if (_remoteSettings.Network.EnforceHttps)
+            {
+                if (string.IsNullOrEmpty(_remoteSettings.Network.CertificateFilename))
+                {
+                    throw new RemoteException(
+                        "The server requires https, however a CertificateFile name is not specified.");
+                }
+
+                if (!File.Exists(certificatePath))
+                {
+                    throw new RemoteException(
+                        $"The certificate with the filename {certificatePath} does not exist.");
+                }
+
+                using (var cert = new X509Certificate2(
+                    certificatePath,
+                    _remoteSettings.Network.CertificatePassword))
+                {
+                    var effectiveDate = DateTime.Parse(cert.GetEffectiveDateString());
+                    var expiresDate = DateTime.Parse(cert.GetExpirationDateString());
+
+                    if (DateTime.Now < effectiveDate)
+                    {
+                        throw new RemoteException(
+                            $"The certificate with the filename {certificatePath} is not valid until {effectiveDate}.");
+                    }
+
+
+                    if (DateTime.Now > expiresDate)
+                    {
+                        throw new RemoteException(
+                            $"The certificate with the filename {certificatePath} expired on {expiresDate}.");
+                    }
+                }
+            }
+
+            if (!useHttps && _remoteSettings.Network.EnforceHttps)
+            {
+                throw new RemoteException(
+                    "The remote agent is set to EnforceHttps, however no SSL certificate was found or able to be generated.");
+            }
+
+            if (!useHttps || File.Exists(certificatePath))
+            {
+                if (_remoteSettings.Network.DownloadPort == null)
+                {
+                    throw new Exception("The web server download port was not set.");
+                }
+
+                var port = _remoteSettings.Network.DownloadPort.Value;
+
+                if (_remoteSettings.Network.EnableUPnP)
+                {
+                    try
+                    {
+                        var discoverer = new NatDiscoverer();
+                        var cts = new CancellationTokenSource(10000);
+                        var device = await discoverer.DiscoverDeviceAsync(PortMapper.Upnp, cts);
+                        var exists = await device.GetSpecificMappingAsync(Protocol.Tcp, port);
+
+                        if (exists == null)
+                        {
+                            await device.CreatePortMapAsync(new Mapping(Protocol.Tcp, port, port,
+                                "Data Experts Remote Agent"));
+
+                            if (cts.IsCancellationRequested)
+                            {
+                                logger.LogError(10, $"A timeout occurred mapping upnp port");
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogError(10, ex, $"Error mapping uPnP port: {ex.Message}");
+                    }
+                }
+
+                logger.LogInformation("Starting the data upload/download web server.");
+                var host = new WebHostBuilder()
+                    .UseStartup<Startup>()
+                    .ConfigureServices(s => s.AddSingleton(_streams))
+                    .UseKestrel(options =>
+                    {
+                        options.Listen(IPAddress.Any,
+                            _remoteSettings.Network.DownloadPort ?? 33944,
+                            listenOptions =>
+                            {
+                                // if there is a certificate then default to https
+                                if (useHttps)
+                                {
+                                    listenOptions.UseHttps(
+                                        certificatePath,
+                                        _remoteSettings.Network.CertificatePassword);
+                                }
+                            });
+                    })
+                    .UseUrls((useHttps ? "https://*:" : "http://*:") + port)
+                    .Build();
+
+                await host.StartAsync(cancellationToken);
+                return host;
+            }
+
+            return null;
         }
 
         /// <summary>
@@ -655,9 +651,9 @@ namespace dexih.remote
             }
             catch (Exception ex)
             {
-                logger.LogError(10, ex, "Failed to connect with " + defaultTransportType  + ".  Attempting longpolling.");
+                logger.LogError(10, ex, "Failed to connect with " + defaultTransportType  + ".  Attempting long-polling.");
 
-                // if the connection failes, attempt to downgrade to longpolling.
+                // if the connection failes, attempt to downgrade to long-polling.
                 if (defaultTransportType == HttpTransportType.WebSockets)
                 {
                     HubConnection = BuildHubConnection(HttpTransportType.LongPolling);
