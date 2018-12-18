@@ -1,11 +1,11 @@
-﻿using Microsoft.Extensions.Logging;
-using System;
-using System.Threading;
-using Microsoft.Extensions.Configuration;
+﻿using System;
 using System.IO;
 using System.Reflection;
+using System.Threading;
 using System.Threading.Tasks;
 using dexih.repository;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace dexih.remote
 {
