@@ -13,26 +13,26 @@ printf "%s %s" ${VERSION_PREFIX} ${VERSION_SUFFIX} > version.txt
 
 dotnet restore
 # dotnet publish -c release -r win7-x64 -f net46
-dotnet publish -c release -r win7-x64 -f netcoreapp2.1 --version-suffix ${VERSION_SUFFIX} -p:VersionPrefix=${VERSION_PREFIX}
-dotnet publish -c release -r osx-x64 -f netcoreapp2.1 --version-suffix ${VERSION_SUFFIX} -p:VersionPrefix=${VERSION_PREFIX}
-dotnet publish -c release -r linux-x64 -f netcoreapp2.1 --version-suffix ${VERSION_SUFFIX} -p:VersionPrefix=${VERSION_PREFIX}
-dotnet publish -c release -r alpine.3.6-x64 -f netcoreapp2.1 --version-suffix ${VERSION_SUFFIX} -p:VersionPrefix=${VERSION_PREFIX}
+dotnet publish -c release -r win7-x64 -f netcoreapp2.2 --version-suffix ${VERSION_SUFFIX} -p:VersionPrefix=${VERSION_PREFIX}
+dotnet publish -c release -r osx-x64 -f netcoreapp2.2 --version-suffix ${VERSION_SUFFIX} -p:VersionPrefix=${VERSION_PREFIX}
+dotnet publish -c release -r linux-x64 -f netcoreapp2.2 --version-suffix ${VERSION_SUFFIX} -p:VersionPrefix=${VERSION_PREFIX}
+dotnet publish -c release -r alpine.3.6-x64 -f netcoreapp2.2 --version-suffix ${VERSION_SUFFIX} -p:VersionPrefix=${VERSION_PREFIX}
 
-pushd ./bin/release/netcoreapp2.1/win7-x64/publish
+pushd ./bin/release/netcoreapp2.2/win7-x64/publish
 zip -qr ../../../../../releases/dexih.remote.windows_${VERSION_PREFIX}-${VERSION_SUFFIX}.zip *
 popd
 
-pushd ./bin/release/netcoreapp2.1/osx-x64/publish
+pushd ./bin/release/netcoreapp2.2/osx-x64/publish
 chmod a+x dexih.remote
 zip -qr ../../../../../releases/dexih.remote.osx_${VERSION_PREFIX}-${VERSION_SUFFIX}.zip *
 popd
 
-pushd ./bin/release/netcoreapp2.1/linux-x64/publish
+pushd ./bin/release/netcoreapp2.2/linux-x64/publish
 chmod a+x dexih.remote
 zip -qr ../../../../../releases/dexih.remote.linux_${VERSION_PREFIX}-${VERSION_SUFFIX}.zip *
 popd
 
-pushd ./bin/release/netcoreapp2.1/alpine.3.6-x64/publish
+pushd ./bin/release/netcoreapp2.2/alpine.3.6-x64/publish
 chmod a+x dexih.remote
 zip -qr ../../../../../releases/dexih.remote.alpine_${VERSION_PREFIX}-${VERSION_SUFFIX}.zip *
 popd
