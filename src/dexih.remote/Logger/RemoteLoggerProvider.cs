@@ -19,11 +19,10 @@ namespace dexih.remote
 
         private static readonly Func<string, LogLevel, bool> trueFilter = (cat, level) => true;
         private static readonly Func<string, LogLevel, bool> falseFilter = (cat, level) => false;
-        private IDisposable _optionsReloadToken;
+        private readonly IDisposable _optionsReloadToken;
         private bool _includeScopes;
         private bool _disableColors;
         private IExternalScopeProvider _scopeProvider;
-
 
         public RemoteLoggerProvider(LogLevel minLevel)
             : this((category, logLevel) => logLevel >= minLevel, false, false)

@@ -65,9 +65,9 @@ namespace dexih.remote
         private ILogger LoggerMessages { get; }
         private ILogger LoggerDatalinks { get; }
 
-        private HubConnection HubConnection { get; set; }
-        // private CookieContainer HttpCookieContainer { get; set; }
+        private HubConnection _connection;
 
+        private CookieContainer _httpCookieContainer;
         private readonly HttpClient _httpClient;
 
         private readonly RemoteOperations _remoteOperations;
@@ -126,10 +126,10 @@ namespace dexih.remote
 
             SessionEncryptionKey = EncryptString.GenerateRandomKey();
 
-            var cookies = new CookieContainer();
+            _httpCookieContainer = new CookieContainer();
             var handler = new HttpClientHandler
             {
-                CookieContainer = cookies
+                CookieContainer = _httpCookieContainer
             };
 
             //Login to the web server to receive an authenicated cookie.
@@ -230,7 +230,7 @@ namespace dexih.remote
         /// <param name="silentLogin"></param>
         /// <param name="cancellationToken"></param>
         /// <returns>The connection result, and a new user token if generated.</returns>
-        public async Task<(EConnectionResult connectionResult, string userToken, string ipAddress, string userHash)> LoginAsync(bool generateUserToken, bool silentLogin, CancellationToken cancellationToken)
+        private async Task<(EConnectionResult connectionResult, string userToken, string ipAddress, string userHash)> LoginAsync(bool generateUserToken, bool silentLogin, CancellationToken cancellationToken)
         {
             var logger = LoggerFactory.CreateLogger("Login");
             try
@@ -246,7 +246,6 @@ namespace dexih.remote
 
                 _remoteSettings.Runtime.GenerateUserToken = generateUserToken;
                 _remoteSettings.Runtime.Version = runtimeVersion;
-                
                 
                 var messagesString = Json.SerializeObject(_remoteSettings, SessionEncryptionKey);
                 var content = new StringContent(messagesString, Encoding.UTF8, "application/json");
@@ -267,12 +266,12 @@ namespace dexih.remote
                 catch (Exception ex)
                 {
                     if (!silentLogin)
-                        logger.LogCritical(10, ex, "Internal rrror connecting to the server at location: {0}",
+                        logger.LogCritical(10, ex, "Internal error connecting to the server at location: {0}",
                             Url + "/Remote/Login");
                     return (EConnectionResult.InvalidLocation, "", "", "");
                 }
 
-                //login to the server and receive a securityToken which is used for future communcations.
+                //login to the server and receive a securityToken which is used for future communications.
                 var serverResponse = await response.Content.ReadAsStringAsync();
                 if (string.IsNullOrEmpty(serverResponse))
                 {
@@ -317,7 +316,7 @@ namespace dexih.remote
             }
         }
 
-        public async Task<EConnectionResult> ListenAsync(bool silentLogin, CancellationToken cancellationToken)
+        private async Task<EConnectionResult> ListenAsync(bool silentLogin, CancellationToken cancellationToken)
         {
 
             var logger = LoggerFactory.CreateLogger("Listen");
@@ -327,7 +326,14 @@ namespace dexih.remote
                 if ((_remoteSettings.Privacy.AllowDataUpload || _remoteSettings.Privacy.AllowDataDownload) &&
                     (_remoteSettings.Privacy.AllowLanAccess || _remoteSettings.Privacy.AllowExternalAccess))
                 {
-                    host = await StartHttpServer(cancellationToken);
+                    try
+                    {
+                        host = await StartHttpServer(cancellationToken);
+                    }
+                    catch(Exception ex)
+                    {
+                        logger.LogCritical(ex, $"HttpServer not started, this agent will not be able to upload/download data.  Error: {ex.Message}");
+                    }
                 }
                 else
                 {
@@ -338,7 +344,7 @@ namespace dexih.remote
                 using (var signalrTs = new CancellationTokenSource())
                 {
                     var signalrCt = signalrTs.Token;
-                    using (var linkedCTs =CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, signalrCt))
+                    using (var linkedCTs = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, signalrCt))
                     {
                         var ct = linkedCTs.Token;
 
@@ -349,7 +355,6 @@ namespace dexih.remote
                         {
                             return signalrConnectionResult;
                         }
-
 
                         //set the repeating tasks
                         TimerCallback datalinkProgressCallBack = SendDatalinkProgress;
@@ -362,24 +367,30 @@ namespace dexih.remote
                         await SendMessageHandler(ct);
 
                         datalinkProgressTimer.Dispose();
-                        await HubConnection.DisposeAsync();
-
-                        if (host != null)
-                        {
-                            await host.StopAsync(ct);
-                            host.Dispose();
-                        }
 
                         return EConnectionResult.Disconnected;
                     }
                 }
-
-                
+            }
+            catch (RemoteSecurityException ex)
+            {
+                logger.LogError(10, ex, "Permissions error: " + ex.Message);
+                return EConnectionResult.InvalidCredentials;
             }
             catch (Exception ex)
             {
                 logger.LogError(10, ex, "Error connecting to hub: " + ex.Message);
                 return EConnectionResult.UnhandledException;
+            }
+            finally
+            {
+                await _connection.DisposeAsync();
+
+                if (host != null)
+                {
+                    await host.StopAsync(cancellationToken);
+                    host.Dispose();
+                }
             }
         }
 
@@ -397,14 +408,14 @@ namespace dexih.remote
                 // if no certificate name or password are specified, generate them automatically.
                 if (string.IsNullOrEmpty(_remoteSettings.Network.CertificateFilename))
                 {
-                    throw new RemoteException(
-                        "The applicationSettings -> Network -> AutoGenerateCertificate is true, however there no setting for CerficiateFilename");
+                    throw new RemoteSecurityException(
+                        "The applicationSettings -> Network -> AutoGenerateCertificate is true, however there no setting for CertificateFilename");
                 }
 
                 if (string.IsNullOrEmpty(_remoteSettings.Network.CertificatePassword))
                 {
-                    throw new RemoteException(
-                        "The applicationSettings -> Network -> AutoGenerateCertificate is true, however there no setting for CertificatePassword");
+                    throw new RemoteSecurityException(
+                        "The applicationSettings -> Network -> AutoGenerateCertificate is true, however there no setting for CertificateFilename");
                 }
 
                 useHttps = true;
@@ -456,8 +467,8 @@ namespace dexih.remote
                         {
                             var jsonContent = await response.Content.ReadAsStringAsync();
                             var message = JsonConvert.DeserializeObject<ReturnValue>(jsonContent);
-                            logger.LogDebug("GenerateCertficate details: " + message.ExceptionDetails);
-                            throw new RemoteException(message.Message, message.Exception);
+                            logger.LogDebug("Generate certificate details: " + message.ExceptionDetails);
+                            throw new RemoteSecurityException(message.Message, message.Exception);
                         }
 
                         var certificate = await response.Content.ReadAsByteArrayAsync();
@@ -466,7 +477,7 @@ namespace dexih.remote
                     }
                     else
                     {
-                        throw new RemoteException(
+                        throw new RemoteSecurityException(
                             $"The certificate renewal failed.  {response.ReasonPhrase}.");
                     }
                 }
@@ -476,13 +487,13 @@ namespace dexih.remote
             {
                 if (string.IsNullOrEmpty(_remoteSettings.Network.CertificateFilename))
                 {
-                    throw new RemoteException(
+                    throw new RemoteSecurityException(
                         "The server requires https, however a CertificateFile name is not specified.");
                 }
 
                 if (!File.Exists(certificatePath))
                 {
-                    throw new RemoteException(
+                    throw new RemoteSecurityException(
                         $"The certificate with the filename {certificatePath} does not exist.");
                 }
 
@@ -495,14 +506,14 @@ namespace dexih.remote
 
                     if (DateTime.Now < effectiveDate)
                     {
-                        throw new RemoteException(
+                        throw new RemoteSecurityException(
                             $"The certificate with the filename {certificatePath} is not valid until {effectiveDate}.");
                     }
 
 
                     if (DateTime.Now > expiresDate)
                     {
-                        throw new RemoteException(
+                        throw new RemoteSecurityException(
                             $"The certificate with the filename {certificatePath} expired on {expiresDate}.");
                     }
                 }
@@ -510,7 +521,7 @@ namespace dexih.remote
 
             if (!useHttps && _remoteSettings.Network.EnforceHttps)
             {
-                throw new RemoteException(
+                throw new RemoteSecurityException(
                     "The remote agent is set to EnforceHttps, however no SSL certificate was found or able to be generated.");
             }
 
@@ -518,7 +529,7 @@ namespace dexih.remote
             {
                 if (_remoteSettings.Network.DownloadPort == null)
                 {
-                    throw new Exception("The web server download port was not set.");
+                    throw new RemoteSecurityException("The web server download port was not set.");
                 }
 
                 var port = _remoteSettings.Network.DownloadPort.Value;
@@ -589,17 +600,21 @@ namespace dexih.remote
             var logger = LoggerFactory.CreateLogger("SignalR");
 
             //already a connection open then close it.
-            if (HubConnection != null)
+            if (_connection != null)
             {
                 logger.LogDebug(4, "Previous websocket connection open.  Attempting to close");
-                await HubConnection.DisposeAsync();
+                await _connection.DisposeAsync();
             }
 
             HubConnection BuildHubConnection(HttpTransportType transportType)
             {
                 // create a new connection that points to web server.
                 var con = new HubConnectionBuilder()
-                    .WithUrl(SignalrUrl, transportType)
+                    .WithUrl(SignalrUrl, options =>
+                    {
+                        options.Transports = transportType;
+                        options.Cookies = _httpCookieContainer;
+                    })
                     .ConfigureLogging(logging => { logging.SetMinimumLevel(_remoteSettings.Logging.LogLevel.Default); })
                     .Build();
                 
@@ -642,24 +657,24 @@ namespace dexih.remote
                 defaultTransportType = HttpTransportType.WebSockets;
             };
 
-            HubConnection = BuildHubConnection(defaultTransportType);
+            _connection = BuildHubConnection(defaultTransportType);
             
             try
             {
-                await HubConnection.StartAsync(ct);
+                await _connection.StartAsync(ct);
             }
             catch (Exception ex)
             {
                 logger.LogError(10, ex, "Failed to connect with " + defaultTransportType  + ".  Attempting long-polling.");
 
-                // if the connection failes, attempt to downgrade to long-polling.
+                // if the connection fails, attempt to downgrade to long-polling.
                 if (defaultTransportType == HttpTransportType.WebSockets)
                 {
-                    HubConnection = BuildHubConnection(HttpTransportType.LongPolling);
+                    _connection = BuildHubConnection(HttpTransportType.LongPolling);
 
                     try
                     {
-                        await HubConnection.StartAsync(ct);
+                        await _connection.StartAsync(ct);
                     }
                     catch (Exception ex2)
                     {
@@ -676,7 +691,7 @@ namespace dexih.remote
 
             try
             {
-                await HubConnection.InvokeAsync("Connect", SecurityToken, cancellationToken: ct);
+                await _connection.InvokeAsync("Connect", SecurityToken, cancellationToken: ct);
             }
             catch (HubException ex)
             {

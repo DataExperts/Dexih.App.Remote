@@ -1159,7 +1159,7 @@ namespace dexih.remote.operations
         {
             if (downloadUrl.DownloadUrlType == EDownloadUrlType.Proxy)
             {
-                // when uploaing files through proxy, first issue a "start" on the server to get upload/download urls
+                // when uploading files through proxy, first issue a "start" on the server to get upload/download urls
                 var startResult = await _httpClient.GetAsync($"{downloadUrl.Url}/start/{format}/{fileName}", cancellationToken);
 
                 if (!startResult.IsSuccessStatusCode)

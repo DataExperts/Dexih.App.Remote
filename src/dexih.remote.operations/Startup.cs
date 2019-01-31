@@ -34,13 +34,14 @@ namespace dexih.remote.operations
             // only allow requests from the original web site.
             app.UseCors(builder =>
             {
-                builder.AllowAnyOrigin() //    .WithOrigins(uploadStreams.OriginUrl)
+                builder.AllowAnyOrigin()
                     .AllowAnyMethod()
                     .AllowAnyHeader()
-                    .AllowCredentials()
+                //    .AllowCredentials()
                     .WithHeaders()
-                    .WithMethods()
-                    .WithOrigins();
+                    .WithMethods();
+                //   .WithOrigins(streams.OriginUrl);
+                // .WithOrigins();
             });
 
             var rand = EncryptString.GenerateRandomKey();
