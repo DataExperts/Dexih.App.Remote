@@ -20,6 +20,7 @@ using Dexih.Utils.ManagedTasks;
 using Dexih.Utils.MessageHelpers;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http.Connections;
+using Microsoft.AspNetCore.Internal;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.DependencyInjection;
@@ -69,10 +70,14 @@ namespace dexih.remote
 
         private CookieContainer _httpCookieContainer;
         private readonly HttpClient _httpClient;
+        private CancellationTokenSource _cancellationTokenSource; // used to trigger a cancel on all items when an issue occurs.
 
         private readonly RemoteOperations _remoteOperations;
 
         private readonly ConcurrentDictionary<string, RemoteMessage> _responseMessages = new ConcurrentDictionary<string, RemoteMessage>(); //list of responses returned from clients.  This is updated by the hub.
+        
+        private readonly SemaphoreSlim _sendMessageSemephone = new SemaphoreSlim(1, 1);
+        
         private readonly ConcurrentBag<ResponseMessage> _sendMessageQueue = new ConcurrentBag<ResponseMessage>();
         private readonly IStreams _streams = new Streams();
 
@@ -132,10 +137,57 @@ namespace dexih.remote
                 CookieContainer = _httpCookieContainer
             };
 
-            //Login to the web server to receive an authenicated cookie.
+            //Login to the web server to receive an authenticated cookie.
             _httpClient = new HttpClient(handler);
             
             _remoteOperations = new RemoteOperations(_remoteSettings, SessionEncryptionKey, LoggerMessages, _httpClient, Url, _streams);
+            _remoteOperations.OnStatus += TaskStatusChange;
+            _remoteOperations.OnProgress += TaskProgressChange;
+        }
+        
+        private HubConnection BuildHubConnection(HttpTransportType transportType)
+        {
+            var logger = LoggerFactory.CreateLogger("SignalR");
+
+            // create a new connection that points to web server.
+            var con = new HubConnectionBuilder()
+                .WithUrl(SignalrUrl, options =>
+                {
+                    options.Transports = transportType;
+                    options.Cookies = _httpCookieContainer;
+                })
+                .ConfigureLogging(logging => { logging.SetMinimumLevel(_remoteSettings.Logging.LogLevel.Default); })
+                .Build();
+                
+            // call the "ProcessMessage" function whenever a signalr message is received.
+            con.On<RemoteMessage>("Command", async message =>
+            {
+                await ProcessMessage(message);
+            });
+
+            con.On("Abort", async () =>
+            {
+                logger.LogInformation("SignalR connection aborted.");
+                await con.StopAsync();
+            });
+
+            // when closed cancel and exit
+            con.Closed += e =>
+            {
+                if (e == null)
+                {
+                    logger.LogInformation("SignalR connection closed.");
+                }
+                else
+                {
+                    logger.LogError("SignalR connection closed with error: {0}", e.Message);
+                }
+
+                _cancellationTokenSource.Cancel();
+                return Task.CompletedTask;
+            };
+
+            return con;
         }
 
         /// <summary>
@@ -153,74 +205,97 @@ namespace dexih.remote
             var retryStarted = false;
             var savedSettings = false;
 
+            // set the default transport type.
+            if (!Enum.TryParse<HttpTransportType>(_remoteSettings.SystemSettings.SocketTransportType,
+                out var defaultTransportType))
+            {
+                defaultTransportType = HttpTransportType.WebSockets;
+            }
+
+            _cancellationTokenSource = new CancellationTokenSource();
+            _connection = BuildHubConnection(defaultTransportType);
+
             while (true)
             {
-                var generateToken = !string.IsNullOrEmpty(_remoteSettings.Runtime.Password) && saveSettings;
-                var loginResult = await LoginAsync(generateToken, retryStarted, cancellationToken);
-
-                var connectResult = loginResult.connectionResult;
-
-                if (connectResult == EConnectionResult.Connected)
+                // create a linked cancellation which cancels either when something fails, or when cancel is requested calling function.
+                var signalrCt = _cancellationTokenSource.Token;
+                using (var linkedCTs = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, signalrCt))
                 {
-                    _remoteSettings.Runtime.ExternalIpAddress = loginResult.ipAddress;
+                    var ct = linkedCTs.Token;
 
-                    if (!savedSettings && saveSettings)
+                    var generateToken = !string.IsNullOrEmpty(_remoteSettings.Runtime.Password) && saveSettings;
+                    var loginResult = await LoginAsync(generateToken, retryStarted, ct);
+
+                    var connectResult = loginResult.connectionResult;
+
+                    if (connectResult == EConnectionResult.Connected)
                     {
-                        // if login via password, then store the returned authentication token.
-                        if (!string.IsNullOrEmpty(_remoteSettings.Runtime.Password))
+                        _remoteSettings.Runtime.ExternalIpAddress = loginResult.ipAddress;
+
+                        if (!savedSettings && saveSettings)
                         {
-                            _remoteSettings.AppSettings.UserToken = loginResult.userToken;
+                            // if login via password, then store the returned authentication token.
+                            if (!string.IsNullOrEmpty(_remoteSettings.Runtime.Password))
+                            {
+                                _remoteSettings.AppSettings.UserToken = loginResult.userToken;
+                            }
+
+                            var appSettingsFile = Directory.GetCurrentDirectory() + "/appsettings.json";
+
+                            _remoteSettings.AppSettings.FirstRun = false;
+
+                            //create a temporary settings file that does not contain the RunTime property.
+                            var tmpSettings = new RemoteSettings()
+                            {
+                                AppSettings = _remoteSettings.AppSettings,
+                                Logging = _remoteSettings.Logging,
+                                SystemSettings = _remoteSettings.SystemSettings,
+                                Network = _remoteSettings.Network,
+                                Privacy = _remoteSettings.Privacy,
+                                Permissions = _remoteSettings.Permissions,
+                                NamingStandards = _remoteSettings.NamingStandards
+                            };
+
+                            File.WriteAllText(appSettingsFile,
+                                JsonConvert.SerializeObject(tmpSettings, Formatting.Indented));
+                            logger.LogInformation(
+                                "The appsettings.json file has been updated with the current settings.");
+
+                            savedSettings = true;
                         }
 
-                        var appSettingsFile = Directory.GetCurrentDirectory() + "/appsettings.json";
-
-                        _remoteSettings.AppSettings.FirstRun = false;
-                        
-                        //create a temporary settings file that does not contain the RunTime property.
-                        var tmpSettings = new RemoteSettings()
-                        {
-                            AppSettings = _remoteSettings.AppSettings,
-                            Logging = _remoteSettings.Logging,
-                            SystemSettings = _remoteSettings.SystemSettings,
-                            Network = _remoteSettings.Network,
-                            Privacy = _remoteSettings.Privacy,
-                            Permissions = _remoteSettings.Permissions,
-                            NamingStandards = _remoteSettings.NamingStandards
-                        };
-                        
-                        File.WriteAllText(appSettingsFile, JsonConvert.SerializeObject(tmpSettings, Formatting.Indented));
-                        logger.LogInformation("The appsettings.json file has been updated with the current settings.");
-
-                        savedSettings = true;
+                        connectResult = await ListenAsync(retryStarted, ct);
                     }
 
-                    connectResult = await ListenAsync(retryStarted, cancellationToken);
-                }
-                
-                switch (connectResult)
-                {
-                    case EConnectionResult.Disconnected:
-                        if (!retryStarted)
-                            logger.LogWarning("Remote agent disconnected... attempting to reconnect");
-                        Thread.Sleep(2000);
-                        break;
-                    case EConnectionResult.InvalidCredentials:
-                        logger.LogWarning("Invalid credentials... terminating service.");
-                        return EExitCode.InvalidLogin;
-                    case EConnectionResult.InvalidLocation:
-                        if (!retryStarted)
-                            logger.LogWarning("Invalid location... web server might be down... retrying...");
-                        Thread.Sleep(5000);
-                        break;
-                    case EConnectionResult.UnhandledException:
-                        if (!retryStarted)
-                            logger.LogWarning("Unhandled exception on remote server.. retrying...");
-                        Thread.Sleep(5000);
-                        break;
+                    switch (connectResult)
+                    {
+                        case EConnectionResult.Disconnected:
+                            if (!retryStarted)
+                                logger.LogWarning("Remote agent disconnected... attempting to reconnect");
+                            Thread.Sleep(2000);
+                            break;
+                        case EConnectionResult.InvalidCredentials:
+                            logger.LogWarning("Invalid credentials... terminating service.");
+                            return EExitCode.InvalidLogin;
+                        case EConnectionResult.InvalidLocation:
+                            if (!retryStarted)
+                                logger.LogWarning("Invalid location... web server might be down... retrying...");
+                            Thread.Sleep(5000);
+                            break;
+                        case EConnectionResult.UnhandledException:
+                            if (!retryStarted)
+                                logger.LogWarning("Unhandled exception on remote server.. retrying...");
+                            Thread.Sleep(5000);
+                            break;
+                    }
                 }
 
+                _cancellationTokenSource.Dispose();
+                _cancellationTokenSource = new CancellationTokenSource();
+                
                 retryStarted = true;
             }
+
         }
 
         /// <summary>
@@ -268,6 +343,13 @@ namespace dexih.remote
                     if (!silentLogin)
                         logger.LogCritical(10, ex, "Internal error connecting to the server at location: {0}",
                             Url + "/Remote/Login");
+                    return (EConnectionResult.InvalidLocation, "", "", "");
+                }
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    if (!silentLogin)
+                        logger.LogCritical(4, $"Could not connect with {Url}.  Status = {response.StatusCode.ToString()}, {response.ReasonPhrase}");
                     return (EConnectionResult.InvalidLocation, "", "", "");
                 }
 
@@ -341,36 +423,15 @@ namespace dexih.remote
                         $"HttpServer not started, this agent will not be able to upload/download data.");
                 }
 
-                using (var signalrTs = new CancellationTokenSource())
-                {
-                    var signalrCt = signalrTs.Token;
-                    using (var linkedCTs = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, signalrCt))
-                    {
-                        var ct = linkedCTs.Token;
+                await StartSignalR(cancellationToken);
+                
+                _streams.OriginUrl = _remoteSettings.AppSettings.WebServer;
+                _streams.RemoteSettings = _remoteSettings;
 
-                        var signalrConnectionResult = await SignalRConnection(signalrTs, ct);
+                // start the send message handler.
+                await SendMessageHandler(cancellationToken);
 
-                        if (cancellationToken.IsCancellationRequested || signalrCt.IsCancellationRequested ||
-                            signalrConnectionResult != EConnectionResult.Connected)
-                        {
-                            return signalrConnectionResult;
-                        }
-
-                        //set the repeating tasks
-                        TimerCallback datalinkProgressCallBack = SendDatalinkProgress;
-                        var datalinkProgressTimer = new Timer(datalinkProgressCallBack, null, 500, 500);
-
-                        _streams.OriginUrl = _remoteSettings.AppSettings.WebServer;
-                        _streams.RemoteSettings = _remoteSettings;
-
-                        // start the send message handler.
-                        await SendMessageHandler(ct);
-
-                        datalinkProgressTimer.Dispose();
-
-                        return EConnectionResult.Disconnected;
-                    }
-                }
+                return EConnectionResult.Disconnected;
             }
             catch (RemoteSecurityException ex)
             {
@@ -384,7 +445,7 @@ namespace dexih.remote
             }
             finally
             {
-                await _connection.DisposeAsync();
+                // await _connection.DisposeAsync();
 
                 if (host != null)
                 {
@@ -595,105 +656,17 @@ namespace dexih.remote
         /// <param name="ts"></param>
         /// <param name="ct"></param>
         /// <returns></returns>
-        private async Task<EConnectionResult> SignalRConnection(CancellationTokenSource ts, CancellationToken ct)
+        private async Task<EConnectionResult> StartSignalR(CancellationToken ct)
         {
             var logger = LoggerFactory.CreateLogger("SignalR");
-
-            //already a connection open then close it.
-            if (_connection != null)
-            {
-                logger.LogDebug(4, "Previous websocket connection open.  Attempting to close");
-                await _connection.DisposeAsync();
-            }
-
-            HubConnection BuildHubConnection(HttpTransportType transportType)
-            {
-                // create a new connection that points to web server.
-                var con = new HubConnectionBuilder()
-                    .WithUrl(SignalrUrl, options =>
-                    {
-                        options.Transports = transportType;
-                        options.Cookies = _httpCookieContainer;
-                    })
-                    .ConfigureLogging(logging => { logging.SetMinimumLevel(_remoteSettings.Logging.LogLevel.Default); })
-                    .Build();
-                
-                // call the "ProcessMessage" function whenever a signalr message is received.
-                con.On<RemoteMessage>("Command", async message =>
-                {
-                    await ProcessMessage(message);
-                });
-
-                con.On("Abort", async () =>
-                {
-                    logger.LogInformation("SignalR connection aborted.");
-                    await con.DisposeAsync();
-                    ts.Cancel();
-                });
-
-                // when closed cancel and exit
-                con.Closed += e =>
-                {
-                    if (e == null)
-                    {
-                        logger.LogInformation("SignalR connection closed.");
-                    }
-                    else
-                    {
-                        logger.LogError("SignalR connection closed with error: {0}", e.Message);
-                    }
-                    ts.Cancel();
-                    return Task.CompletedTask;
-                };
-
-                return con;
-            }
-            
-           
-            // attempt a connection with the default transport type.
-            if (!Enum.TryParse<HttpTransportType>(_remoteSettings.SystemSettings.SocketTransportType,
-                out var defaultTransportType))
-            {
-                defaultTransportType = HttpTransportType.WebSockets;
-            };
-
-            _connection = BuildHubConnection(defaultTransportType);
-            
+ 
             try
             {
+                logger.LogInformation("Starting signalrR connection");
                 await _connection.StartAsync(ct);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(10, ex, "Failed to connect with " + defaultTransportType  + ".  Attempting long-polling.");
-
-                // if the connection fails, attempt to downgrade to long-polling.
-                if (defaultTransportType == HttpTransportType.WebSockets)
-                {
-                    _connection = BuildHubConnection(HttpTransportType.LongPolling);
-
-                    try
-                    {
-                        await _connection.StartAsync(ct);
-                    }
-                    catch (Exception ex2)
-                    {
-                        logger.LogError(10, ex2, "Failed to connect with LongPolling.  Exiting now.");
-                        return EConnectionResult.UnhandledException;
-                    }
-                }
-                else
-                {
-                    logger.LogError(10, "Failed to connect with LongPolling.  Exiting now.");
-                    return EConnectionResult.UnhandledException;
-                }
-            }
-
-            try
-            {
                 await _connection.InvokeAsync("Connect", SecurityToken, cancellationToken: ct);
             }
-            catch (HubException ex)
+            catch (Exception ex)
             {
                 logger.LogError(10, ex, "Failed to call the \"Connect\" method on the server.");
                 return EConnectionResult.UnhandledException;
@@ -885,6 +858,8 @@ namespace dexih.remote
             
             while (true)
             {
+                await _sendMessageSemephone.WaitAsync(cancellationToken);
+                
                 if (_sendMessageQueue.Count > 0)
                 {
                     var messages = new List<ResponseMessage>();
@@ -925,6 +900,7 @@ namespace dexih.remote
             {
                 var responseMessage = new ResponseMessage(SecurityToken, messageId, returnMessage);
                 _sendMessageQueue.Add(responseMessage);
+                _sendMessageSemephone.Release();
 
                 return new ReturnValue(true);
             }
@@ -934,21 +910,30 @@ namespace dexih.remote
             }
         }
 
-         private bool _sendDatalinkProgressBusy;
+        private void TaskProgressChange(object value, ManagedTaskProgressItem progressItem)
+        {
+            SendDatalinkProgress();
+        }
+
+        private void TaskStatusChange(object value, EManagedTaskStatus managedTaskStatus)
+        {
+            SendDatalinkProgress();
+        }
+         
+        private bool _sendDatalinkProgressBusy;
 
         /// <summary>
         /// Sends the progress and status of any datalinks to the central server.
         /// </summary>
-        /// <param name="stateInfo"></param>
-        private async void SendDatalinkProgress(object stateInfo)
+        private async void SendDatalinkProgress()
         {
             try
             {
                 if (!_sendDatalinkProgressBusy)
                 {
-                    _sendDatalinkProgressBusy = true;
+                     _sendDatalinkProgressBusy = true;
 
-                    if (_remoteOperations.TaskChangesCount() > 0)
+                    while (_remoteOperations.TaskChangesCount() > 0)
                     {
                         var managedTaskChanges = _remoteOperations.GetTaskChanges(true);
 
@@ -980,6 +965,9 @@ namespace dexih.remote
                         {
                             LoggerDatalinks.LogError(result.Exception, "Update task results failed.  Return message was: {0}." + result.Message);
                         }
+
+                        // wait a little while for more tasks results to arrive.
+                        await Task.Delay(500);
                     }
 
                     _sendDatalinkProgressBusy = false;

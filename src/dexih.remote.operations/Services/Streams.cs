@@ -51,23 +51,31 @@ namespace dexih.remote.Operations.Services
             }
         }
 
+        private bool cleanUpRunning = false;
         private void CleanUpOldStreams(object o, EventArgs args)
         {
-            foreach (var uploadObject in _uploadStreams)
+            if (!cleanUpRunning)
             {
-                if (uploadObject.Value.AddedDateTime.AddMinutes(5) < DateTime.Now)
+                cleanUpRunning = true;
+
+                foreach (var uploadObject in _uploadStreams)
                 {
-                    _uploadStreams.TryRemove(uploadObject.Key, out _);
+                    if (uploadObject.Value.AddedDateTime.AddMinutes(5) < DateTime.Now)
+                    {
+                        _uploadStreams.TryRemove(uploadObject.Key, out _);
+                    }
                 }
-            }
-            
-            foreach (var downloadObject in _downloadStreams)
-            {
-                if (downloadObject.Value.AddedDateTime.AddMinutes(5) < DateTime.Now)
+
+                foreach (var downloadObject in _downloadStreams)
                 {
-                    _downloadStreams.TryRemove(downloadObject.Key, out var value);
-                    value.Dispose();
+                    if (downloadObject.Value.AddedDateTime.AddMinutes(5) < DateTime.Now)
+                    {
+                        _downloadStreams.TryRemove(downloadObject.Key, out var value);
+                        value.Dispose();
+                    }
                 }
+
+                cleanUpRunning = false;
             }
         }
 

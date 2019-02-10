@@ -31,6 +31,9 @@ namespace dexih.remote.operations
     
     public class RemoteOperations
     {
+        public event EventHandler<EManagedTaskStatus> OnStatus;
+        public event EventHandler<ManagedTaskProgressItem> OnProgress;
+        
         private readonly string _temporaryEncryptionKey;
         private ILogger LoggerMessages { get; }
         private readonly ManagedTasks _managedTasks;
@@ -58,6 +61,18 @@ namespace dexih.remote.operations
             };
 
             _managedTasks = new ManagedTasks();
+            _managedTasks.OnProgress += TaskProgressChange;
+            _managedTasks.OnStatus += TaskStatusChange;
+        }
+        
+        private void TaskProgressChange(object value, ManagedTaskProgressItem progressItem)
+        {
+            OnProgress?.Invoke(value, progressItem);
+        }
+
+        private void TaskStatusChange(object value, EManagedTaskStatus managedTaskStatus)
+        {
+            OnStatus?.Invoke(value, managedTaskStatus);
         }
 
         public IEnumerable<ManagedTask> GetActiveTasks(string category) => _managedTasks.GetActiveTasks(category);
@@ -310,13 +325,13 @@ namespace dexih.remote.operations
                     progress.Report(0, 0, "Compiling datalink...");
                     datalinkRun.Build(cancellationToken);
 
-                    void OnProgressUpdate(TransformWriterResult writerResult)
+                    void ProgressUpdate(TransformWriterResult writerResult)
                     {
                         progress.Report(writerResult.PercentageComplete, writerResult.RowsTotal, writerResult.IsFinished ? "" : "Running datalink...");
                     }
 
-                    datalinkRun.OnProgressUpdate += OnProgressUpdate;
-                    datalinkRun.OnStatusUpdate += OnProgressUpdate;
+                    datalinkRun.OnProgressUpdate += ProgressUpdate;
+                    datalinkRun.OnStatusUpdate += ProgressUpdate;
 
                     if (parentDataJobRun != null)
                     {
