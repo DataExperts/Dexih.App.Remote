@@ -242,7 +242,7 @@ namespace dexih.remote
 
                             var appSettingsFile = Directory.GetCurrentDirectory() + "/appsettings.json";
 
-                            _remoteSettings.AppSettings.FirstRun = false;
+                            _remoteSettings.AppSettings.UserPrompt = false;
 
                             //create a temporary settings file that does not contain the RunTime property.
                             var tmpSettings = new RemoteSettings()
@@ -509,38 +509,7 @@ namespace dexih.remote
                 // generate a new ssl certificate
                 if (renew)
                 {
-                    var details = new
-                    {
-                        Domain = _remoteSettings.Network.DynamicDomain,
-                        Password = _remoteSettings.Network.CertificatePassword
-                    };
-
-                    var messagesString = Json.SerializeObject(details, SessionEncryptionKey);
-                    var content = new StringContent(messagesString, Encoding.UTF8,
-                        "application/json");
-
-                    var response = await _httpClient.PostAsync(Url + "Remote/GenerateCertificate",
-                        content, cancellationToken);
-
-                    if (response.IsSuccessStatusCode)
-                    {
-                        if (response.Content.Headers.ContentType.MediaType == "application/json")
-                        {
-                            var jsonContent = await response.Content.ReadAsStringAsync();
-                            var message = JsonConvert.DeserializeObject<ReturnValue>(jsonContent);
-                            logger.LogDebug("Generate certificate details: " + message.ExceptionDetails);
-                            throw new RemoteSecurityException(message.Message, message.Exception);
-                        }
-
-                        var certificate = await response.Content.ReadAsByteArrayAsync();
-                        File.WriteAllBytes(certificatePath,
-                            certificate);
-                    }
-                    else
-                    {
-                        throw new RemoteSecurityException(
-                            $"The certificate renewal failed.  {response.ReasonPhrase}.");
-                    }
+                    await RenewSslCertificate(certificatePath, cancellationToken);
                 }
             }
 
@@ -597,28 +566,7 @@ namespace dexih.remote
 
                 if (_remoteSettings.Network.EnableUPnP)
                 {
-                    try
-                    {
-                        var discoverer = new NatDiscoverer();
-                        var cts = new CancellationTokenSource(10000);
-                        var device = await discoverer.DiscoverDeviceAsync(PortMapper.Upnp, cts);
-                        var exists = await device.GetSpecificMappingAsync(Protocol.Tcp, port);
-
-                        if (exists == null)
-                        {
-                            await device.CreatePortMapAsync(new Mapping(Protocol.Tcp, port, port,
-                                "Data Experts Remote Agent"));
-
-                            if (cts.IsCancellationRequested)
-                            {
-                                logger.LogError(10, $"A timeout occurred mapping upnp port");
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogError(10, ex, $"Error mapping uPnP port: {ex.Message}");
-                    }
+                    await EnableUPnp(port);
                 }
 
                 logger.LogInformation("Starting the data upload/download web server.");
@@ -674,6 +622,95 @@ namespace dexih.remote
 
             return EConnectionResult.Connected;
 
+        }
+
+        private async Task RenewSslCertificate(string certificatePath, CancellationToken cancellationToken)
+        {
+            var logger = LoggerFactory.CreateLogger("Renew Certificate");
+
+            var details = new
+            {
+                Domain = _remoteSettings.Network.DynamicDomain,
+                Password = _remoteSettings.Network.CertificatePassword
+            };
+
+            logger.LogInformation("Attempting to generate a new ssl certificate...");
+
+            var messagesString = Json.SerializeObject(details, SessionEncryptionKey);
+            var content = new StringContent(messagesString, Encoding.UTF8,
+                "application/json");
+
+            var response = await _httpClient.PostAsync(Url + "Remote/GenerateCertificate",
+                content, cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+            {
+                if (response.Content.Headers.ContentType.MediaType == "application/json")
+                {
+                    var jsonContent = await response.Content.ReadAsStringAsync();
+                    var message = JsonConvert.DeserializeObject<ReturnValue>(jsonContent);
+                    logger.LogDebug("Generate certificate details: " + message.ExceptionDetails);
+                    throw new RemoteSecurityException(message.Message, message.Exception);
+                }
+
+                var certificate = await response.Content.ReadAsByteArrayAsync();
+                File.WriteAllBytes(certificatePath,
+                    certificate);
+                
+                logger.LogInformation($"A new Ssl certificate has been successfully created at {certificatePath}.");
+            }
+            else
+            {
+                throw new RemoteSecurityException(
+                    $"The ssl certificate renewal failed.  {response.ReasonPhrase}.");
+            }
+        }
+
+        /// <summary>
+        /// Create a uPnp mapping to a NAT device
+        /// </summary>
+        /// <returns></returns>
+        private async Task EnableUPnp(int port)
+        {
+            var logger = LoggerFactory.CreateLogger("uPnp");
+
+            try
+            {
+                var discoverer = new NatDiscoverer();
+                var cts = new CancellationTokenSource(10000);
+                var device = await discoverer.DiscoverDeviceAsync(PortMapper.Upnp, cts);
+
+                if (cts.IsCancellationRequested)
+                {
+                    logger.LogError(10, $"A timeout occurred mapping uPnp port");
+                    return;
+                }
+
+                var ip = await device.GetExternalIPAsync();
+                var exists = await device.GetSpecificMappingAsync(Protocol.Tcp, port);
+
+                if (exists == null)
+                {
+                    await device.CreatePortMapAsync(new Mapping(Protocol.Tcp, port, port,
+                        "Data Experts Remote Agent"));
+
+                    logger.LogInformation(
+                        $"A new uPnp mapping to {port} has been created, and is listening from the public ip {ip}");
+                }
+                else
+                {
+                    logger.LogInformation(
+                        $"The uPnp mapping already exists: {exists} to the public ip {ip}");
+                }
+            }
+            catch (NatDeviceNotFoundException)
+            {
+                logger.LogWarning("The EnableUPnP is set to true in the appsettings.json file, however there was no NAT (Network Address Translation) device found on the network.");
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(10, ex, $"Error mapping uPnP port: {ex.Message}");
+            }
         }
 
 

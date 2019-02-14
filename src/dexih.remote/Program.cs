@@ -45,7 +45,7 @@ namespace dexih.remote
             // add environment variables second.
             builder.AddEnvironmentVariables();
             
-            // add usersecrets when development mode
+            // add user secrets when development mode
             var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
             if (environment == "Development")
             {

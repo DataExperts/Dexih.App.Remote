@@ -15,7 +15,7 @@ namespace dexih.remote
         private static readonly string _newLineWithMessagePadding;
 
         // ConsoleColor does not have a value to specify the 'Default' color
-        private readonly ConsoleColor? DefaultConsoleColor = null;
+        private readonly ConsoleColor? _defaultConsoleColor = null;
 
         private readonly ConsoleLoggerProcessor _queueProcessor;
         private Func<string, LogLevel, bool> _filter;
@@ -42,12 +42,7 @@ namespace dexih.remote
 
         internal RemoteLogger(string name, Func<string, LogLevel, bool> filter, IExternalScopeProvider scopeProvider, ConsoleLoggerProcessor loggerProcessor)
         {
-            if (name == null)
-            {
-                throw new ArgumentNullException(nameof(name));
-            }
-
-            Name = name;
+            Name = name ?? throw new ArgumentNullException(nameof(name));
             Filter = filter ?? ((category, logLevel) => true);
             ScopeProvider = scopeProvider;
             _queueProcessor = loggerProcessor;
@@ -78,16 +73,8 @@ namespace dexih.remote
 
         public Func<string, LogLevel, bool> Filter
         {
-            get { return _filter; }
-            set
-            {
-                if (value == null)
-                {
-                    throw new ArgumentNullException(nameof(value));
-                }
-
-                _filter = value;
-            }
+            get => _filter;
+            set => _filter = value ?? throw new ArgumentNullException(nameof(value));
         }
 
         public string Name { get; }
@@ -176,7 +163,7 @@ namespace dexih.remote
                 _queueProcessor.EnqueueMessage(new LogMessageEntry()
                 {
                     Message = logBuilder.ToString(),
-                    MessageColor = DefaultConsoleColor,
+                    MessageColor = _defaultConsoleColor,
                     LevelString = hasLevel ? logLevelString : null,
                     LevelBackground = hasLevel ? logLevelColors.Background : null,
                     LevelForeground = hasLevel ? logLevelColors.Foreground : null
@@ -248,7 +235,7 @@ namespace dexih.remote
                 case LogLevel.Trace:
                     return new ConsoleColors(ConsoleColor.Gray, ConsoleColor.Black);
                 default:
-                    return new ConsoleColors(DefaultConsoleColor, DefaultConsoleColor);
+                    return new ConsoleColors(_defaultConsoleColor, _defaultConsoleColor);
             }
         }
 

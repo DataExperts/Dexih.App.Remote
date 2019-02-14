@@ -17,7 +17,6 @@ namespace dexih.remote
         const string defaultWebServer = "https://dexih.dataexpertsgroup.com";
 
         public RemoteSettings RemoteSettings { get; set; }
-        public bool ResetSettings { get; set; }
         public bool SaveSettings { get; set; }
         public ILogger Logger { get; set; }
 
@@ -33,8 +32,7 @@ namespace dexih.remote
 
             RemoteSettings = remoteSettings;
             
-            ResetSettings = RemoteSettings.AppSettings.FirstRun;
-            SaveSettings = RemoteSettings.AppSettings.FirstRun;
+            SaveSettings = RemoteSettings.AppSettings.UserPrompt;
         }
         
         public bool AddCommandLineValues(string[] args)
@@ -101,9 +99,9 @@ namespace dexih.remote
                     case "-save":
                         SaveSettings = true;
                         break;
-                    case "-r":
-                    case "-reset":
-                        ResetSettings = true;
+                    case "-prompt":
+                    case "-userprompt":
+                        RemoteSettings.AppSettings.UserPrompt = true;
                         break;
                     case "-up":
                     case "-upgrade":
@@ -276,7 +274,7 @@ namespace dexih.remote
                         Logger.LogWarning($"The latest version of the remote agent is {latestVersion}.");
                         Logger.LogWarning($"There is a newer release of the remote agent available at {downloadUrl}.");
                         Logger.LogWarning(
-                            $"The application will exit so an upgrade can be completed.  To skip upgrade checks include \"-skipupgrade\" in the command line, or set AutoUpgrade=false in the appsettings.json file.");
+                            "The application will exit so an upgrade can be completed.  To skip upgrade checks include \"-skipupgrade\" in the command line, or set AutoUpgrade=false in the appsettings.json file.");
                         return true;
                     }
                 }
@@ -371,12 +369,10 @@ namespace dexih.remote
         {
             var checkSaveSettings = false;
             var detailed = false;
-
-            if (ResetSettings)
+            
+            if (RemoteSettings.RequiresUserInput())
             {
-                detailed = GetBoolInput(
-                    "Do you want to enter detailed configuration options?",
-                    detailed);
+                detailed = GetBoolInput("Would you like to enter detailed configuration options?", false);
 
                 var sslConfigureComplete = false;
 
@@ -405,25 +401,25 @@ namespace dexih.remote
 
                         if (string.IsNullOrEmpty(RemoteSettings.AppSettings.EncryptionKey))
                         {
-                            Console.WriteLine($"Enter the encryption key.");
-                            Console.Write($"This is used to encrypt/decrypt data marked as secure. [auto-generate]: ");
+                            Console.WriteLine("Enter the encryption key.");
+                            Console.Write("This is used to encrypt/decrypt data marked as secure. [auto-generate]: ");
                             RemoteSettings.AppSettings.EncryptionKey = Console.ReadLine();
                             if (string.IsNullOrEmpty(RemoteSettings.AppSettings.EncryptionKey))
                             {
                                 RemoteSettings.AppSettings.EncryptionKey =
-                                    Dexih.Utils.Crypto.EncryptString.GenerateRandomKey();
+                                    EncryptString.GenerateRandomKey();
                                 Console.WriteLine(
                                     $"New encryption key \"{RemoteSettings.AppSettings.EncryptionKey}\".");
                             }
                         }
                         else
                         {
-                            Console.Write($"Enter the encryption key [blank - use current, \"new\" to generate]: ");
+                            Console.Write("Enter the encryption key [blank - use current, \"new\" to generate]: ");
                             var key = Console.ReadLine();
                             if (string.IsNullOrEmpty(key) || key.ToLower() == "new")
                             {
                                 RemoteSettings.AppSettings.EncryptionKey =
-                                    Dexih.Utils.Crypto.EncryptString.GenerateRandomKey();
+                                    EncryptString.GenerateRandomKey();
                                 Console.WriteLine(
                                     $"New encryption key \"{RemoteSettings.AppSettings.EncryptionKey}\".");
                             }
@@ -585,13 +581,13 @@ namespace dexih.remote
                             RemoteSettings.AppSettings.RemoteAgentId, false);
 
                         RemoteSettings.AppSettings.UserToken = GetStringInput(
-                            $"Enter the user token:",
+                            "Enter the user token:",
                             RemoteSettings.AppSettings.UserToken, false);
                     }
                     else
                     {
                         // if there is a password, and reset settings has been asked, then remove the user token.
-                        if (ResetSettings)
+                        if (RemoteSettings.AppSettings.UserPrompt)
                         {
                             RemoteSettings.AppSettings.UserToken = null;
                         }
