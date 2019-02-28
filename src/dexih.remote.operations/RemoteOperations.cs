@@ -320,10 +320,10 @@ namespace dexih.remote.operations
                 {
                     progress.Report(0, 0, "Initializing datalink...");
 
-                    await datalinkRun.Initialize(cancellationToken);
+                    await datalinkRun.Initialize(0, cancellationToken);
 
                     progress.Report(0, 0, "Compiling datalink...");
-                    datalinkRun.Build(cancellationToken);
+                    await datalinkRun.Build(cancellationToken);
 
                     void ProgressUpdate(TransformWriterResult writerResult)
                     {
@@ -343,7 +343,7 @@ namespace dexih.remote.operations
                     await datalinkRun.Run(cancellationToken);
                 }
 
-                var newTask = _managedTasks.Add(reference, clientId, $"Datalink: {datalinkRun.Datalink.Name}.", "Datalink", datalinkRun.Datalink.HubKey, null, datalinkRun.Datalink.DatalinkKey, datalinkRun.WriterResult, DatalinkRunTask, null, null, dependencies);
+                var newTask = _managedTasks.Add(reference, clientId, $"Datalink: {datalinkRun.Datalink.Name}.", "Datalink", datalinkRun.Datalink.HubKey, null, datalinkRun.Datalink.DatalinkKey, datalinkRun.WriterTargets.WriterResult, DatalinkRunTask, null, null, dependencies);
                 if (newTask != null)
                 {
                     return newTask;
