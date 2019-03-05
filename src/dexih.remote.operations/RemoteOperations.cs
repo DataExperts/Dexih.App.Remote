@@ -277,10 +277,18 @@ namespace dexih.remote.operations
 
                 var datalinkKeys = message.Value["datalinkKeys"].ToObject<long[]>();
                 var cache = Json.JTokenToObject<CacheManager>(message.Value["cache"], _temporaryEncryptionKey);
-                var truncateTarget = message.Value["truncateTarget"]?.ToObject<bool>() ?? false;
-                var resetIncremental = message.Value["resetIncremental"]?.ToObject<bool>() ?? false;
-                var resetIncrementalValue = message.Value["resetIncrementalValue"]?.ToObject<object>();
                 var clientId = message.Value["clientId"].ToString();
+
+                var transformWriterOptions = new TransformWriterOptions()
+                {
+                    TruncateTarget = message.Value["truncateTarget"]?.ToObject<bool>() ?? false,
+                    ResetIncremental = message.Value["resetIncremental"]?.ToObject<bool>() ?? false,
+                    ResetIncrementalValue = message.Value["resetIncrementalValue"]?.ToObject<object>(),
+                    TriggerMethod = TransformWriterResult.ETriggerMethod.Manual,
+                    TriggerInfo = "Started manually at " + DateTime.Now.ToString(CultureInfo.InvariantCulture),
+                    GlobalVariables = CreateGlobalVariables(cache),
+                    PreviewMode = false
+                };
 
                 LoggerMessages.LogInformation(25, "Run datalinks timer1: {0}", timer.Elapsed);
 
@@ -292,7 +300,7 @@ namespace dexih.remote.operations
                         throw new RemoteOperationException($"The datalink with the key {datalinkKey} was not found.");
                     }
 
-                    var datalinkRun = new DatalinkRun(GetTransformSettings(message.HubVariables), LoggerMessages, dbDatalink, cache.Hub, CreateGlobalVariables(cache), "Datalink", dbDatalink.DatalinkKey, 0, TransformWriterResult.ETriggerMethod.Manual, "Started manually at " + DateTime.Now.ToString(CultureInfo.InvariantCulture), truncateTarget, resetIncremental, resetIncrementalValue, null, null);
+                    var datalinkRun = new DatalinkRun(GetTransformSettings(message.HubVariables), LoggerMessages, 0, dbDatalink, cache.Hub, null, transformWriterOptions);
 
                     var runReturn = RunDataLink(clientId, datalinkRun, null, null);
                 }
@@ -320,14 +328,21 @@ namespace dexih.remote.operations
                 {
                     progress.Report(0, 0, "Initializing datalink...");
 
-                    await datalinkRun.Initialize(0, cancellationToken);
+                    await datalinkRun.Initialize(cancellationToken);
 
+                    // set the data to the writer result, which is used for real-time progress events sent back to the client.
+                    managedTask.Data = datalinkRun.WriterTargets.WriterResult;
+                    
                     progress.Report(0, 0, "Compiling datalink...");
                     await datalinkRun.Build(cancellationToken);
 
                     void ProgressUpdate(TransformWriterResult writerResult)
                     {
-                        progress.Report(writerResult.PercentageComplete, writerResult.RowsTotal, writerResult.IsFinished ? "" : "Running datalink...");
+                        if (writerResult.AuditType == "Datalink")
+                        {
+                            progress.Report(writerResult.PercentageComplete, writerResult.RowsTotal,
+                                writerResult.IsFinished ? "" : "Running datalink...");
+                        }
                     }
 
                     datalinkRun.OnProgressUpdate += ProgressUpdate;
@@ -481,16 +496,23 @@ namespace dexih.remote.operations
                         if (cancellationToken.IsCancellationRequested) break;
 
                         var datalinkTest = cache.Hub.DexihDatalinkTests.Single(c => c.DatalinkTestKey == datalinkTestKey);
-                        var datalinkTestRun = new DatalinkTestRun(GetTransformSettings(message.HubVariables), LoggerMessages, datalinkTest, cache.Hub, CreateGlobalVariables(cache), datalinkTestKey );
+                        var transformWriterOptions = new TransformWriterOptions()
+                        {
+                            GlobalVariables = CreateGlobalVariables(cache),
+                        };
+                        var datalinkTestRun = new DatalinkTestRun(GetTransformSettings(message.HubVariables), LoggerMessages, datalinkTest, cache.Hub, transformWriterOptions);
 
                         async Task DatalinkTestTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken cancellationToken2)
                         {
-                            void OnProgressUpdate(TransformWriterResult writerResult)
+                            void ProgressUpdate(TransformWriterResult writerResult)
                             {
                                 progress.Report(writerResult.PercentageComplete, writerResult.Passed + writerResult.Failed, writerResult.IsFinished ? "" : "Running datalink tests...");
                             }
 
-                            datalinkTestRun.OnProgressUpdate += OnProgressUpdate;
+                            datalinkTestRun.OnProgressUpdate += ProgressUpdate;
+                            
+                            await datalinkTestRun.Initialize("DatalinkTest", cancellationToken);
+                            managedTask.Data = datalinkTestRun.WriterResult;
 
                             progress.Report(0, 0, $"Running datalink test {datalinkTest.Name}...");
                             await datalinkTestRun.Run(cancellationToken2);
@@ -553,17 +575,24 @@ namespace dexih.remote.operations
                         if (cancellationToken.IsCancellationRequested) break;
 
                         var datalinkTest = cache.Hub.DexihDatalinkTests.Single(c => c.DatalinkTestKey == datalinkTestKey);
-                        var datalinkTestRun = new DatalinkTestRun(GetTransformSettings(message.HubVariables), LoggerMessages, datalinkTest, cache.Hub, CreateGlobalVariables(cache), datalinkTestKey);
+                        var transformWriterOptions = new TransformWriterOptions()
+                        {
+                            GlobalVariables = CreateGlobalVariables(cache),
+                        };
+                        var datalinkTestRun = new DatalinkTestRun(GetTransformSettings(message.HubVariables), LoggerMessages, datalinkTest, cache.Hub, transformWriterOptions);
 
                         async Task DatalinkTestSnapshotTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken cancellationToken2)
                         {
-                            void OnProgressUpdate(TransformWriterResult writerResult)
+                            void ProgressUpdate(TransformWriterResult writerResult)
                             {
                                 progress.Report(writerResult.PercentageComplete, writerResult.Passed + writerResult.Failed, writerResult.IsFinished ? "" : "Running datalink test snapshot...");
                             }
 
-                            datalinkTestRun.OnProgressUpdate += OnProgressUpdate;
+                            datalinkTestRun.OnProgressUpdate += ProgressUpdate;
 
+                            await datalinkTestRun.Initialize("DatalinkTest", cancellationToken);
+                            managedTask.Data = datalinkTestRun.WriterResult;
+                            
                             progress.Report(0, 0, $"Running datalink test {datalinkTest.Name}...");
                             await datalinkTestRun.RunSnapshot(cancellationToken2);
                         }
@@ -610,6 +639,17 @@ namespace dexih.remote.operations
                 var resetIncrementalValue = message.Value["resetIncrementalValue"]?.ToObject<object>();
                 var clientId = message.Value["clientId"].ToString();
 
+                var transformWriterOptions = new TransformWriterOptions()
+                {
+                    TruncateTarget = message.Value["truncateTarget"]?.ToObject<bool>() ?? false,
+                    ResetIncremental = message.Value["resetIncremental"]?.ToObject<bool>() ?? false,
+                    ResetIncrementalValue = message.Value["resetIncrementalValue"]?.ToObject<object>(),
+                    TriggerMethod = TransformWriterResult.ETriggerMethod.Manual,
+                    TriggerInfo = "Started manually at " + DateTime.Now.ToString(CultureInfo.InvariantCulture),
+                    GlobalVariables = CreateGlobalVariables(cache),
+                    PreviewMode = false
+                };
+                
                 var exceptions = new List<Exception>();
                 
                 foreach (var datajobKey in datajobKeys)
@@ -624,7 +664,7 @@ namespace dexih.remote.operations
                             throw new Exception($"Datajob with key {datajobKey} was not found");
                         }
 
-                        var addJobResult = AddDataJobTask(cache.Hub, CreateGlobalVariables(cache), GetTransformSettings(message.HubVariables), clientId, dbDatajob, truncateTarget, resetIncremental, resetIncrementalValue, null, null, TransformWriterResult.ETriggerMethod.Manual, cancellationToken);
+                        var addJobResult = AddDataJobTask(cache.Hub, GetTransformSettings(message.HubVariables), clientId, dbDatajob, transformWriterOptions, null, null, cancellationToken);
                         if (!addJobResult)
                         {
                             throw new Exception($"Failed to start data job {dbDatajob.Name} task.");
@@ -654,15 +694,16 @@ namespace dexih.remote.operations
             }
         }
 
-		private bool AddDataJobTask(DexihHub dbHub, GlobalVariables globalVariables, TransformSettings transformSettings, string clientId, DexihDatajob dbDatajob, bool truncateTarget, bool resetIncremental, object resetIncrementalValue, IEnumerable<ManagedTaskSchedule> managedTaskSchedules, IEnumerable<ManagedTaskFileWatcher> fileWatchers, TransformWriterResult.ETriggerMethod triggerMethod, CancellationToken cancellationToken)
+		private bool AddDataJobTask(DexihHub dbHub, TransformSettings transformSettings, string clientId, DexihDatajob dbDatajob, TransformWriterOptions transformWriterOptions, IEnumerable<ManagedTaskSchedule> managedTaskSchedules, IEnumerable<ManagedTaskFileWatcher> fileWatchers, CancellationToken cancellationToken)
 		{
             try
             {
-                var datajobRun = new DatajobRun(transformSettings, LoggerMessages, dbDatajob, dbHub, globalVariables, truncateTarget, resetIncremental, resetIncrementalValue);
+                var datajobRun = new DatajobRun(transformSettings, LoggerMessages, dbDatajob, dbHub, transformWriterOptions);
 
                 async Task DatajobScheduleTask(ManagedTask managedTask, DateTime scheduleTime, CancellationToken ct)
                 {
-                    datajobRun.Reset();
+                    await datajobRun.Initialize(ct);
+                    managedTask.Data = datajobRun.WriterResult;
                     managedTask.Data = datajobRun.WriterResult;
                     await datajobRun.Schedule(scheduleTime, ct);
                 }
@@ -676,21 +717,21 @@ namespace dexih.remote.operations
                 {
                     managedTask.Data = datajobRun.WriterResult;
 
-                    void OnDatajobProgressUpdate(TransformWriterResult writerResult)
+                    void DatajobProgressUpdate(TransformWriterResult writerResult)
                     {
                         progress.Report(writerResult.PercentageComplete, writerResult.RowsTotal, writerResult.IsFinished ? "" : "Running datajob...");
                     }
 
-                    void OnDatalinkStart(DatalinkRun datalinkRun)
+                    void DatalinkStart(DatalinkRun datalinkRun)
                     {
                         RunDataLink(clientId, datalinkRun, datajobRun, null);
                     }
 
                     datajobRun.ResetEvents();
 
-                    datajobRun.OnDatajobProgressUpdate += OnDatajobProgressUpdate;
-                    datajobRun.OnDatajobStatusUpdate += OnDatajobProgressUpdate;
-                    datajobRun.OnDatalinkStart += OnDatalinkStart;
+                    datajobRun.OnDatajobProgressUpdate += DatajobProgressUpdate;
+                    datajobRun.OnDatajobStatusUpdate += DatajobProgressUpdate;
+                    datajobRun.OnDatalinkStart += DatalinkStart;
 
                     progress.Report(0, 0, "Initializing datajob...");
 
@@ -698,7 +739,7 @@ namespace dexih.remote.operations
 
                     progress.Report(0, 0, "Running datajob...");
 
-                    await datajobRun.Run(triggerMethod, "", ct);
+                    await datajobRun.Run(ct);
                 }
 
                 var newManagedTask = new ManagedTask
@@ -733,11 +774,19 @@ namespace dexih.remote.operations
             {
 				var datajobKeys = message.Value["datajobKeys"].ToObject<long[]>();
 				var cache = Json.JTokenToObject<CacheManager>(message.Value["cache"], _temporaryEncryptionKey);
-				var truncateTarget = message.Value["truncateTarget"]?.ToObject<bool>() ?? false;
-				var resetIncremental = message.Value["resetIncremental"]?.ToObject<bool>() ?? false;
-				var resetIncrementalValue = message.Value["resetIncrementalValue"]?.ToObject<object>();
 				var clientId = message.Value["clientId"].ToString();
 
+                var transformWriterOptions = new TransformWriterOptions()
+                {
+                    TruncateTarget = message.Value["truncateTarget"]?.ToObject<bool>() ?? false,
+                    ResetIncremental = message.Value["resetIncremental"]?.ToObject<bool>() ?? false,
+                    ResetIncrementalValue = message.Value["resetIncrementalValue"]?.ToObject<object>(),
+                    TriggerMethod = TransformWriterResult.ETriggerMethod.Schedule,
+                    TriggerInfo = "Schedule started at " + DateTime.Now.ToString(CultureInfo.InvariantCulture),
+                    GlobalVariables = CreateGlobalVariables(cache),
+                    PreviewMode = false
+                };
+                
                 var exceptions = new List<Exception>();
 
                 foreach (var datajobKey in datajobKeys)
@@ -796,7 +845,7 @@ namespace dexih.remote.operations
                             }
                         }
 
-                        var addJobResult = AddDataJobTask(cache.Hub, CreateGlobalVariables(cache), GetTransformSettings(message.HubVariables), clientId, dbDatajob, truncateTarget, resetIncremental, resetIncrementalValue, triggers, paths, TransformWriterResult.ETriggerMethod.Schedule, cancellationToken);
+                        var addJobResult = AddDataJobTask(cache.Hub, GetTransformSettings(message.HubVariables), clientId, dbDatajob, transformWriterOptions, triggers, paths, cancellationToken);
                         if (!addJobResult)
                         {
                             throw new Exception($"Failed to activate data job {dbDatajob.Name} task.");
@@ -1237,8 +1286,15 @@ namespace dexih.remote.operations
                var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
                var inputColumns = message.Value["inputColumns"].ToObject<InputColumn[]>();
 
+               var transformWriterOptions = new TransformWriterOptions()
+               {
+                   SelectQuery = message.Value["selectQuery"].ToObject<SelectQuery>(),
+                   PreviewMode = true,
+                   GlobalVariables = CreateGlobalVariables(cache)
+               };
+               
                 var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
-                var runPlan = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, inputColumns, CreateGlobalVariables(cache), datalinkTransformKey, null, false, previewMode: true);
+                var runPlan = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, inputColumns, datalinkTransformKey, null, transformWriterOptions);
                 var transform = runPlan.sourceTransform;
                    transform = new TransformQuery(transform, selectQuery);
                 var openReturn = await transform.Open(0, null, cancellationToken);
@@ -1281,16 +1337,22 @@ namespace dexih.remote.operations
                 var datalinkTransform = dbDatalink.DexihDatalinkTransforms.Single(c => c.DatalinkTransformKey == datalinkTransformKey);
                 var previousDatalinkTransform = dbDatalink.DexihDatalinkTransforms.OrderBy(c => c.Position).SingleOrDefault(c => c.Position < datalinkTransform.Position);
 
+                var transformWriterOptions = new TransformWriterOptions()
+                {
+                    PreviewMode = true,
+                    GlobalVariables = CreateGlobalVariables(cache)
+                };
+                
                 Transform transform;
                 var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
                 if(previousDatalinkTransform != null) 
                 {
-                    var runPlan = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, null, CreateGlobalVariables(cache), previousDatalinkTransform.DatalinkTransformKey, null, false, previewMode: true);
+                    var runPlan = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, null, previousDatalinkTransform.DatalinkTransformKey, null, transformWriterOptions);
                     transform = runPlan.sourceTransform;
                 }
                 else
                 {
-                    var sourceTransform = transformOperations.GetSourceTransform(cache.Hub, dbDatalink.SourceDatalinkTable, null, CreateGlobalVariables(cache), true);
+                    var sourceTransform = transformOperations.GetSourceTransform(cache.Hub, dbDatalink.SourceDatalinkTable, null, transformWriterOptions);
                     transform = sourceTransform.sourceTransform;
                 }
 
@@ -1353,13 +1415,19 @@ namespace dexih.remote.operations
 
                 var cache = Json.JTokenToObject<CacheManager>(message.Value["cache"], _temporaryEncryptionKey);
                 var datalinkKey = message.Value["datalinkKey"].ToObject<long>();
-                var selectQuery = message.Value["selectQuery"].ToObject<SelectQuery>();
                 var dbDatalink = cache.Hub.DexihDatalinks.Single(c => c.DatalinkKey == datalinkKey);
                 var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
                 var inputColumns = message.Value["inputColumns"].ToObject<InputColumn[]>();
 
+                var transformWriterOptions = new TransformWriterOptions()
+                {
+                    PreviewMode = true,
+                    GlobalVariables = CreateGlobalVariables(cache),
+                    SelectQuery = message.Value["selectQuery"].ToObject<SelectQuery>()
+                };
+                
                 var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
-                var runPlan = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, inputColumns, CreateGlobalVariables(cache), null, null, false, selectQuery, previewMode: true);
+                var runPlan = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, inputColumns, null, null, transformWriterOptions);
                 var transform = runPlan.sourceTransform;
                 var openReturn = await transform.Open(0, null, cancellationToken);
                 if (!openReturn)
@@ -1370,7 +1438,7 @@ namespace dexih.remote.operations
                 transform.SetCacheMethod(Transform.ECacheMethod.OnDemandCache);
                 transform.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
 
-                var stream = new StreamJson(dbDatalink.Name, transform, selectQuery.Rows);
+                var stream = new StreamJson(dbDatalink.Name, transform, transformWriterOptions.SelectQuery.Rows);
                 return await StartDataStream(stream, downloadUrl, "json", "preview_datalink.json", cancellationToken);
             }
             catch (Exception ex)
@@ -1392,14 +1460,21 @@ namespace dexih.remote.operations
 
                 var cache = Json.JTokenToObject<CacheManager>(message.Value["cache"], _temporaryEncryptionKey);
                 var datalinkKey = message.Value["datalinkKey"].ToObject<long>();
-                var selectQuery = message.Value["selectQuery"].ToObject<SelectQuery>();
                 var dbDatalink = cache.Hub.DexihDatalinks.Single(c => c.DatalinkKey == datalinkKey);
                 var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
                
+                var transformWriterOptions = new TransformWriterOptions()
+                {
+                    PreviewMode = true,
+                    GlobalVariables = CreateGlobalVariables(cache),
+                    SelectQuery = message.Value["selectQuery"].ToObject<SelectQuery>()
+                };
+                
                 var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
-                var runPlan = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, null, CreateGlobalVariables(cache), null, null, false, selectQuery, previewMode:true);
+                var runPlan = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, null, null, null, transformWriterOptions);
                 var transform = runPlan.sourceTransform;
-                var openReturn = await transform.Open(0, selectQuery, cancellationToken);
+                var openReturn = await transform.Open(0, transformWriterOptions.SelectQuery, cancellationToken);
+                
                 if (!openReturn) 
                 {
                     throw new RemoteOperationException("Failed to open the transform.");
@@ -1843,10 +1918,10 @@ namespace dexih.remote.operations
                 }
 
                 // Taks.Run get's rid of the async warning
-                var startdownloadResult = _managedTasks.Add(reference, clientId,
+                var startDownloadResult = _managedTasks.Add(reference, clientId,
                     $"Download file: {files[0]} from {path}.", "Download", connectionTable.hubKey, null, 0, null,
                     DownloadTask, null, null, null);
-                return startdownloadResult;
+                return startDownloadResult;
             }
             catch (Exception ex)
             {

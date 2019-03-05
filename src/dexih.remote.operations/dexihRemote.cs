@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
@@ -980,7 +981,7 @@ namespace dexih.remote
                         {
                             SecurityToken = SecurityToken,
                             Command = "task",
-                            Results = managedTaskChanges
+                            Results = managedTaskChanges.ToList()
                         };
                         var messagesString = Json.SerializeObject(postData, SessionEncryptionKey);
                         var content = new StringContent(messagesString, Encoding.UTF8, "application/json");
