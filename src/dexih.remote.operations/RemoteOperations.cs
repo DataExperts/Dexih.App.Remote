@@ -281,7 +281,7 @@ namespace dexih.remote.operations
 
                 var transformWriterOptions = new TransformWriterOptions()
                 {
-                    TruncateTarget = message.Value["truncateTarget"]?.ToObject<bool>() ?? false,
+                    TargetAction = message.Value["truncateTarget"]?.ToObject<bool>() ?? false ? TransformWriterOptions.eTargetAction.Truncate : TransformWriterOptions.eTargetAction.None,
                     ResetIncremental = message.Value["resetIncremental"]?.ToObject<bool>() ?? false,
                     ResetIncrementalValue = message.Value["resetIncrementalValue"]?.ToObject<object>(),
                     TriggerMethod = TransformWriterResult.ETriggerMethod.Manual,
@@ -301,7 +301,6 @@ namespace dexih.remote.operations
                     }
 
                     var datalinkRun = new DatalinkRun(GetTransformSettings(message.HubVariables), LoggerMessages, 0, dbDatalink, cache.Hub, null, transformWriterOptions);
-
                     var runReturn = RunDataLink(clientId, datalinkRun, null, null);
                 }
 
@@ -331,10 +330,10 @@ namespace dexih.remote.operations
                     await datalinkRun.Initialize(cancellationToken);
 
                     // set the data to the writer result, which is used for real-time progress events sent back to the client.
-                    managedTask.Data = datalinkRun.WriterTargets.WriterResult;
+                    managedTask.Data = datalinkRun.WriterTarget.WriterResult;
                     
                     progress.Report(0, 0, "Compiling datalink...");
-                    await datalinkRun.Build(cancellationToken);
+                    datalinkRun.Build(cancellationToken);
 
                     void ProgressUpdate(TransformWriterResult writerResult)
                     {
@@ -358,7 +357,7 @@ namespace dexih.remote.operations
                     await datalinkRun.Run(cancellationToken);
                 }
 
-                var newTask = _managedTasks.Add(reference, clientId, $"Datalink: {datalinkRun.Datalink.Name}.", "Datalink", datalinkRun.Datalink.HubKey, null, datalinkRun.Datalink.DatalinkKey, datalinkRun.WriterTargets.WriterResult, DatalinkRunTask, null, null, dependencies);
+                var newTask = _managedTasks.Add(reference, clientId, $"Datalink: {datalinkRun.Datalink.Name}.", "Datalink", datalinkRun.Datalink.HubKey, null, datalinkRun.Datalink.DatalinkKey, datalinkRun.WriterTarget.WriterResult, DatalinkRunTask, null, null, dependencies);
                 if (newTask != null)
                 {
                     return newTask;
@@ -641,7 +640,7 @@ namespace dexih.remote.operations
 
                 var transformWriterOptions = new TransformWriterOptions()
                 {
-                    TruncateTarget = message.Value["truncateTarget"]?.ToObject<bool>() ?? false,
+                    TargetAction = message.Value["truncateTarget"]?.ToObject<bool>() ?? false ? TransformWriterOptions.eTargetAction.Truncate : TransformWriterOptions.eTargetAction.None,
                     ResetIncremental = message.Value["resetIncremental"]?.ToObject<bool>() ?? false,
                     ResetIncrementalValue = message.Value["resetIncrementalValue"]?.ToObject<object>(),
                     TriggerMethod = TransformWriterResult.ETriggerMethod.Manual,
@@ -705,12 +704,12 @@ namespace dexih.remote.operations
                     await datajobRun.Initialize(ct);
                     managedTask.Data = datajobRun.WriterResult;
                     managedTask.Data = datajobRun.WriterResult;
-                    await datajobRun.Schedule(scheduleTime, ct);
+                    datajobRun.Schedule(scheduleTime, ct);
                 }
 
                 async Task DatajobCancelScheduledTask(ManagedTask managedTask, CancellationToken ct)
                 {
-                    await datajobRun.CancelSchedule(ct);
+                    datajobRun.CancelSchedule(ct);
                 }
 
                 async Task DatajobRunTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken ct)
@@ -778,7 +777,7 @@ namespace dexih.remote.operations
 
                 var transformWriterOptions = new TransformWriterOptions()
                 {
-                    TruncateTarget = message.Value["truncateTarget"]?.ToObject<bool>() ?? false,
+                    TargetAction = message.Value["truncateTarget"]?.ToObject<bool>() ?? false ? TransformWriterOptions.eTargetAction.Truncate : TransformWriterOptions.eTargetAction.None,
                     ResetIncremental = message.Value["resetIncremental"]?.ToObject<bool>() ?? false,
                     ResetIncrementalValue = message.Value["resetIncrementalValue"]?.ToObject<object>(),
                     TriggerMethod = TransformWriterResult.ETriggerMethod.Schedule,
