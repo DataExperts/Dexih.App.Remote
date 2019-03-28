@@ -21,8 +21,6 @@ using Dexih.Utils.ManagedTasks;
 using Dexih.Utils.MessageHelpers;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http.Connections;
-using Microsoft.AspNetCore.Internal;
-using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
