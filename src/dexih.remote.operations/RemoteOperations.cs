@@ -20,6 +20,7 @@ using dexih.transforms;
 using dexih.transforms.Transforms;
 using Dexih.Utils.CopyProperties;
 using Dexih.Utils.Crypto;
+using Dexih.Utils.DataType;
 using Dexih.Utils.ManagedTasks;
 using Dexih.Utils.MessageHelpers;
 using Microsoft.Extensions.Logging;
@@ -1521,7 +1522,7 @@ namespace dexih.remote.operations
 
                     query.Filters.Add(new Filter(profileTable.GetColumn(TableColumn.EDeltaType.CreateAuditKey), Filter.ECompare.IsEqual, auditKey));
                     if (summaryOnly)
-                        query.Filters.Add(new Filter(new TableColumn("IsSummary"), Filter.ECompare.IsEqual, true));
+                        query.Filters.Add(new Filter(profileTable["IsSummary"], Filter.ECompare.IsEqual, true));
 
                     var reader = connection.GetTransformReader(profileTable);
                     reader = new TransformQuery(reader, query);
