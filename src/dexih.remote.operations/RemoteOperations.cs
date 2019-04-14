@@ -291,6 +291,8 @@ namespace dexih.remote.operations
                     PreviewMode = false
                 };
 
+                var inputColumns = message.Value["inputColumns"]?.ToObject<InputColumn[]>();
+
                 LoggerMessages.LogInformation(25, "Run datalinks timer1: {0}", timer.Elapsed);
 
                 foreach (var datalinkKey in datalinkKeys)
@@ -301,7 +303,8 @@ namespace dexih.remote.operations
                         throw new RemoteOperationException($"The datalink with the key {datalinkKey} was not found.");
                     }
 
-                    var datalinkRun = new DatalinkRun(GetTransformSettings(message.HubVariables), LoggerMessages, 0, dbDatalink, cache.Hub, null, transformWriterOptions);
+                    var datalinkInputs = inputColumns?.Where(c => c.DatalinkKey == dbDatalink.DatalinkKey).ToArray();
+                    var datalinkRun = new DatalinkRun(GetTransformSettings(message.HubVariables), LoggerMessages, 0, dbDatalink, cache.Hub, datalinkInputs, transformWriterOptions);
                     var runReturn = RunDataLink(clientId, cache.HubKey, datalinkRun, null, null);
                 }
 
@@ -326,16 +329,13 @@ namespace dexih.remote.operations
                 // put the download into an action and allow to complete in the scheduler.
                 async Task DatalinkRunTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken cancellationToken)
                 {
-//                    progress.Report(0, 0, "Initializing datalink...");
-//                    await datalinkRun.Initialize(cancellationToken);
-
                     // set the data to the writer result, which is used for real-time progress events sent back to the client.
                     managedTask.Data = datalinkRun.WriterTarget.WriterResult;
                     
                     progress.Report(0, 0, "Compiling datalink...");
                     datalinkRun.Build(cancellationToken);
 
-                    void ProgressUpdate(TransformWriterResult writerResult)
+                    void ProgressUpdate(DatalinkRun datalinkRun2, TransformWriterResult writerResult)
                     {
                         if (writerResult.AuditType == "Datalink")
                         {
@@ -356,8 +356,25 @@ namespace dexih.remote.operations
                     progress.Report(0, 0, "Running datalink...");
                     await datalinkRun.Run(cancellationToken);
                 }
+                
+                var task = new ManagedTask
+                {
+                    Reference = reference,
+                    OriginatorId = clientId,
+                    Name = $"Datalink: {datalinkRun.Datalink.Name}.",
+                    Category = "Datalink",
+                    CategoryKey = datalinkRun.Datalink.DatalinkKey,
+                    ReferenceKey = hubKey,
+                    ReferenceId = null,
+                    Data = datalinkRun.WriterTarget.WriterResult,
+                    Action = DatalinkRunTask,
+                    Triggers = null,
+                    FileWatchers = null,
+                    DependentReferences = dependencies,
+                    ConcurrentTaskAction = parentDataJobRun == null ? EConcurrentTaskAction.Abend : EConcurrentTaskAction.Sequence
+                };
 
-                var newTask = _managedTasks.Add(reference, clientId, $"Datalink: {datalinkRun.Datalink.Name}.", "Datalink", hubKey, null, datalinkRun.Datalink.DatalinkKey, datalinkRun.WriterTarget.WriterResult, DatalinkRunTask, null, null, dependencies);
+                var newTask = _managedTasks.Add(task);
                 if (newTask != null)
                 {
                     return newTask;
@@ -1156,7 +1173,7 @@ namespace dexih.remote.operations
 
                 LoggerMessages.LogInformation("Preview for table: " + dbTable.Name + ".");
 
-                var stream = new StreamJson(dbTable.Name, reader, selectQuery.Rows);
+                var stream = new StreamJsonCompact(dbTable.Name, reader, selectQuery?.Rows ?? 100);
 
                 return await StartDataStream(stream, downloadUrl, "json", "preview_table.json", cancellationToken);
 
@@ -1306,7 +1323,7 @@ namespace dexih.remote.operations
 				transform.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
                
                
-               var stream = new StreamJson(dbDatalink.Name + " " + transform.Name, transform, selectQuery.Rows);
+               var stream = new StreamJsonCompact(dbDatalink.Name + " " + transform.Name, transform, selectQuery.Rows);
                return await StartDataStream(stream, downloadUrl, "json", "preview_transform.json", cancellationToken);
            }
            catch (Exception ex)
@@ -1438,7 +1455,7 @@ namespace dexih.remote.operations
                 transform.SetCacheMethod(Transform.ECacheMethod.DemandCache);
                 transform.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
 
-                var stream = new StreamJson(dbDatalink.Name, transform, transformWriterOptions.SelectQuery.Rows);
+                var stream = new StreamJsonCompact(dbDatalink.Name, transform, transformWriterOptions.SelectQuery.Rows);
                 return await StartDataStream(stream, downloadUrl, "json", "preview_datalink.json", cancellationToken);
             }
             catch (Exception ex)
@@ -1530,7 +1547,7 @@ namespace dexih.remote.operations
                     reader.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
 
                     LoggerMessages.LogInformation("Preview for profile results: " + profileTable.Name + ".");
-                    var stream = new StreamJson(profileTable.Name, reader, query.Rows);
+                    var stream = new StreamJsonCompact(profileTable.Name, reader, query.Rows);
 
                     return await StartDataStream(stream, downloadUrl, "json", "preview_table.json", cancellationToken);
                 }
@@ -1811,44 +1828,45 @@ namespace dexih.remote.operations
                     try
                     {
 
-                        if (fileName.EndsWith(".zip"))
-                        {
-                            var memoryStream = new MemoryStream();
-                            await stream.CopyToAsync(memoryStream);
-                            using (var archive = new ZipArchive(memoryStream, ZipArchiveMode.Read, true))
-                            {
-                                foreach (var entry in archive.Entries)
-                                {
-                                    var saveArchiveFile = await connection.SaveFileStream(flatFile, EFlatFilePath.Incoming, entry.Name, entry.Open());
-                                    if (!saveArchiveFile)
-                                    {
-                                        throw new RemoteOperationException("The save file stream failed.");
-                                    }
-                                }
-                            }
-
-                        }
-                        else if (fileName.EndsWith(".gz"))
-                        {
-                            var newFileName = fileName.Substring(0, fileName.Length - 3);
-
-                            using (var decompressionStream = new GZipStream(stream, CompressionMode.Decompress))
-                            {
-                                var saveArchiveFile = await connection.SaveFileStream(flatFile, EFlatFilePath.Incoming, newFileName, decompressionStream);
-                                if (!saveArchiveFile)
-                                {
-                                    throw new RemoteOperationException("The save file stream failed.");
-                                }
-                            }
-                        }
-                        else
-                        {
-                            var saveFile = await connection.SaveFileStream(flatFile, EFlatFilePath.Incoming, fileName, stream);
-                        }
+//                        if (fileName.EndsWith(".zip"))
+//                        {
+//                            var memoryStream = new MemoryStream();
+//                            await stream.CopyToAsync(memoryStream);
+//                            using (var archive = new ZipArchive(memoryStream, ZipArchiveMode.Read, true))
+//                            {
+//                                foreach (var entry in archive.Entries)
+//                                {
+//                                    var saveArchiveFile = await connection.SaveFileStream(flatFile, EFlatFilePath.Incoming, entry.Name, entry.Open());
+//                                    if (!saveArchiveFile)
+//                                    {
+//                                        throw new RemoteOperationException("The save file stream failed.");
+//                                    }
+//                                }
+//                            }
+//
+//                        }
+//                        else if (fileName.EndsWith(".gz"))
+//                        {
+//                            var newFileName = fileName.Substring(0, fileName.Length - 3);
+//
+//                            using (var decompressionStream = new GZipStream(stream, CompressionMode.Decompress))
+//                            {
+//                                var saveArchiveFile = await connection.SaveFileStream(flatFile, EFlatFilePath.Incoming, newFileName, decompressionStream);
+//                                if (!saveArchiveFile)
+//                                {
+//                                    throw new RemoteOperationException("The save file stream failed.");
+//                                }
+//                            }
+//                        }
+//                        else
+//                        {
+                            var saveFile = await connection.SaveFiles(flatFile, EFlatFilePath.Incoming, fileName, stream);
+//                        }
                     }
                     catch (Exception ex)
                     {
                         LoggerMessages.LogError(60, ex, "Error processing uploaded file.  {0}", ex.Message);
+                        throw;
                     }
                 }
 
@@ -1858,7 +1876,7 @@ namespace dexih.remote.operations
             catch (Exception ex)
             {
                 LoggerMessages.LogError(60, ex, "Error in UploadFiles: {0}", ex.Message);
-                throw;
+                throw new RemoteOperationException($"The file upload did not completed.  {ex.Message}", ex);
             }
         }
 

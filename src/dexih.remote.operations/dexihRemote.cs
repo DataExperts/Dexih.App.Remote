@@ -239,8 +239,6 @@ namespace dexih.remote
                                 _remoteSettings.AppSettings.UserToken = loginResult.userToken;
                             }
 
-                            var appSettingsFile = Directory.GetCurrentDirectory() + "/appsettings.json";
-
                             _remoteSettings.AppSettings.UserPrompt = false;
 
                             //create a temporary settings file that does not contain the RunTime property.
@@ -255,7 +253,7 @@ namespace dexih.remote
                                 NamingStandards = _remoteSettings.NamingStandards
                             };
 
-                            File.WriteAllText(appSettingsFile,
+                            File.WriteAllText(_remoteSettings.Runtime.AppSettingsPath,
                                 JsonConvert.SerializeObject(tmpSettings, Formatting.Indented));
                             logger.LogInformation(
                                 "The appsettings.json file has been updated with the current settings.");
@@ -459,7 +457,7 @@ namespace dexih.remote
             var logger = LoggerFactory.CreateLogger("WebHost");
 
             var useHttps = !string.IsNullOrEmpty(_remoteSettings.Network.CertificateFilename);
-            var certificatePath = _remoteSettings.Network.CertificateFilePath();
+            var certificatePath = _remoteSettings.CertificateFilePath();
 
             logger.LogInformation($"Using the ssl certificate at {certificatePath}");
 
@@ -481,7 +479,6 @@ namespace dexih.remote
                 useHttps = true;
 
                 var renew = false;
-
 
                 if (File.Exists(certificatePath))
                 {

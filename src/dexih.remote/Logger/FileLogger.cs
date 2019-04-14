@@ -8,68 +8,44 @@ using Microsoft.Extensions.Logging.Console.Internal;
 
 namespace dexih.remote
 {
-    public class RemoteLogger: ILogger
+    public class FileLogger: ILogger
     {
        private static readonly string _loglevelPadding = ": ";
         private static readonly string _messagePadding;
         private static readonly string _newLineWithMessagePadding;
 
-        // ConsoleColor does not have a value to specify the 'Default' color
-        private readonly ConsoleColor? _defaultConsoleColor = null;
-
-        private readonly ConsoleLoggerProcessor _queueProcessor;
+        private readonly FileLoggerProcessor _queueProcessor;
         private Func<string, LogLevel, bool> _filter;
 
         [ThreadStatic]
         private static StringBuilder _logBuilder;
 
-        static RemoteLogger()
+        static FileLogger()
         {
             var logLevelString = GetLogLevelString(LogLevel.Information);
             _messagePadding = new string(' ', logLevelString.Length + _loglevelPadding.Length);
             _newLineWithMessagePadding = Environment.NewLine + _messagePadding;
         }
 
-        public RemoteLogger(string name, Func<string, LogLevel, bool> filter, bool includeScopes)
-            : this(name, filter, includeScopes ? new LoggerExternalScopeProvider() : null, new ConsoleLoggerProcessor())
+        public FileLogger(string name, Func<string, LogLevel, bool> filter, bool includeScopes, string path, string fileName = null)
+            : this(name, filter, includeScopes ? new LoggerExternalScopeProvider() : null, new FileLoggerProcessor(path, fileName))
         {
         }
 
-        public RemoteLogger(string name, Func<string, LogLevel, bool> filter, IExternalScopeProvider scopeProvider)
-            : this(name, filter, scopeProvider, new ConsoleLoggerProcessor())
+        public FileLogger(string name, Func<string, LogLevel, bool> filter, IExternalScopeProvider scopeProvider, string path, string fileName = null)
+            : this(name, filter, scopeProvider, new FileLoggerProcessor(path, fileName))
         {
         }
 
-        internal RemoteLogger(string name, Func<string, LogLevel, bool> filter, IExternalScopeProvider scopeProvider, ConsoleLoggerProcessor loggerProcessor)
+        internal FileLogger(string name, Func<string, LogLevel, bool> filter, IExternalScopeProvider scopeProvider, FileLoggerProcessor loggerProcessor)
         {
             Name = name ?? throw new ArgumentNullException(nameof(name));
             Filter = filter ?? ((category, logLevel) => true);
             ScopeProvider = scopeProvider;
             _queueProcessor = loggerProcessor;
-
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                Console = new WindowsLogConsole();
-            }
-            else
-            {
-                Console = new AnsiLogConsole(new AnsiSystemConsole());
-            }
         }
 
-        public IConsole Console
-        {
-            get { return _queueProcessor.Console; }
-            set
-            {
-                if (value == null)
-                {
-                    throw new ArgumentNullException(nameof(value));
-                }
 
-                _queueProcessor.Console = value;
-            }
-        }
 
         public Func<string, LogLevel, bool> Filter
         {
@@ -84,7 +60,6 @@ namespace dexih.remote
 
         internal IExternalScopeProvider ScopeProvider { get; set; }
 
-        public bool DisableColors { get; set; }
 
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception exception, Func<TState, Exception, string> formatter)
         {
@@ -116,14 +91,12 @@ namespace dexih.remote
                 logBuilder = new StringBuilder();
             }
 
-            var logLevelColors = default(ConsoleColors);
             var logLevelString = string.Empty;
 
             // Example:
             // INFO: ConsoleApp.Program[10]
             //       Request received
 
-            logLevelColors = GetLogLevelConsoleColors(logLevel);
             logLevelString = GetLogLevelString(logLevel);
             // category and event id
             
@@ -163,10 +136,7 @@ namespace dexih.remote
                 _queueProcessor.EnqueueMessage(new LogMessageEntry()
                 {
                     Message = logBuilder.ToString(),
-                    MessageColor = _defaultConsoleColor,
                     LevelString = hasLevel ? logLevelString : null,
-                    LevelBackground = hasLevel ? logLevelColors.Background : null,
-                    LevelForeground = hasLevel ? logLevelColors.Foreground : null
                 });
             }
 
@@ -211,34 +181,6 @@ namespace dexih.remote
             }
         }
 
-        private ConsoleColors GetLogLevelConsoleColors(LogLevel logLevel)
-        {
-            if (DisableColors)
-            {
-                return new ConsoleColors(null, null);
-            }
-
-            // We must explicitly set the background color if we are setting the foreground color,
-            // since just setting one can look bad on the users console.
-            switch (logLevel)
-            {
-                case LogLevel.Critical:
-                    return new ConsoleColors(ConsoleColor.White, ConsoleColor.Red);
-                case LogLevel.Error:
-                    return new ConsoleColors(ConsoleColor.Black, ConsoleColor.Red);
-                case LogLevel.Warning:
-                    return new ConsoleColors(ConsoleColor.Yellow, ConsoleColor.Black);
-                case LogLevel.Information:
-                    return new ConsoleColors(ConsoleColor.DarkGreen, ConsoleColor.Black);
-                case LogLevel.Debug:
-                    return new ConsoleColors(ConsoleColor.Gray, ConsoleColor.Black);
-                case LogLevel.Trace:
-                    return new ConsoleColors(ConsoleColor.Gray, ConsoleColor.Black);
-                default:
-                    return new ConsoleColors(_defaultConsoleColor, _defaultConsoleColor);
-            }
-        }
-
         private void GetScopeInformation(StringBuilder stringBuilder)
         {
             var scopeProvider = ScopeProvider;
@@ -258,32 +200,6 @@ namespace dexih.remote
                     stringBuilder.Insert(initialLength, _messagePadding);
                     stringBuilder.AppendLine();
                 }
-            }
-        }
-
-        private struct ConsoleColors
-        {
-            public ConsoleColors(ConsoleColor? foreground, ConsoleColor? background)
-            {
-                Foreground = foreground;
-                Background = background;
-            }
-
-            public ConsoleColor? Foreground { get; }
-
-            public ConsoleColor? Background { get; }
-        }
-
-        private struct AnsiSystemConsole : IAnsiSystemConsole
-        {
-            public void Write(string message)
-            {
-                System.Console.Write(message);
-            }
-
-            public void WriteLine(string message)
-            {
-                System.Console.WriteLine(message);
             }
         }
     }

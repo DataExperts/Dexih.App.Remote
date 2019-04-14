@@ -18,18 +18,25 @@ namespace dexih.remote
             
             // create a temporary logger (until the log level settings have been loaded.
             var loggerFactory = new LoggerFactory();
-            loggerFactory.AddProvider(new RemoteLoggerProvider(LogLevel.Trace));
+            loggerFactory.AddProvider(new ConsoleLoggerProvider(LogLevel.Trace));
             var logger = loggerFactory.CreateLogger("main");
 
+            var configDirectory = Environment.GetEnvironmentVariable("DEXIH_CONFIG_DIRECTORY");
+            if (string.IsNullOrEmpty(configDirectory))
+            {
+                configDirectory = Directory.GetCurrentDirectory();
+            }
+            
+            var logDirectory = Environment.GetEnvironmentVariable("DEXIH_LOG_DIRECTORY");
 
-            var settingsFile = Path.Combine(Directory.GetCurrentDirectory(), "appsettings.json");
+            var settingsFile = Path.Combine(configDirectory, "appsettings.json");
             if (args.Length >= 2 && args[0] == "-appsettings")
             {
                 settingsFile = args[1];
             }
             
             // Set up configuration sources.
-            var builder = new ConfigurationBuilder().SetBasePath(Directory.GetCurrentDirectory());
+            var builder = new ConfigurationBuilder().SetBasePath(configDirectory);
 
             //check config file first for any settings.
             if (File.Exists(settingsFile))
@@ -53,6 +60,9 @@ namespace dexih.remote
             }
             var configuration = builder.Build();
             var remoteSettings = configuration.Get<RemoteSettings>();
+            remoteSettings.Runtime.ConfigDirectory = configDirectory;
+            remoteSettings.Runtime.LogDirectory = logDirectory;
+            remoteSettings.Runtime.AppSettingsPath = settingsFile;
 
             // call configure settings, to get additional settings
             var configureSettings = new ConfigureSettings(logger, remoteSettings);
@@ -79,7 +89,12 @@ namespace dexih.remote
             
             // add logging.
             loggerFactory = new LoggerFactory();
-            loggerFactory.AddProvider(new RemoteLoggerProvider(configureSettings.RemoteSettings.Logging.LogLevel.Default));
+            loggerFactory.AddProvider(new ConsoleLoggerProvider(configureSettings.RemoteSettings.Logging.LogLevel.Default));
+            if (!string.IsNullOrEmpty(logDirectory))
+            {
+                loggerFactory.AddProvider(
+                    new FileLoggerProvider(configureSettings.RemoteSettings.Logging.LogLevel.Default, logDirectory));
+            }
 
             var remote = new DexihRemote(configureSettings.RemoteSettings, loggerFactory);
             var exitCode = await remote.StartAsync(configureSettings.SaveSettings, CancellationToken.None);
@@ -107,6 +122,5 @@ Welcome to Dexih - The Data Experts Information Hub
             Console.WriteLine($"Remote Agent - Version {runtimeVersion}");
             
         }
-
     }
 }

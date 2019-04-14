@@ -1,5 +1,8 @@
 ﻿using System;
 using System.IO;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Threading.Tasks;
 using System.Web;
 using dexih.remote.Operations.Services;
 using Dexih.Utils.Crypto;
@@ -68,10 +71,18 @@ namespace dexih.remote.operations
 
                         if (command == "upload")
                         {
-                            var memoryStream = new MemoryStream();
-                            await context.Request.Body.CopyToAsync(memoryStream);
-                            memoryStream.Position = 0;
-                            await streams.ProcessUploadAction(key, securityKey, memoryStream);
+                            var files = context.Request.Form.Files;
+                            if (files.Count >= 1)
+                            {
+                                var memoryStream = new MemoryStream();
+                                await files[0].CopyToAsync(memoryStream);
+                                memoryStream.Position = 0;
+                                await streams.ProcessUploadAction(key, securityKey, memoryStream);
+                            }
+                            else
+                            {
+                                throw new Exception("The file upload only supports one file.");
+                            }
                         }
                         else
                         {
@@ -117,5 +128,6 @@ namespace dexih.remote.operations
                 }
             });
         }
+        
     }
 }

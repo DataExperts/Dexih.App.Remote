@@ -4,7 +4,6 @@
     <LangVersion>7.3</LangVersion>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Dexih.Utils.ManagedTasks" Version="0.1.49" />
     <PackageReference Include="Microsoft.AspNetCore.Cors" Version="2.2.0" />
     <PackageReference Include="Open.NAT" Version="2.1.0" />
     <PackageReference Include="Microsoft.AspNetCore.Server.Kestrel" Version="2.2.0" />
@@ -14,5 +13,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\Dexih.App.Operations\src\dexih.operations\dexih.operations.csproj">
     </ProjectReference>
+    <ProjectReference Include="..\..\..\Dexih.Utils.ManagedTasks\src\Dexih.Utils.ManagedTasks\Dexih.Utils.ManagedTasks.csproj" />
   </ItemGroup>
 </Project>

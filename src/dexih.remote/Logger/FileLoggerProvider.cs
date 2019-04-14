@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Console.Internal;
@@ -6,30 +6,30 @@ using Microsoft.Extensions.Logging.Console.Internal;
 namespace dexih.remote
 {
     [ProviderAlias("Remote")]
-    public class RemoteLoggerProvider : ILoggerProvider
+    public class FileLoggerProvider: ILoggerProvider
     {
-        private readonly ConcurrentDictionary<string, RemoteLogger> _loggers = new ConcurrentDictionary<string, RemoteLogger>();
+        private readonly ConcurrentDictionary<string, FileLogger> _loggers = new ConcurrentDictionary<string, FileLogger>();
 
         private readonly Func<string, LogLevel, bool> _filter;
         
-        private readonly ConsoleLoggerProcessor _messageQueue = new ConsoleLoggerProcessor();
+        private readonly FileLoggerProcessor _messageQueue;
 
         private static readonly Func<string, LogLevel, bool> trueFilter = (cat, level) => true;
         private static readonly Func<string, LogLevel, bool> falseFilter = (cat, level) => false;
         private readonly bool _includeScopes;
-        private readonly bool _disableColors;
         private IExternalScopeProvider _scopeProvider;
 
-        public RemoteLoggerProvider(LogLevel minLevel)
-            : this((category, logLevel) => logLevel >= minLevel, false, false)
+        public FileLoggerProvider(LogLevel minLevel, string path, string fileName = null)
+            : this((category, logLevel) => logLevel >= minLevel, false, path, fileName)
         {
         }
 
-        public RemoteLoggerProvider(Func<string, LogLevel, bool> filter, bool includeScopes, bool disableColors)
+        public FileLoggerProvider(Func<string, LogLevel, bool> filter, bool includeScopes, string path, string fileName = null)
         {
             _filter = filter ?? throw new ArgumentNullException(nameof(filter));
             _includeScopes = includeScopes;
-            _disableColors = disableColors;
+            
+            _messageQueue = new FileLoggerProcessor(path, fileName);
         }
 
         public ILogger CreateLogger(string name)
@@ -37,15 +37,11 @@ namespace dexih.remote
             return _loggers.GetOrAdd(name, CreateLoggerImplementation);
         }
 
-        private RemoteLogger CreateLoggerImplementation(string name)
+        private FileLogger CreateLoggerImplementation(string name)
         {
             var includeScopes = _includeScopes;
-            var disableColors = _disableColors;
             
-            return new RemoteLogger(name, GetFilter(name), includeScopes? _scopeProvider: null, _messageQueue)
-            {
-                DisableColors = disableColors
-            };
+            return new FileLogger(name, GetFilter(name), includeScopes? _scopeProvider: null, _messageQueue);
         }
 
         private Func<string, LogLevel, bool> GetFilter(string name)
@@ -62,6 +58,6 @@ namespace dexih.remote
         {
             _messageQueue.Dispose();
         }
-
+       
     }
 }
