@@ -32,11 +32,19 @@ Then run the instance:
 $ docker run --name dexih-remote \
    -p 33944:33944 \
    -e DEXIH_CONFIG_DIRECTORY=/config \
-   -e DEXIH_LOG_DIRECTORY=/log \
+   -e Logging__LogFilePath=/log \
+   -e Network__LocalIpAddress=192.168.1.2
    -v /local_config_path:/config \
    -v /local_log_files_path:/config \
    -v /data_files_path:/data \
    dexih/remote
+```
+
+The "Network__LocalIpAddress" is provides the network that docker host is on, meaning if a port mapping has been set (i.e. -p 33944:33944) the information hub will allow data upload/download to happen through the local network.
+
+Other environment variables can be set, by referring to the setting in the appsettings.json file (in the config directory).  These settings will map to environment variables using the section and double underscore.  For example to set a default user
+```console
+   -e AppSettings__User=user@domain.com
 ```
 
 # License

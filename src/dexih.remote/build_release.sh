@@ -37,4 +37,4 @@ chmod a+x dexih.remote
 zip -qr ../../../../../releases/dexih.remote.alpine_${VERSION_PREFIX}-${VERSION_SUFFIX}.zip *
 popd
 
-# docker build . -t dexih/remote:${VERSION_PREFIX}-${VERSION_SUFFIX}
+docker build . -t dexih/remote:latest -t dexih/remote:${VERSION_PREFIX}-${VERSION_SUFFIX} --build-arg RELEASE=releases/dexih.remote.alpine_${VERSION_PREFIX}-${VERSION_SUFFIX}.zip

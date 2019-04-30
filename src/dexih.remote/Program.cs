@@ -27,8 +27,6 @@ namespace dexih.remote
                 configDirectory = Directory.GetCurrentDirectory();
             }
             
-            var logDirectory = Environment.GetEnvironmentVariable("DEXIH_LOG_DIRECTORY");
-
             var settingsFile = Path.Combine(configDirectory, "appsettings.json");
             if (args.Length >= 2 && args[0] == "-appsettings")
             {
@@ -61,7 +59,6 @@ namespace dexih.remote
             var configuration = builder.Build();
             var remoteSettings = configuration.Get<RemoteSettings>();
             remoteSettings.Runtime.ConfigDirectory = configDirectory;
-            remoteSettings.Runtime.LogDirectory = logDirectory;
             remoteSettings.Runtime.AppSettingsPath = settingsFile;
 
             // call configure settings, to get additional settings
@@ -90,10 +87,10 @@ namespace dexih.remote
             // add logging.
             loggerFactory = new LoggerFactory();
             loggerFactory.AddProvider(new ConsoleLoggerProvider(configureSettings.RemoteSettings.Logging.LogLevel.Default));
-            if (!string.IsNullOrEmpty(logDirectory))
+            if (!string.IsNullOrEmpty(remoteSettings.Logging.LogFilePath))
             {
                 loggerFactory.AddProvider(
-                    new FileLoggerProvider(configureSettings.RemoteSettings.Logging.LogLevel.Default, logDirectory));
+                    new FileLoggerProvider(configureSettings.RemoteSettings.Logging.LogLevel.Default, remoteSettings.Logging.LogFilePath));
             }
 
             var remote = new DexihRemote(configureSettings.RemoteSettings, loggerFactory);
@@ -101,8 +98,8 @@ namespace dexih.remote
 
             return (int) exitCode;
         }
-        
-        public static void Welcome()
+
+        private static void Welcome()
         {
             Console.WriteLine(@"
  _______   _______ ___   ___  __   __    __  

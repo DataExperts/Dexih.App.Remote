@@ -79,6 +79,7 @@ namespace dexih.remote
         
         private readonly ConcurrentBag<ResponseMessage> _sendMessageQueue = new ConcurrentBag<ResponseMessage>();
         private readonly IStreams _streams = new Streams();
+        private readonly ILiveApis _liveApis = new LiveApis();
 
         /// <summary>
         /// Gets the local ip address
@@ -139,9 +140,13 @@ namespace dexih.remote
             //Login to the web server to receive an authenticated cookie.
             _httpClient = new HttpClient(handler);
             
-            _remoteOperations = new RemoteOperations(_remoteSettings, SessionEncryptionKey, LoggerMessages, _httpClient, Url, _streams);
+            _remoteOperations = new RemoteOperations(_remoteSettings, SessionEncryptionKey, LoggerMessages, _httpClient, Url, _streams, _liveApis);
             _remoteOperations.OnStatus += TaskStatusChange;
             _remoteOperations.OnProgress += TaskProgressChange;
+            _remoteOperations.OnApiUpdate += ApiUpdate;
+            _remoteOperations.OnApiQuery += ApiQuery;
+
+            var test = AddressFamily.Atm;
         }
         
         private HubConnection BuildHubConnection(HttpTransportType transportType)
@@ -568,7 +573,11 @@ namespace dexih.remote
                 logger.LogInformation("Starting the data upload/download web server.");
                 var host = new WebHostBuilder()
                     .UseStartup<Startup>()
-                    .ConfigureServices(s => s.AddSingleton(_streams))
+                    .ConfigureServices(s =>
+                    {
+                        s.AddSingleton(_streams);
+                        s.AddSingleton(_liveApis);
+                    })
                     .UseKestrel(options =>
                     {
                         options.Listen(IPAddress.Any,
@@ -943,6 +952,134 @@ namespace dexih.remote
             }
         }
 
+        private bool _apiUpdateBusy;
+        private ConcurrentDictionary<long, ApiData> _apiDataUpdates = new ConcurrentDictionary<long, ApiData>();
+        
+        private async void ApiUpdate(object value, ApiData apiData)
+        {
+            try
+            {
+                if (!_apiDataUpdates.ContainsKey(apiData.ApiKey))
+                {
+                    _apiDataUpdates.TryAdd(apiData.ApiKey, apiData);
+                }
+                
+                if (!_apiUpdateBusy)
+                {
+                    _apiUpdateBusy = true;
+
+                    while (_apiDataUpdates.Count > 0)
+                    {
+                        var apiUpdates = _apiDataUpdates.Values.ToList();
+                        _apiDataUpdates.Clear();
+                        
+                        var postData = new PostApiStatus()
+                        {
+                            SecurityToken = SecurityToken,
+                            ApiData = apiUpdates
+                        };
+
+                        var messagesString = Json.SerializeObject(postData, SessionEncryptionKey);
+                        var content = new StringContent(messagesString, Encoding.UTF8, "application/json");
+
+                        LoggerDatalinks.LogTrace("Send task content {0}.", messagesString);
+
+                        var start = new Stopwatch();
+                        start.Start();
+                        var response = await _httpClient.PostAsync(Url + "Remote/UpdateApi", content);
+                        start.Stop();
+                        LoggerDatalinks.LogDebug("Send api results: http Post to {0}." + Url + "Remote/UpdateApi");
+                        LoggerDatalinks.LogTrace("Send api results completed in {0}ms.", start.ElapsedMilliseconds);
+
+                        var responseContent = await response.Content.ReadAsStringAsync();
+
+                        var result = Json.DeserializeObject<ReturnValue>(responseContent, SessionEncryptionKey);
+
+                        if (result.Success == false)
+                        {
+                            LoggerDatalinks.LogError(result.Exception,
+                                "Update api results failed.  Return message was: {0}." + result.Message);
+                        }
+
+                        // wait a little while for more tasks results to arrive.
+                        await Task.Delay(500);
+                    }
+
+                    _apiUpdateBusy = false;
+                }
+            }
+            catch (Exception ex)
+            {
+                LoggerDatalinks.LogError(250, ex,
+                    "Update api status failed with error.  Error was: {0}." + ex.Message);
+                _apiUpdateBusy = false;
+            }
+        }
+        
+        private bool _apiQueryBusy;
+        private ConcurrentDictionary<long, ApiQuery> _apiQueryUpdates = new ConcurrentDictionary<long, ApiQuery>();
+
+        private async void ApiQuery(object value, ApiQuery query)
+        {
+            try
+            {
+                if (!_apiQueryUpdates.ContainsKey(query.ApiKey))
+                {
+                    _apiQueryUpdates.TryAdd(query.ApiKey, query);
+                }
+                
+                if (!_apiQueryBusy)
+                {
+                    _apiQueryBusy = true;
+
+                    while (_apiQueryUpdates.Count > 0)
+                    {
+                        var apiQueries = _apiQueryUpdates.Values.ToList();
+                        _apiQueryUpdates.Clear();
+
+                        var postQuery = new PostApiQuery()
+                        {
+                            SecurityToken = SecurityToken,
+                            ApiQueries = apiQueries
+                        };
+                        
+                        var messagesString = Json.SerializeObject(postQuery, SessionEncryptionKey);
+                        var content = new StringContent(messagesString, Encoding.UTF8, "application/json");
+
+                        LoggerDatalinks.LogTrace("Send task content {0}.", messagesString);
+
+                        var start = new Stopwatch();
+                        start.Start();
+                        var response = await _httpClient.PostAsync(Url + "Remote/ApiQuery", content);
+                        start.Stop();
+                        LoggerDatalinks.LogDebug("Send api query: http Post to {0}." + Url + "Remote/ApiQuery");
+                        LoggerDatalinks.LogTrace("Send api query completed in {0}ms.", start.ElapsedMilliseconds);
+
+                        var responseContent = await response.Content.ReadAsStringAsync();
+
+                        var result = Json.DeserializeObject<ReturnValue>(responseContent, SessionEncryptionKey);
+
+                        if (result.Success == false)
+                        {
+                            LoggerDatalinks.LogError(result.Exception,
+                                "Query api results failed.  Return message was: {0}." + result.Message);
+                        }
+
+                        // wait a little while for more tasks results to arrive.
+                        await Task.Delay(500);
+                    }
+
+                    _apiQueryBusy = false;
+                }
+            }
+            catch (Exception ex)
+            {
+                LoggerDatalinks.LogError(250, ex,
+                    "Update api query failed with error.  Error was: {0}." + ex.Message);
+                _apiQueryBusy = false;
+            }
+        }
+        
         private void TaskProgressChange(object value, ManagedTaskProgressItem progressItem)
         {
             SendDatalinkProgress();
@@ -952,6 +1089,8 @@ namespace dexih.remote
         {
             SendDatalinkProgress();
         }
+        
+     
          
         private bool _sendDatalinkProgressBusy;
 
@@ -1012,12 +1151,27 @@ namespace dexih.remote
                 _sendDatalinkProgressBusy = false;
             }
         }
+
     }
 
-    class DatalinkProgress
+    internal class DatalinkProgress
     {
         public string SecurityToken { get; set; }
         public string Command { get; set; }
         public IEnumerable<ManagedTask> Results { get; set; } 
+    }
+
+    internal class PostApiStatus
+    {
+        public string SecurityToken { get; set; }
+        public IEnumerable<ApiData> ApiData { get; set; } 
+        
+    }
+    
+    internal class PostApiQuery
+    {
+        public string SecurityToken { get; set; }
+        public IEnumerable<ApiQuery> ApiQueries { get; set; } 
+        
     }
 }

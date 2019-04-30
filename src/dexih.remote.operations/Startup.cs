@@ -1,9 +1,14 @@
 ﻿using System;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
+using dexih.functions;
+using dexih.functions.Query;
+using dexih.operations;
 using dexih.remote.Operations.Services;
 using Dexih.Utils.Crypto;
 using Dexih.Utils.MessageHelpers;
@@ -11,7 +16,10 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.Extensions.DependencyInjection;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace dexih.remote.operations
 {
@@ -26,7 +34,7 @@ namespace dexih.remote.operations
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IHostingEnvironment env, IStreams streams)
+        public void Configure(IApplicationBuilder app, IHostingEnvironment env, IStreams streams, ILiveApis liveApis)
         {
 //            if (env.IsDevelopment())
 //            {
@@ -57,7 +65,56 @@ namespace dexih.remote.operations
 
                 if (segments[1] == "ping")
                 {
-                    await context.Response.WriteAsync("{ \"status\": \"alive\"}");
+                    context.Response.StatusCode = 200;
+                    context.Response.ContentType = "application/json";
+                    await context.Response.WriteAsync("{ \"Status\": \"Alive\"}");
+                }
+                
+                else if (segments[1] == "api")
+                {
+                    try
+                    {
+                        var key = HttpUtility.UrlDecode(segments[2]);
+
+                        if (segments.Length > 3 && segments[3] == "ping")
+                        {
+                            var ping = liveApis.Ping(key);
+                            using (var writer = new StreamWriter(context.Response.Body))
+                            {
+                                var result = Json.SerializeObject(ping, rand);
+                                await writer.WriteAsync(result);
+                                await writer.FlushAsync().ConfigureAwait(false);
+                            }
+                            return;
+                        }
+
+                        var parameters = context.Request.QueryString.Value;
+                        var ipAddress = context.Request.HttpContext.Connection.RemoteIpAddress;
+//                        var cts=  new CancellationTokenSource();
+//                        cts.CancelAfter(5000);
+                        var data = await liveApis.Query(key, parameters, ipAddress.ToString());
+
+                        context.Response.StatusCode = 200;
+                        context.Response.ContentType = "application/json";
+                        using (var writer = new StreamWriter(context.Response.Body))
+                        {
+                            await writer.WriteAsync(data.ToString());
+                            await writer.FlushAsync().ConfigureAwait(false);
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        context.Response.StatusCode = 200;
+                        context.Response.ContentType = "application/json";
+
+                        var returnValue = new ReturnValue(false, "API call failed: " + e.Message, e);
+                        using (var writer = new StreamWriter(context.Response.Body))
+                        {
+                            var result = Json.SerializeObject(returnValue, rand);
+                            await writer.WriteAsync(result);
+                            await writer.FlushAsync().ConfigureAwait(false);
+                        }
+                    }
                 }
                 
                 else if (segments.Length >= 4)
@@ -86,7 +143,6 @@ namespace dexih.remote.operations
                         }
                         else
                         {
-
                             var downloadStream = streams.GetDownloadStream(key, securityKey);
 
                             switch (command)
@@ -124,7 +180,6 @@ namespace dexih.remote.operations
                             await writer.FlushAsync().ConfigureAwait(false);
                         }
                     }
-
                 }
             });
         }

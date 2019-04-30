@@ -5,6 +5,7 @@ using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Threading;
@@ -23,6 +24,7 @@ using Dexih.Utils.Crypto;
 using Dexih.Utils.DataType;
 using Dexih.Utils.ManagedTasks;
 using Dexih.Utils.MessageHelpers;
+using Microsoft.AspNetCore.Internal;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -34,6 +36,10 @@ namespace dexih.remote.operations
     {
         public event EventHandler<EManagedTaskStatus> OnStatus;
         public event EventHandler<ManagedTaskProgressItem> OnProgress;
+
+        public event EventHandler<ApiData> OnApiUpdate;
+        public event EventHandler<ApiQuery> OnApiQuery;
+        
         
         private readonly string _temporaryEncryptionKey;
         private ILogger LoggerMessages { get; }
@@ -42,10 +48,11 @@ namespace dexih.remote.operations
         private string _securityToken;
         private readonly string _url;
         private readonly IStreams _streams;
+        private readonly ILiveApis _liveApis;
         private readonly RemoteSettings _remoteSettings;
         private readonly RemoteLibraries _remoteLibraries;
 
-        public RemoteOperations(RemoteSettings remoteSettings, string temporaryEncryptionKey, ILogger loggerMessages, HttpClient httpClient, string url, IStreams streams)
+        public RemoteOperations(RemoteSettings remoteSettings, string temporaryEncryptionKey, ILogger loggerMessages, HttpClient httpClient, string url, IStreams streams, ILiveApis liveApis)
         {
             _remoteSettings = remoteSettings;
             _temporaryEncryptionKey = temporaryEncryptionKey;
@@ -53,6 +60,7 @@ namespace dexih.remote.operations
             _httpClient = httpClient;
             _url = url;
             _streams = streams;
+            _liveApis = liveApis;
 
             _remoteLibraries = new RemoteLibraries()
             {
@@ -64,8 +72,23 @@ namespace dexih.remote.operations
             _managedTasks = new ManagedTasks();
             _managedTasks.OnProgress += TaskProgressChange;
             _managedTasks.OnStatus += TaskStatusChange;
+
+            _liveApis.OnUpdate += ApiUpdate;
+            _liveApis.OnQuery += ApiQuery;
+
+            LoadAutoStart();
         }
-        
+
+        private void ApiUpdate(object value, ApiData apiData)
+        {
+            OnApiUpdate?.Invoke(this, apiData);
+        }
+
+        private void ApiQuery(object value, ApiQuery query)
+        {
+            OnApiQuery?.Invoke(this, query);
+        }
+
         private void TaskProgressChange(object value, ManagedTaskProgressItem progressItem)
         {
             OnProgress?.Invoke(value, progressItem);
@@ -74,6 +97,27 @@ namespace dexih.remote.operations
         private void TaskStatusChange(object value, EManagedTaskStatus managedTaskStatus)
         {
             OnStatus?.Invoke(value, managedTaskStatus);
+        }
+
+        private void LoadAutoStart()
+        {
+            var path = _remoteSettings.AutoStartPath();
+            
+            // load the api's
+            var files = Directory.GetFiles(path, "dexih_api*.json");
+            foreach (var file in files)
+            {
+                try
+                {
+                    var fileData = File.ReadAllText(file);
+                    var autoStart = Json.JTokenToObject<AutoStart>(fileData, _remoteSettings.AppSettings.EncryptionKey);
+                    ActivateApi(autoStart);
+                }
+                catch (Exception ex)
+                {
+                    LoggerMessages.LogError(500, ex, "Error auto-starting the file {0}: {1}", file, ex.Message);
+                }
+            }
         }
 
         public IEnumerable<ManagedTask> GetActiveTasks(string category) => _managedTasks.GetActiveTasks(category);
@@ -134,6 +178,7 @@ namespace dexih.remote.operations
             {
                 var agentInformation = new RemoteAgentStatus
                 {
+                    ActiveApis = _liveApis.ActiveApis(),
                     ActiveDatajobs = _managedTasks.GetActiveTasks("Datajob"),
                     ActiveDatalinks = _managedTasks.GetActiveTasks("Datalink"),
                     ActiveDatalinkTests = _managedTasks.GetActiveTasks("DatalinkTest"),
@@ -339,7 +384,7 @@ namespace dexih.remote.operations
                     {
                         if (writerResult.AuditType == "Datalink")
                         {
-                            progress.Report(writerResult.PercentageComplete, writerResult.RowsTotal,
+                            progress.Report(writerResult.PercentageComplete, writerResult.RowsTotal + writerResult.RowsReadPrimary,
                                 writerResult.IsFinished ? "" : "Running datalink...");
                         }
                     }
@@ -850,7 +895,7 @@ namespace dexih.remote.operations
                                         var transformSetting = GetTransformSettings(message.HubVariables);
 
                                         var connection = dbConnection.GetConnection(transformSetting);
-                                        var table = dbTable.GetTable(connection, step.DexihDatalinkStepColumns, transformSetting);
+                                        var table = dbTable.GetTable(cache.Hub, connection, step.DexihDatalinkStepColumns, transformSetting);
 
                                         if (table is FlatFile flatFile && connection is ConnectionFlatFile connectionFlatFile)
                                         {
@@ -932,6 +977,192 @@ namespace dexih.remote.operations
             }
         }
 
+        public bool ActivateApis(RemoteMessage message, CancellationToken cancellationToken)
+        {
+            try
+            {
+				var apiKeys = message.Value["apiKeys"].ToObject<long[]>();
+				var cache = Json.JTokenToObject<CacheManager>(message.Value["cache"], _temporaryEncryptionKey);
+				var clientId = message.Value["clientId"].ToString();
+
+                
+               
+                var exceptions = new List<Exception>();
+
+                foreach (var apiKey in apiKeys)
+				{
+                    try
+                    {
+                        if (cancellationToken.IsCancellationRequested) break;
+
+                        var package = new AutoStart()
+                        {
+                            Type = EAutoStartType.Api,
+                            Key = apiKey,
+                            Hub = cache.Hub,
+                            HubVariables = message.HubVariables,
+                        };
+
+                        var result = ActivateApi(package);
+                        var dbApi = result.api;
+                        if (dbApi.AutoStart)
+                        {
+                            package.SecurityKey = result.securityKey;
+                            var path = _remoteSettings.AutoStartPath();
+                            var fileName = $"dexih_api_{dbApi.ApiKey}.json";
+                            var filePath = Path.Combine(path, fileName);
+                            var saveCache = new CacheManager(cache.HubKey, cache.CacheEncryptionKey);
+                            saveCache.AddApis(new [] {dbApi.ApiKey}, cache.Hub);
+                            var savedata = Json.JTokenFromObject(package, _remoteSettings.AppSettings.EncryptionKey);
+                            
+                            File.WriteAllText(filePath, savedata.ToString());
+
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        var error = $"Failed to activate api.  {ex.Message}";
+                        LoggerMessages.LogError(error);
+                        exceptions.Add(ex);
+                    }
+                }
+
+                if (exceptions.Count > 0)
+                {
+                    throw new AggregateException(exceptions);
+                }
+
+                cancellationToken.ThrowIfCancellationRequested();
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                LoggerMessages.LogError(40, ex, "Error in ActivateApis: {0}", ex.Message);
+                throw new RemoteOperationException("Error activating apis.  " + ex.Message, ex);
+            }
+        }
+
+        private (string securityKey, DexihApi api) ActivateApi(AutoStart autoStart)
+        {
+            var dbApi = autoStart.Hub.DexihApis.SingleOrDefault(c => c.ApiKey == autoStart.Key);
+            if (dbApi == null)
+            {
+                throw new Exception($"Api with key {autoStart.Key} was not found");
+            }
+            
+            LoggerMessages.LogInformation("Auto-starting API - {api}.", dbApi.Name);
+
+            
+            var settings = GetTransformSettings(autoStart.HubVariables);
+            var hub = autoStart.Hub;
+
+            string key;
+            Transform transform;
+                        
+            if (dbApi.SourceType == ESourceType.Table)
+            {
+                var dbTable = hub.GetTableFromKey((dbApi.SourceTableKey.Value));
+                var dbConnection = hub.DexihConnections.Single(c => c.ConnectionKey == dbTable.ConnectionKey);
+
+                var connection = dbConnection.GetConnection( settings);
+                var table = dbTable.GetTable(hub, connection, settings);
+
+                transform = connection.GetTransformReader(table);
+            }
+            else
+            {
+                var dbDatalink =
+                    hub.DexihDatalinks.Single(c => c.DatalinkKey == dbApi.SourceDatalinkKey.Value);
+                var transformOperations = new TransformsManager(settings);
+                var runPlan = transformOperations.CreateRunPlan(hub, dbDatalink, null, null, null, null);
+                transform = runPlan.sourceTransform;
+            }
+
+            transform.SetCacheMethod(dbApi.CacheQueries ? Transform.ECacheMethod.LookupCache : Transform.ECacheMethod.NoCache);
+            key = _liveApis.Add(hub.HubKey, autoStart.Key, transform, dbApi.CacheResetInterval, autoStart.SecurityKey);
+
+            return (key, dbApi);
+        }
+        
+        public bool DeactivateApis(RemoteMessage message, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var hubKey = message.Value["hubKey"].ToObject<long>();
+				var apiKeys = message.Value["apiKeys"].ToObject<long[]>();
+
+                var exceptions = new List<Exception>();
+
+                foreach (var apiKey in apiKeys)
+				{
+                    try
+                    {
+                        _liveApis.Remove(hubKey, apiKey);
+                        
+                        var path = _remoteSettings.AutoStartPath();
+                        var fileName = $"dexih_api_{apiKey}.json";
+                        var filePath = Path.Combine(path, fileName);
+                        if(File.Exists(filePath))
+                        {
+                            File.Delete(filePath);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        var error = $"Error removing api with key {apiKey}.  {ex.Message}";
+                        LoggerMessages.LogError(error);
+                        exceptions.Add(ex);
+                    }
+                }
+
+                if (exceptions.Count > 0)
+                {
+                    throw new AggregateException(exceptions);
+                }
+
+                cancellationToken.ThrowIfCancellationRequested();
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                LoggerMessages.LogError(40, ex, "Error in DeactivateApis: {0}", ex.Message);
+                throw new RemoteOperationException("Error deactivating api's.  " + ex.Message, ex);
+            }
+        }
+        
+        public async Task<string> CallApi(RemoteMessage message, CancellationToken cancellationToken)
+        {
+            try
+            {
+                if (!_remoteSettings.Privacy.AllowDataDownload)
+                {
+                    throw new RemoteSecurityException("This remote agent's privacy settings does not allow remote data previews.");
+                }
+
+                var apiKey = message.Value["apiKey"].ToObject<string>();
+                var parameters = message.Value["parameters"].ToObject<string>();
+                var ipAddress = message.Value["ipAddress"].ToObject<string>();
+                var proxyUrl = message.Value["proxyUrl"].ToObject<string>();
+                
+                var data = await _liveApis.Query(apiKey, parameters, ipAddress, cancellationToken);
+                var byteArray = Encoding.UTF8.GetBytes(data.ToString());
+                var stream = new MemoryStream(byteArray);
+
+                var downloadUrl = new DownloadUrl()
+                    {Url = proxyUrl, IsEncrypted = true, DownloadUrlType = EDownloadUrlType.Proxy};
+
+                return await StartDataStream(stream, downloadUrl, "json", "api_call.json", cancellationToken);
+
+            }
+            catch (Exception ex)
+            {
+                LoggerMessages.LogError(150, ex, "Error in CallApi: {0}", ex.Message);
+                throw;
+            }
+        }
+        
         public async Task<bool> CreateDatabase(RemoteMessage message, CancellationToken cancellationToken)
         {
            try
@@ -997,14 +1228,14 @@ namespace dexih.remote.operations
             try
             {
                 var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
-                var dbConnections = message.Value["connections"].ToObject<DexihConnection[]>();
+                var cache = Json.JTokenToObject<CacheManager>(message.Value["cache"], _temporaryEncryptionKey);
                 var dbTables = message.Value["tables"].ToObject<List<DexihTable>>();
 
                 for(var i = 0; i < dbTables.Count(); i++)
                 {
                     var dbTable = dbTables[i];
 
-                    var dbConnection = dbConnections.SingleOrDefault(c => c.ConnectionKey == dbTable.ConnectionKey);
+                    var dbConnection = cache.Hub.DexihConnections.SingleOrDefault(c => c.ConnectionKey == dbTable.ConnectionKey);
                     if (dbConnection == null)
                     {
                         throw new RemoteOperationException($"The connection for the table {dbTable.Name} could not be found.");
@@ -1012,7 +1243,7 @@ namespace dexih.remote.operations
 
                     var transformSettings = GetTransformSettings(message.HubVariables);
                     var connection = dbConnection.GetConnection(transformSettings);
-                    var table = dbTable.GetTable(connection, transformSettings);
+                    var table = dbTable.GetTable(cache.Hub, connection, transformSettings);
 
                     try
                     {
@@ -1046,7 +1277,7 @@ namespace dexih.remote.operations
             try
             {
                 var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
-                var dbConnections = message.Value["connections"].ToObject<DexihConnection[]>();
+                var cache = Json.JTokenToObject<CacheManager>(message.Value["cache"], _temporaryEncryptionKey);
                 var dbTables = message.Value["tables"].ToObject<List<DexihTable>>();
                 var dropTables = message.Value["dropTables"]?.ToObject<bool>() ?? false;
 
@@ -1054,7 +1285,7 @@ namespace dexih.remote.operations
                 {
                     var dbTable = dbTables[i];
 
-                    var dbConnection = dbConnections.SingleOrDefault(c => c.ConnectionKey == dbTable.ConnectionKey);
+                    var dbConnection = cache.Hub.DexihConnections.SingleOrDefault(c => c.ConnectionKey == dbTable.ConnectionKey);
                     if (dbConnection == null)
                     {
                         throw new RemoteOperationException($"The connection for the table {dbTable.Name} could not be found.");
@@ -1062,7 +1293,7 @@ namespace dexih.remote.operations
 
                     var transformSettings = GetTransformSettings(message.HubVariables);
                     var connection = dbConnection.GetConnection(transformSettings);
-                    var table = dbTable.GetTable(connection, transformSettings);
+                    var table = dbTable.GetTable(cache.Hub, connection, transformSettings);
                     try
                     {
                         await connection.CreateTable(table, dropTables, cancellationToken);
@@ -1092,9 +1323,7 @@ namespace dexih.remote.operations
         {
             try
             {
-                var dbConnections = message.Value["connections"].ToObject<DexihConnection[]>();
-                // var properties = message.Value["properties"]?.ToObject<Dictionary<string, string>>();
-
+                var cache = Json.JTokenToObject<CacheManager>(message.Value["cache"], _temporaryEncryptionKey);
                 var dbTables = message.Value["tables"].ToObject<List<DexihTable>>();
 
                 var exceptions = new List<Exception>();
@@ -1105,7 +1334,7 @@ namespace dexih.remote.operations
                     {
                         var dbTable = dbTables[i];
 
-                        var dbConnection = dbConnections.SingleOrDefault(c => c.ConnectionKey == dbTable.ConnectionKey);
+                        var dbConnection = cache.Hub.DexihConnections.SingleOrDefault(c => c.ConnectionKey == dbTable.ConnectionKey);
                         if (dbConnection == null)
                         {
                             throw new RemoteOperationException($"The connection for the table {dbTable.Name} could not be found.");
@@ -1113,7 +1342,7 @@ namespace dexih.remote.operations
 
                         var transformSettings = GetTransformSettings(message.HubVariables);
                         var connection = dbConnection.GetConnection(transformSettings);
-                        var table = dbTable.GetTable(connection, transformSettings);
+                        var table = dbTable.GetTable(cache.Hub, connection, transformSettings);
                         await connection.TruncateTable(table, cancellationToken);
 
                         LoggerMessages.LogTrace("Clear database table for table {table} and connection {connection} completed.", dbTable.Name, dbConnection.Name);
@@ -1147,8 +1376,9 @@ namespace dexih.remote.operations
                     throw new RemoteSecurityException("This remote agent's privacy settings does not allow remote data previews.");
                 }
 
-                var dbTable = message.Value["table"].ToObject<DexihTable>();
+                var tableKey = message.Value["tableKey"].ToObject<long>();
                 var cache = Json.JTokenToObject<CacheManager>(message.Value["cache"], _temporaryEncryptionKey);
+                var dbTable = cache.Hub.GetTableFromKey(tableKey);
                 var showRejectedData = message.Value["showRejectedData"].ToObject<bool>();
                 var selectQuery = message.Value["selectQuery"].ToObject<SelectQuery>();
                 var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
@@ -1164,7 +1394,7 @@ namespace dexih.remote.operations
                 }
                 
                 var connection = dbConnection.GetConnection(settings);
-                var table = showRejectedData ? dbTable.GetRejectedTable(connection, settings) : dbTable.GetTable(connection, inputColumns, settings);
+                var table = showRejectedData ? dbTable.GetRejectedTable(cache.Hub, connection, settings) : dbTable.GetTable(cache.Hub, connection, inputColumns, settings);
                 
                 var reader = connection.GetTransformReader(table, true);
                 reader = new TransformQuery(reader, selectQuery);
@@ -1607,7 +1837,7 @@ namespace dexih.remote.operations
             var dbConnection =dbHub.DexihConnections.First();
 		    var transformSettings = GetTransformSettings(message.HubVariables);
 		    var connection = (ConnectionFlatFile)dbConnection.GetConnection(transformSettings);
-            var table = dbTable.GetTable(connection, transformSettings);
+            var table = dbTable.GetTable(dbHub, connection, transformSettings);
 			return (dbHub.HubKey, connection, (FlatFile) table);
 		}
 
@@ -1723,7 +1953,7 @@ namespace dexih.remote.operations
 
                 var transformSettings = GetTransformSettings(message.HubVariables);
                 var connection = (ConnectionFlatFile)dbConnection.GetConnection(transformSettings);
-                var table = dbTable.GetTable(connection, transformSettings);
+                var table = dbTable.GetTable(dbCache.Hub, connection, transformSettings);
 
                 var flatFile = (FlatFile)table;
 
@@ -1815,7 +2045,7 @@ namespace dexih.remote.operations
 
                 var transformSettings = GetTransformSettings(message.HubVariables);
                 var connection = (ConnectionFlatFile)dbConnection.GetConnection(transformSettings);
-                var table = dbTable.GetTable(connection, transformSettings);
+                var table = dbTable.GetTable(dbCache.Hub, connection, transformSettings);
 
                 var flatFile = (FlatFile)table;
                 var fileName = message.GetParameter("FileName");
