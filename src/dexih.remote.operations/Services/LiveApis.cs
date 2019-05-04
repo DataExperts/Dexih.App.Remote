@@ -13,6 +13,7 @@ using dexih.transforms;
 using Dexih.Utils.Crypto;
 using Dexih.Utils.MessageHelpers;
 using Microsoft.EntityFrameworkCore.Storage;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 namespace dexih.remote.Operations.Services
@@ -151,7 +152,7 @@ namespace dexih.remote.Operations.Services
             return false;
         }
 
-        public async Task<JObject> Query(string securityKey, string queryString, string ipAddress, CancellationToken cancellationToken = default)
+        public async Task<JObject> Query(string securityKey, string action, string queryString, string ipAddress, CancellationToken cancellationToken = default)
         {
             if (_liveApis.TryGetValue(securityKey, out var apiData))
             {
@@ -164,6 +165,22 @@ namespace dexih.remote.Operations.Services
                 try
                 {
                     var parameters = HttpUtility.ParseQueryString(queryString);
+
+                    
+                    if (action.ToLower() == "info")
+                    {
+                        var columns = apiData.Transform.CacheTable.Columns;
+                        var inputColumns = apiData.Transform.GetSourceReader().CacheTable.Columns.Where(c => c.IsInput);
+
+                        var infoQuery = new
+                        {
+                            Success = true,
+                            QueryColumns = columns,
+                            InputColumns = inputColumns
+                        };
+
+                        return JObject.FromObject(infoQuery, new JsonSerializer { NullValueHandling = NullValueHandling.Ignore } );
+                    }
 
                     // check for a query
                     var q = parameters["q"];

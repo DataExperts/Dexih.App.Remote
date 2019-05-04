@@ -41,7 +41,7 @@ namespace dexih.remote.Operations.Services
         
         IEnumerable<ApiData> ActiveApis();
 
-        Task<JObject> Query(string securityKey, string queryString, string ipAddress, CancellationToken cancellationToken = default);
+        Task<JObject> Query(string securityKey, string action, string queryString, string ipAddress, CancellationToken cancellationToken = default);
 
         ReturnValue Ping(string securityKey);
     }

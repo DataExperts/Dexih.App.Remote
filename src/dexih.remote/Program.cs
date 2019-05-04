@@ -71,10 +71,32 @@ namespace dexih.remote
             }
 
             // if an upgrade is required return the ExitCode.Upgrade value, which will be picked up by executing script to complete upgrade.
-            if (configureSettings.CheckUpgrade().Result)
+            try
             {
-                return (int) DexihRemote.EExitCode.Upgrade;
+                var update = remoteSettings.CheckUpgrade().Result;
+                
+                if (update)
+                {
+                    File.WriteAllText("latest_version.txt", remoteSettings.Runtime.LatestVersion + "\n" + remoteSettings.Runtime.LatestDownloadUrl);
+                    logger?.LogWarning($"The local version of the remote agent is v{remoteSettings.Runtime.Version}.");
+                    logger?.LogWarning($"The latest version of the remote agent is {remoteSettings.Runtime.LatestVersion}.");
+                    logger?.LogWarning($"There is a newer release of the remote agent available at {remoteSettings.Runtime.LatestDownloadUrl}.");
+
+                    if (remoteSettings.AppSettings.AutoUpgrade)
+                    {
+                        logger?.LogWarning(
+                            "The application will exit so an upgrade can be completed.  To skip upgrade checks include \"-skipupgrade\" in the command line, or set AutoUpgrade=false in the appsettings.json file.");
+
+                        return (int) DexihRemote.EExitCode.Upgrade;
+                    }
+                }
             }
+            catch (Exception ex)
+            {
+                logger.LogError(ex,$"There was an error checking for update.  Message: {ex.Message}");
+            }
+            
+            
 
             // get user input for any settings which are not complete.
             configureSettings.GetUserInput();

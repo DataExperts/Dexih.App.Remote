@@ -15,5 +15,7 @@ namespace dexih.remote.operations
         public IEnumerable<ManagedTask> PreviousDatalinks { get; set; }
         public IEnumerable<ManagedTask> PreviousDatalinkTests { get; set; }
         public RemoteLibraries RemoteLibraries { get; set; }
+        
+        public bool RequiresUpgrade { get; set; }
     }
 }

@@ -88,11 +88,17 @@ namespace dexih.remote.operations
                             return;
                         }
 
+                        var action = "";
+                        if (segments.Length > 3)
+                        {
+                            action = segments[3];
+                        }
+                        
                         var parameters = context.Request.QueryString.Value;
                         var ipAddress = context.Request.HttpContext.Connection.RemoteIpAddress;
 //                        var cts=  new CancellationTokenSource();
 //                        cts.CancelAfter(5000);
-                        var data = await liveApis.Query(key, parameters, ipAddress.ToString());
+                        var data = await liveApis.Query(key, action, parameters, ipAddress.ToString());
 
                         context.Response.StatusCode = 200;
                         context.Response.ContentType = "application/json";

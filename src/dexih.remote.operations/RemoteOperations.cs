@@ -39,6 +39,8 @@ namespace dexih.remote.operations
 
         public event EventHandler<ApiData> OnApiUpdate;
         public event EventHandler<ApiQuery> OnApiQuery;
+
+        public event EventHandler OnRestart;
         
         
         private readonly string _temporaryEncryptionKey;
@@ -176,6 +178,7 @@ namespace dexih.remote.operations
         {
             try 
             {
+
                 var agentInformation = new RemoteAgentStatus
                 {
                     ActiveApis = _liveApis.ActiveApis(),
@@ -239,6 +242,19 @@ namespace dexih.remote.operations
 			}
 		}
 
+        public bool ReStart(RemoteMessage message, CancellationToken cancellation)
+        {
+            var force = message.Value["force"].ToObject<bool>();
+
+            if (force || _managedTasks.RunningCount == 0)
+            {
+                OnRestart?.Invoke(this, EventArgs.Empty);
+                return true;
+            }
+
+            return false;
+        }
+
         public IEnumerable<object> TestCustomFunction(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
@@ -259,7 +275,13 @@ namespace dexih.remote.operations
                     // var outputs = createFunction.Outputs.Select(c => c.Value).ToList();
                     // outputs.Insert(0, runFunctionResult);
 
-                    var result = createFunction.function.RunFunction(new FunctionVariables(), testValues, out object[] outputs);
+                    var i = 0;
+
+                    var inputs = dbDatalinkTransformItem.DexihFunctionParameters
+                        .Where(c => c.Direction == DexihParameterBase.EParameterDirection.Input).Select(
+                            parameter => Dexih.Utils.DataType.Operations.Parse(parameter.DataType, parameter.Rank, testValues[i++])).ToArray<object>();
+
+                    var result = createFunction.function.RunFunction(new FunctionVariables(), inputs, out object[] outputs);
                     return new object[] {result}.Concat(outputs);
                 }
                 return null;
@@ -278,10 +300,7 @@ namespace dexih.remote.operations
                 var dbColumnValidation = message.Value["columnValidation"].ToObject<DexihColumnValidation>();
                 var dbHub = message.Value["hub"].ToObject<DexihHub>();
                 object testValue = null;
-                if(message.Value.Contains("testValue"))
-                {
-                    testValue = message.Value["testValue"].ToObject<object>();
-                }
+                testValue = message.Value["testValue"]?.ToObject<object>();
 
                 var validationRun =
                     new ColumnValidationRun(GetTransformSettings(message.HubVariables), dbColumnValidation, dbHub)
@@ -1142,18 +1161,19 @@ namespace dexih.remote.operations
                 }
 
                 var apiKey = message.Value["apiKey"].ToObject<string>();
+                var action = message.Value["action"].ToObject<string>();
                 var parameters = message.Value["parameters"].ToObject<string>();
                 var ipAddress = message.Value["ipAddress"].ToObject<string>();
                 var proxyUrl = message.Value["proxyUrl"].ToObject<string>();
                 
-                var data = await _liveApis.Query(apiKey, parameters, ipAddress, cancellationToken);
+                var data = await _liveApis.Query(apiKey, action, parameters, ipAddress, cancellationToken);
                 var byteArray = Encoding.UTF8.GetBytes(data.ToString());
                 var stream = new MemoryStream(byteArray);
 
                 var downloadUrl = new DownloadUrl()
                     {Url = proxyUrl, IsEncrypted = true, DownloadUrlType = EDownloadUrlType.Proxy};
 
-                return await StartDataStream(stream, downloadUrl, "json", "api_call.json", cancellationToken);
+                return await StartDataStream(stream, downloadUrl, "json", "", cancellationToken);
 
             }
             catch (Exception ex)
@@ -1519,52 +1539,49 @@ namespace dexih.remote.operations
 
         public async Task<string> PreviewTransform(RemoteMessage message, CancellationToken cancellationToken)
         {
-           try
-           {
-               if (!_remoteSettings.Privacy.AllowDataDownload)
+            try
+            {
+                if (!_remoteSettings.Privacy.AllowDataDownload)
                 {
-                    throw new RemoteSecurityException("This remote agent's privacy settings does not allow remote data previews.");
+                    throw new RemoteSecurityException(
+                        "This remote agent's privacy settings does not allow remote data previews.");
                 }
 
                 var cache = Json.JTokenToObject<CacheManager>(message.Value["cache"], _temporaryEncryptionKey);
                 var datalinkTransformKey = message.Value["datalinkTransformKey"]?.ToObject<long>() ?? 0;
-               var dbDatalink = message.Value["datalink"].ToObject<DexihDatalink>();
-               var selectQuery = message.Value["selectQuery"].ToObject<SelectQuery>();
-               var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
-               var inputColumns = message.Value["inputColumns"].ToObject<InputColumn[]>();
+                var dbDatalink = message.Value["datalink"].ToObject<DexihDatalink>();
+                var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
+                var inputColumns = message.Value["inputColumns"].ToObject<InputColumn[]>();
 
-               var transformWriterOptions = new TransformWriterOptions()
-               {
-                   SelectQuery = message.Value["selectQuery"].ToObject<SelectQuery>(),
-                   PreviewMode = true,
-                   GlobalVariables = CreateGlobalVariables(cache)
-               };
-               
+                var transformWriterOptions = new TransformWriterOptions()
+                {
+                    PreviewMode = true,
+                    GlobalVariables = CreateGlobalVariables(cache),
+                    SelectQuery = message.Value["selectQuery"].ToObject<SelectQuery>(),
+                };
+
                 var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
-                var runPlan = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, inputColumns, datalinkTransformKey, null, transformWriterOptions);
+                var runPlan = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, inputColumns,
+                    datalinkTransformKey, null, transformWriterOptions);
                 var transform = runPlan.sourceTransform;
-                   transform = new TransformQuery(transform, selectQuery);
                 var openReturn = await transform.Open(0, null, cancellationToken);
-                if (!openReturn) {
+                if (!openReturn)
+                {
                     throw new RemoteOperationException("Failed to open the transform.");
                 }
 
                 transform.SetCacheMethod(Transform.ECacheMethod.DemandCache);
-				transform.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
-               
-               
-               var stream = new StreamJsonCompact(dbDatalink.Name + " " + transform.Name, transform, selectQuery.Rows);
-               return await StartDataStream(stream, downloadUrl, "json", "preview_transform.json", cancellationToken);
-           }
-           catch (Exception ex)
-           {
-               LoggerMessages.LogError(160, ex, "Error in PreviewTransform: {0}", ex.Message);
-				throw new RemoteOperationException(ex.Message, ex);
-            }
+                transform.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
 
+                var stream = new StreamJsonCompact(dbDatalink.Name + " " + transform.Name, transform, transformWriterOptions.SelectQuery.Rows);
+                return await StartDataStream(stream, downloadUrl, "json", "preview_transform.json", cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                LoggerMessages.LogError(160, ex, "Error in PreviewTransform: {0}", ex.Message);
+                throw new RemoteOperationException(ex.Message, ex);
+            }
         }
-        
-        
         
         public async Task<string[]> ImportFunctionMappings(RemoteMessage message, CancellationToken cancellationToken)
         {
@@ -1679,7 +1696,7 @@ namespace dexih.remote.operations
                 var openReturn = await transform.Open(0, null, cancellationToken);
                 if (!openReturn)
                 {
-                    throw new RemoteOperationException("Failed to open the transform.");
+                    throw new RemoteOperationException("Failed to open the datalink.");
                 }
 
                 transform.SetCacheMethod(Transform.ECacheMethod.DemandCache);

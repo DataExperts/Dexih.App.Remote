@@ -40,7 +40,8 @@ namespace dexih.remote
             Disconnected = 1,
             InvalidLocation = 2,
             InvalidCredentials = 3,
-            UnhandledException = 4
+            UnhandledException = 4,
+            Restart = 5
         }
         
         public enum EExitCode {
@@ -80,6 +81,8 @@ namespace dexih.remote
         private readonly ConcurrentBag<ResponseMessage> _sendMessageQueue = new ConcurrentBag<ResponseMessage>();
         private readonly IStreams _streams = new Streams();
         private readonly ILiveApis _liveApis = new LiveApis();
+
+        public bool RestartRequested = false;
 
         /// <summary>
         /// Gets the local ip address
@@ -145,8 +148,13 @@ namespace dexih.remote
             _remoteOperations.OnProgress += TaskProgressChange;
             _remoteOperations.OnApiUpdate += ApiUpdate;
             _remoteOperations.OnApiQuery += ApiQuery;
+            
+            _remoteOperations.OnRestart += (sender, args) =>
+            {
+                RestartRequested = true;
+                _cancellationTokenSource.Cancel();
+            }; 
 
-            var test = AddressFamily.Atm;
         }
         
         private HubConnection BuildHubConnection(HttpTransportType transportType)
@@ -289,6 +297,9 @@ namespace dexih.remote
                                 logger.LogWarning("Unhandled exception on remote server.. retrying...");
                             Thread.Sleep(5000);
                             break;
+                        case EConnectionResult.Restart:
+                            logger.LogInformation("Restart requested.. terminating service.");
+                            return EExitCode.Upgrade;
                     }
                 }
 
@@ -414,9 +425,10 @@ namespace dexih.remote
                     {
                         host = await StartHttpServer(cancellationToken);
                     }
-                    catch(Exception ex)
+                    catch (Exception ex)
                     {
-                        logger.LogCritical(ex, $"HttpServer not started, this agent will not be able to upload/download data.  Error: {ex.Message}");
+                        logger.LogCritical(ex,
+                            $"HttpServer not started, this agent will not be able to upload/download data.  Error: {ex.Message}");
                     }
                 }
                 else
@@ -426,14 +438,23 @@ namespace dexih.remote
                 }
 
                 await StartSignalR(cancellationToken);
-                
+
                 _streams.OriginUrl = _remoteSettings.AppSettings.WebServer;
                 _streams.RemoteSettings = _remoteSettings;
 
                 // start the send message handler.
                 await SendMessageHandler(cancellationToken);
 
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    return EConnectionResult.Restart;    
+                }
+                
                 return EConnectionResult.Disconnected;
+            }
+            catch (OperationCanceledException ex)
+            {
+                return EConnectionResult.Restart;    
             }
             catch (RemoteSecurityException ex)
             {
