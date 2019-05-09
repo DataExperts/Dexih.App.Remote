@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging.Console.Internal;
 
 namespace dexih.remote
 {
-    public class FileLoggerProcessor
+    public class FileLoggerProcessor: IDisposable
     {
         private readonly BlockingCollection<LogMessageEntry> _messageQueue =
             new BlockingCollection<LogMessageEntry>(1024);

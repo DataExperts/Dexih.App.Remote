@@ -120,6 +120,22 @@ namespace dexih.remote.operations
                     LoggerMessages.LogError(500, ex, "Error auto-starting the file {0}: {1}", file, ex.Message);
                 }
             }
+            
+            // load the datajobs's
+            files = Directory.GetFiles(path, "dexih_datajob*.json");
+            foreach (var file in files)
+            {
+                try
+                {
+                    var fileData = File.ReadAllText(file);
+                    var autoStart = Json.JTokenToObject<AutoStart>(fileData, _remoteSettings.AppSettings.EncryptionKey);
+                    ActivateDataJob(autoStart);
+                }
+                catch (Exception ex)
+                {
+                    LoggerMessages.LogError(500, ex, "Error auto-starting the file {0}: {1}", file, ex.Message);
+                }
+            }
         }
 
         public IEnumerable<ManagedTask> GetActiveTasks(string category) => _managedTasks.GetActiveTasks(category);
@@ -131,19 +147,19 @@ namespace dexih.remote.operations
         /// </summary>
         /// <param name="cache"></param>
         /// <returns></returns>
-        public GlobalVariables CreateGlobalVariables(CacheManager cache = null)
+        public GlobalVariables CreateGlobalVariables(string hubEncryptionKey)
         {
             string encryptionKey = null;
-            if (cache != null)
+            if (!string.IsNullOrEmpty(hubEncryptionKey))
             {
-                encryptionKey = cache.CacheEncryptionKey + _remoteSettings.AppSettings.EncryptionKey;
+                encryptionKey = hubEncryptionKey + _remoteSettings.AppSettings.EncryptionKey;
             }
 
-                var globalVariables = new GlobalVariables()
-                {
-                    EncryptionKey = encryptionKey,
-                    FilePermissions = _remoteSettings.Permissions.GetFilePermissions()
-                };
+            var globalVariables = new GlobalVariables()
+            {
+                EncryptionKey = encryptionKey,
+                FilePermissions = _remoteSettings.Permissions.GetFilePermissions()
+            };
 
             return globalVariables;
         }
@@ -263,7 +279,7 @@ namespace dexih.remote.operations
                 var dbHub = message.Value["hub"].ToObject<DexihHub>();
                 var testValues = message.Value["testValues"]?.ToObject<object[]>();
 
-                var createFunction = dbDatalinkTransformItem.CreateFunctionMethod(dbHub, CreateGlobalVariables(), false);
+                var createFunction = dbDatalinkTransformItem.CreateFunctionMethod(dbHub, CreateGlobalVariables(null), false);
 
                 var outputNames = dbDatalinkTransformItem.DexihFunctionParameters
                     .Where(c => c.Direction == DexihParameterBase.EParameterDirection.Output).Select(c => c.ParameterName).ToArray();
@@ -351,7 +367,7 @@ namespace dexih.remote.operations
                     ResetIncrementalValue = message.Value["resetIncrementalValue"]?.ToObject<object>(),
                     TriggerMethod = TransformWriterResult.ETriggerMethod.Manual,
                     TriggerInfo = "Started manually at " + DateTime.Now.ToString(CultureInfo.InvariantCulture),
-                    GlobalVariables = CreateGlobalVariables(cache),
+                    GlobalVariables = CreateGlobalVariables(cache.CacheEncryptionKey),
                     PreviewMode = false
                 };
 
@@ -578,7 +594,7 @@ namespace dexih.remote.operations
                         var datalinkTest = cache.Hub.DexihDatalinkTests.Single(c => c.DatalinkTestKey == datalinkTestKey);
                         var transformWriterOptions = new TransformWriterOptions()
                         {
-                            GlobalVariables = CreateGlobalVariables(cache),
+                            GlobalVariables = CreateGlobalVariables(cache.CacheEncryptionKey),
                         };
                         var datalinkTestRun = new DatalinkTestRun(GetTransformSettings(message.HubVariables), LoggerMessages, datalinkTest, cache.Hub, transformWriterOptions);
 
@@ -657,7 +673,7 @@ namespace dexih.remote.operations
                         var datalinkTest = cache.Hub.DexihDatalinkTests.Single(c => c.DatalinkTestKey == datalinkTestKey);
                         var transformWriterOptions = new TransformWriterOptions()
                         {
-                            GlobalVariables = CreateGlobalVariables(cache),
+                            GlobalVariables = CreateGlobalVariables(cache.CacheEncryptionKey),
                         };
                         var datalinkTestRun = new DatalinkTestRun(GetTransformSettings(message.HubVariables), LoggerMessages, datalinkTest, cache.Hub, transformWriterOptions);
 
@@ -726,7 +742,7 @@ namespace dexih.remote.operations
                     ResetIncrementalValue = message.Value["resetIncrementalValue"]?.ToObject<object>(),
                     TriggerMethod = TransformWriterResult.ETriggerMethod.Manual,
                     TriggerInfo = "Started manually at " + DateTime.Now.ToString(CultureInfo.InvariantCulture),
-                    GlobalVariables = CreateGlobalVariables(cache),
+                    GlobalVariables = CreateGlobalVariables(cache.CacheEncryptionKey),
                     PreviewMode = false
                 };
                 
@@ -744,7 +760,7 @@ namespace dexih.remote.operations
                             throw new Exception($"Datajob with key {datajobKey} was not found");
                         }
 
-                        var addJobResult = AddDataJobTask(cache.Hub, GetTransformSettings(message.HubVariables), clientId, dbDatajob, transformWriterOptions, null, null, cancellationToken);
+                        var addJobResult = AddDataJobTask(cache.Hub, GetTransformSettings(message.HubVariables), clientId, dbDatajob, transformWriterOptions, null, null);
                         if (!addJobResult)
                         {
                             throw new Exception($"Failed to start data job {dbDatajob.Name} task.");
@@ -774,7 +790,7 @@ namespace dexih.remote.operations
             }
         }
 
-		private bool AddDataJobTask(DexihHub dbHub, TransformSettings transformSettings, string clientId, DexihDatajob dbHubDatajob, TransformWriterOptions transformWriterOptions, IEnumerable<ManagedTaskSchedule> managedTaskSchedules, IEnumerable<ManagedTaskFileWatcher> fileWatchers, CancellationToken cancellationToken)
+		private bool AddDataJobTask(DexihHub dbHub, TransformSettings transformSettings, string clientId, DexihDatajob dbHubDatajob, TransformWriterOptions transformWriterOptions, IEnumerable<ManagedTaskSchedule> managedTaskSchedules, IEnumerable<ManagedTaskFileWatcher> fileWatchers)
 		{
             try
             {
@@ -782,10 +798,9 @@ namespace dexih.remote.operations
 
                 async Task DatajobScheduleTask(ManagedTask managedTask, DateTime scheduleTime, CancellationToken ct)
                 {
-                    await datajobRun.Initialize(ct);
-                    managedTask.Data = datajobRun.WriterResult;
                     managedTask.Data = datajobRun.WriterResult;
                     datajobRun.Schedule(scheduleTime, ct);
+                    await datajobRun.Initialize(ct);
                 }
 
                 Task DatajobCancelScheduledTask(ManagedTask managedTask, CancellationToken ct)
@@ -857,17 +872,6 @@ namespace dexih.remote.operations
 				var cache = Json.JTokenToObject<CacheManager>(message.Value["cache"], _temporaryEncryptionKey);
 				var clientId = message.Value["clientId"].ToString();
 
-                var transformWriterOptions = new TransformWriterOptions()
-                {
-                    TargetAction = message.Value["truncateTarget"]?.ToObject<bool>() ?? false ? TransformWriterOptions.ETargetAction.Truncate : TransformWriterOptions.ETargetAction.None,
-                    ResetIncremental = message.Value["resetIncremental"]?.ToObject<bool>() ?? false,
-                    ResetIncrementalValue = message.Value["resetIncrementalValue"]?.ToObject<object>(),
-                    TriggerMethod = TransformWriterResult.ETriggerMethod.Schedule,
-                    TriggerInfo = "Schedule started at " + DateTime.Now.ToString(CultureInfo.InvariantCulture),
-                    GlobalVariables = CreateGlobalVariables(cache),
-                    PreviewMode = false
-                };
-                
                 var exceptions = new List<Exception>();
 
                 foreach (var datajobKey in datajobKeys)
@@ -876,60 +880,27 @@ namespace dexih.remote.operations
                     {
                         if (cancellationToken.IsCancellationRequested) break;
 
-                        var dbDatajob = cache.Hub.DexihDatajobs.SingleOrDefault(c => c.DatajobKey == datajobKey);
-                        if (dbDatajob == null)
+                        var package = new AutoStart()
                         {
-                            throw new Exception($"Datajob with key {datajobKey} was not found");
-                        }
-                        var triggers = new List<ManagedTaskSchedule>();
+                            Type = EAutoStartType.Datajob,
+                            Key = datajobKey,
+                            Hub = cache.Hub,
+                            HubVariables = message.HubVariables,
+                            EncryptionKey = cache.CacheEncryptionKey
+                        };
 
-                        foreach (var trigger in dbDatajob.DexihTriggers)
+                        var datajob = ActivateDataJob(package);
+                        
+                        if (datajob.AutoStart && (datajob.DexihTriggers.Count > 0 || datajob.FileWatch) )
                         {
-                            var managedTaskSchedule = new ManagedTaskSchedule();
-                            trigger.CopyProperties(managedTaskSchedule);
-                            triggers.Add(managedTaskSchedule);
-                        }
-
-                        List<ManagedTaskFileWatcher> paths = null;
-
-                        if (dbDatajob.FileWatch)
-                        {
-                            paths = new List<ManagedTaskFileWatcher>();
-                            foreach (var step in dbDatajob.DexihDatalinkSteps)
-                            {
-                                var datalink = cache.Hub.DexihDatalinks.SingleOrDefault(d => d.DatalinkKey == step.DatalinkKey);
-                                if (datalink != null)
-                                {
-                                    var tables = datalink.GetAllSourceTables(cache.Hub);
-
-                                    foreach (var dbTable in tables.Where(c => c.FileFormatKey != null))
-                                    {
-                                        var dbConnection = cache.Hub.DexihConnections.SingleOrDefault(c => c.ConnectionKey == dbTable.ConnectionKey);
-
-                                        if (dbConnection == null)
-                                        {
-                                            throw new Exception($"Failed to find the connection with the key {dbTable.ConnectionKey} for table {dbTable.Name}.");
-                                        }
-
-                                        var transformSetting = GetTransformSettings(message.HubVariables);
-
-                                        var connection = dbConnection.GetConnection(transformSetting);
-                                        var table = dbTable.GetTable(cache.Hub, connection, step.DexihDatalinkStepColumns, transformSetting);
-
-                                        if (table is FlatFile flatFile && connection is ConnectionFlatFile connectionFlatFile)
-                                        {
-                                            var path = connectionFlatFile.GetFullPath(flatFile, EFlatFilePath.Incoming);
-                                            paths.Add(new ManagedTaskFileWatcher(path, flatFile.FileMatchPattern));
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        var addJobResult = AddDataJobTask(cache.Hub, GetTransformSettings(message.HubVariables), clientId, dbDatajob, transformWriterOptions, triggers, paths, cancellationToken);
-                        if (!addJobResult)
-                        {
-                            throw new Exception($"Failed to activate data job {dbDatajob.Name} task.");
+                            var path = _remoteSettings.AutoStartPath();
+                            var fileName = $"dexih_datajob_{datajob.DatajobKey}.json";
+                            var filePath = Path.Combine(path, fileName);
+//                            var saveCache = new CacheManager(cache.HubKey, cache.CacheEncryptionKey);
+//                            saveCache.AddDatajobs(new [] {datajob.DatajobKey}, cache.Hub);
+                            var saveData = Json.JTokenFromObject(package, _remoteSettings.AppSettings.EncryptionKey);
+                            
+                            File.WriteAllText(filePath, saveData.ToString());
                         }
                     }
                     catch (Exception ex)
@@ -955,7 +926,88 @@ namespace dexih.remote.operations
                 throw new RemoteOperationException("Error activating datajobs.  " + ex.Message, ex);
             }
         }
-        
+
+        private DexihDatajob ActivateDataJob(AutoStart autoStart, string clientId = "none")
+        {
+            var dbDatajob = autoStart.Hub.DexihDatajobs.SingleOrDefault(c => c.DatajobKey == autoStart.Key);
+            if (dbDatajob == null)
+            {
+                throw new Exception($"dbDatajob with key {autoStart.Key} was not found");
+            }
+            
+            LoggerMessages.LogInformation("Starting Datajob - {datajob}.", dbDatajob.Name);
+
+            
+            var transformWriterOptions = new TransformWriterOptions()
+            {
+                TargetAction = TransformWriterOptions.ETargetAction.None,
+                ResetIncremental = false,
+                ResetIncrementalValue = null,
+                TriggerMethod = TransformWriterResult.ETriggerMethod.Schedule,
+                TriggerInfo = "Schedule activated at " + DateTime.Now.ToString(CultureInfo.InvariantCulture),
+                GlobalVariables = CreateGlobalVariables(autoStart.Hub.EncryptionKey),
+                PreviewMode = false
+            };
+
+            var triggers = new List<ManagedTaskSchedule>();
+
+            foreach (var trigger in dbDatajob.DexihTriggers)
+            {
+                var managedTaskSchedule = new ManagedTaskSchedule();
+                trigger.CopyProperties(managedTaskSchedule);
+                triggers.Add(managedTaskSchedule);
+            }
+
+            List<ManagedTaskFileWatcher> paths = null;
+
+            if (dbDatajob.FileWatch)
+            {
+                paths = new List<ManagedTaskFileWatcher>();
+                foreach (var step in dbDatajob.DexihDatalinkSteps)
+                {
+                    var datalink = autoStart.Hub.DexihDatalinks.SingleOrDefault(d => d.DatalinkKey == step.DatalinkKey);
+                    if (datalink != null)
+                    {
+                        var tables = datalink.GetAllSourceTables(autoStart.Hub);
+
+                        foreach (var dbTable in tables.Where(c => c.FileFormatKey != null))
+                        {
+                            var dbConnection =
+                                autoStart.Hub.DexihConnections.SingleOrDefault(
+                                    c => c.ConnectionKey == dbTable.ConnectionKey);
+
+                            if (dbConnection == null)
+                            {
+                                throw new Exception(
+                                    $"Failed to find the connection with the key {dbTable.ConnectionKey} for table {dbTable.Name}.");
+                            }
+
+                            var transformSetting = GetTransformSettings(autoStart.HubVariables);
+
+                            var connection = dbConnection.GetConnection(transformSetting);
+                            var table = dbTable.GetTable(autoStart.Hub, connection, step.DexihDatalinkStepColumns,
+                                transformSetting);
+
+                            if (table is FlatFile flatFile && connection is ConnectionFlatFile connectionFlatFile)
+                            {
+                                var path = connectionFlatFile.GetFullPath(flatFile, EFlatFilePath.Incoming);
+                                paths.Add(new ManagedTaskFileWatcher(path, flatFile.FileMatchPattern));
+                            }
+                        }
+                    }
+                }
+            }
+
+            var addJobResult = AddDataJobTask(autoStart.Hub, GetTransformSettings(autoStart.HubVariables), clientId,
+                dbDatajob, transformWriterOptions, triggers, paths);
+            if (!addJobResult)
+            {
+                throw new Exception($"Failed to activate data job {dbDatajob.Name} task.");
+            }
+            
+            return dbDatajob;
+        }
+
         public bool DeactivateDatajobs(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
@@ -970,7 +1022,15 @@ namespace dexih.remote.operations
                     {
                         if (cancellationToken.IsCancellationRequested) break;
                         var task = _managedTasks.GetTask("Datajob", datajobKey);
-                        task.Cancel();
+                        task?.Cancel();
+                        
+                        var path = _remoteSettings.AutoStartPath();
+                        var fileName = $"dexih_datajob_{datajobKey}.json";
+                        var filePath = Path.Combine(path, fileName);
+                        if(File.Exists(filePath))
+                        {
+                            File.Delete(filePath);
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -1030,12 +1090,11 @@ namespace dexih.remote.operations
                             var path = _remoteSettings.AutoStartPath();
                             var fileName = $"dexih_api_{dbApi.ApiKey}.json";
                             var filePath = Path.Combine(path, fileName);
-                            var saveCache = new CacheManager(cache.HubKey, cache.CacheEncryptionKey);
-                            saveCache.AddApis(new [] {dbApi.ApiKey}, cache.Hub);
+//                            var saveCache = new CacheManager(cache.HubKey, cache.CacheEncryptionKey);
+//                            saveCache.AddApis(new [] {dbApi.ApiKey}, cache.Hub);
                             var savedata = Json.JTokenFromObject(package, _remoteSettings.AppSettings.EncryptionKey);
                             
                             File.WriteAllText(filePath, savedata.ToString());
-
                         }
                     }
                     catch (Exception ex)
@@ -1070,7 +1129,7 @@ namespace dexih.remote.operations
                 throw new Exception($"Api with key {autoStart.Key} was not found");
             }
             
-            LoggerMessages.LogInformation("Auto-starting API - {api}.", dbApi.Name);
+            LoggerMessages.LogInformation("Starting API - {api}.", dbApi.Name);
 
             
             var settings = GetTransformSettings(autoStart.HubVariables);
@@ -1556,7 +1615,7 @@ namespace dexih.remote.operations
                 var transformWriterOptions = new TransformWriterOptions()
                 {
                     PreviewMode = true,
-                    GlobalVariables = CreateGlobalVariables(cache),
+                    GlobalVariables = CreateGlobalVariables(cache.CacheEncryptionKey),
                     SelectQuery = message.Value["selectQuery"].ToObject<SelectQuery>(),
                 };
 
@@ -1604,7 +1663,7 @@ namespace dexih.remote.operations
                 var transformWriterOptions = new TransformWriterOptions()
                 {
                     PreviewMode = true,
-                    GlobalVariables = CreateGlobalVariables(cache)
+                    GlobalVariables = CreateGlobalVariables(cache.CacheEncryptionKey)
                 };
                 
                 Transform transform;
@@ -1634,7 +1693,7 @@ namespace dexih.remote.operations
                     throw new RemoteOperationException("Could not import function mappings, as the source contains no data.");
                 }
 
-                var function = datalinkTransformItem.CreateFunctionMethod(cache.Hub, CreateGlobalVariables(cache));
+                var function = datalinkTransformItem.CreateFunctionMethod(cache.Hub, CreateGlobalVariables(cache.CacheEncryptionKey));
 
                 var parameterInfos = function.function.ImportMethod.ParameterInfo;
                 var values = new object[parameterInfos.Length];
@@ -1686,7 +1745,7 @@ namespace dexih.remote.operations
                 var transformWriterOptions = new TransformWriterOptions()
                 {
                     PreviewMode = true,
-                    GlobalVariables = CreateGlobalVariables(cache),
+                    GlobalVariables = CreateGlobalVariables(cache.CacheEncryptionKey),
                     SelectQuery = message.Value["selectQuery"].ToObject<SelectQuery>()
                 };
                 
@@ -1730,7 +1789,7 @@ namespace dexih.remote.operations
                 var transformWriterOptions = new TransformWriterOptions()
                 {
                     PreviewMode = true,
-                    GlobalVariables = CreateGlobalVariables(cache),
+                    GlobalVariables = CreateGlobalVariables(cache.CacheEncryptionKey),
                     SelectQuery = message.Value["selectQuery"].ToObject<SelectQuery>()
                 };
                 

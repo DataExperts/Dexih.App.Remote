@@ -198,7 +198,7 @@ namespace dexih.remote
                 _cancellationTokenSource.Cancel();
                 return Task.CompletedTask;
             };
-
+            
             return con;
         }
 
@@ -1111,14 +1111,12 @@ namespace dexih.remote
             SendDatalinkProgress();
         }
         
-     
-         
         private bool _sendDatalinkProgressBusy;
 
         /// <summary>
         /// Sends the progress and status of any datalinks to the central server.
         /// </summary>
-        private async void SendDatalinkProgress()
+        private async Task SendDatalinkProgress()
         {
             try
             {
@@ -1138,13 +1136,13 @@ namespace dexih.remote
                             Command = "task",
                             Results = managedTaskChanges.ToList()
                         };
+                        
                         var messagesString = Json.SerializeObject(postData, SessionEncryptionKey);
                         var content = new StringContent(messagesString, Encoding.UTF8, "application/json");
 
                         LoggerDatalinks.LogTrace("Send task content {0}.", messagesString);
 
-                        var start = new Stopwatch();
-                        start.Start();
+                        var start = Stopwatch.StartNew();
                         var response = await _httpClient.PostAsync(Url + "Remote/UpdateTasks", content);
                         start.Stop();
                         LoggerDatalinks.LogDebug("Send task results: http Post to {0}." + Url + "Remote/UpdateTasks");
