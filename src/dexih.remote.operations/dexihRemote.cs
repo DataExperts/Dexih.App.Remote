@@ -447,14 +447,14 @@ namespace dexih.remote
 
                 if (cancellationToken.IsCancellationRequested)
                 {
-                    return EConnectionResult.Restart;    
+                    return RestartRequested ? EConnectionResult.Restart : EConnectionResult.Disconnected;
                 }
                 
                 return EConnectionResult.Disconnected;
             }
             catch (OperationCanceledException ex)
             {
-                return EConnectionResult.Restart;    
+                return RestartRequested ? EConnectionResult.Restart : EConnectionResult.Disconnected;
             }
             catch (RemoteSecurityException ex)
             {

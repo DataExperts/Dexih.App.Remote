@@ -96,8 +96,6 @@ namespace dexih.remote
                 logger.LogError(ex,$"There was an error checking for update.  Message: {ex.Message}");
             }
             
-            
-
             // get user input for any settings which are not complete.
             configureSettings.GetUserInput();
             
