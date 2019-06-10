@@ -1,14 +1,17 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.ComponentModel;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Console;
 using Microsoft.Extensions.Logging.Console.Internal;
+using Microsoft.Extensions.Options;
 
 namespace dexih.remote
 {
     [ProviderAlias("Remote")]
-    public class ConsoleLoggerProvider : ILoggerProvider
+    public class DexihConsoleLoggerProvider : ILoggerProvider
     {
-        private readonly ConcurrentDictionary<string, ConsoleLogger> _loggers = new ConcurrentDictionary<string, ConsoleLogger>();
+        private readonly ConcurrentDictionary<string, DexihConsoleLogger> _loggers = new ConcurrentDictionary<string, DexihConsoleLogger>();
 
         private readonly Func<string, LogLevel, bool> _filter;
         
@@ -20,16 +23,18 @@ namespace dexih.remote
         private readonly bool _disableColors;
         private IExternalScopeProvider _scopeProvider;
 
-        public ConsoleLoggerProvider(LogLevel minLevel)
-            : this((category, logLevel) => logLevel >= minLevel, false, false)
+        public DexihConsoleLoggerProvider()
         {
+            _filter = trueFilter;
+            _includeScopes = false;
+            _disableColors = false;
         }
 
-        public ConsoleLoggerProvider(Func<string, LogLevel, bool> filter, bool includeScopes, bool disableColors)
+        public DexihConsoleLoggerProvider(IOptions<ConsoleLoggerOptions> options)
         {
-            _filter = filter ?? throw new ArgumentNullException(nameof(filter));
-            _includeScopes = includeScopes;
-            _disableColors = disableColors;
+            _filter = (category, logLevel) => logLevel >= LogLevel.Information;
+            _includeScopes = options.Value.IncludeScopes;
+            _disableColors = options.Value.DisableColors;
         }
 
         public ILogger CreateLogger(string name)
@@ -37,12 +42,12 @@ namespace dexih.remote
             return _loggers.GetOrAdd(name, CreateLoggerImplementation);
         }
 
-        private ConsoleLogger CreateLoggerImplementation(string name)
+        private DexihConsoleLogger CreateLoggerImplementation(string name)
         {
             var includeScopes = _includeScopes;
             var disableColors = _disableColors;
             
-            return new ConsoleLogger(name, GetFilter(name), includeScopes? _scopeProvider: null, _messageQueue)
+            return new DexihConsoleLogger(name, GetFilter(name), includeScopes? _scopeProvider: null, _messageQueue)
             {
                 DisableColors = disableColors
             };

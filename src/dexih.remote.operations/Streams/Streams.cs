@@ -7,7 +7,7 @@ using dexih.repository;
 
 namespace dexih.remote.Operations.Services
 {
-    public class Streams: IStreams
+    public class Streams: IStreams, IDisposable
     {
         private readonly ConcurrentDictionary<string, UploadObject> _uploadStreams;
         private readonly ConcurrentDictionary<string, DownloadObject> _downloadStreams;
@@ -15,15 +15,21 @@ namespace dexih.remote.Operations.Services
         public string OriginUrl { get; set; }
         public RemoteSettings RemoteSettings { get; set; }
 
+        private readonly Timer _cleanup;
+
         public Streams()
         {
             _uploadStreams = new ConcurrentDictionary<string, UploadObject>();
             _downloadStreams = new ConcurrentDictionary<string, DownloadObject>();
 
-            var cleanup = new Timer {Interval = 5000};
-            cleanup.Elapsed += CleanUpOldStreams;
+            _cleanup = new Timer {Interval = 5000};
+            _cleanup.Elapsed += CleanUpOldStreams;
         }
-
+        
+        public void Dispose()
+        {
+            _cleanup.Dispose();
+        }
 
         public StreamSecurityKeys SetUploadAction(string name, Func<Stream, Task> processAction)
         {
@@ -103,6 +109,7 @@ namespace dexih.remote.Operations.Services
 
             throw new Exception("The download could not complete due to mismatching security key.");
         }
+
 
     }
 

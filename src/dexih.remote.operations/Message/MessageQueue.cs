@@ -1,0 +1,69 @@
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Net.Http;
+using System.Security.Policy;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using dexih.operations;
+using Dexih.Utils.Crypto;
+
+namespace dexih.remote.Operations.Services
+{
+    public interface IMessageQueue: IDisposable
+    {
+        void Add(ResponseMessage message);
+
+        void AddResponse(string id, RemoteMessage message);
+
+        Task WaitForMessage();
+        
+        int Count { get; }
+        
+        bool TryDeque(out ResponseMessage result);
+
+    }
+
+    public class MessageQueue : IMessageQueue
+    {
+        private readonly ConcurrentQueue<ResponseMessage> _messageQueue; 
+        private readonly ConcurrentDictionary<string, RemoteMessage> _responseMessages = new ConcurrentDictionary<string, RemoteMessage>(); //list of responses returned from clients.  This is updated by the hub.
+        
+        private readonly SemaphoreSlim _waitForMessage = new SemaphoreSlim(1, 1);
+
+        private ISharedSettings _sharedSettings;
+        
+        public MessageQueue()
+        {
+            _messageQueue = new ConcurrentQueue<ResponseMessage>();
+        }
+        
+        public void Add(ResponseMessage message)
+        {
+            _messageQueue.Enqueue(message);
+            _waitForMessage.Release();
+        }
+
+        public void AddResponse(string id, RemoteMessage message)
+        {
+            _responseMessages.TryAdd(id, message);
+        }
+
+        public int Count => _messageQueue.Count;
+
+        public bool TryDeque(out ResponseMessage result)
+        {
+            return _messageQueue.TryDequeue(out result);
+        }
+        public Task WaitForMessage()
+        {
+            return _waitForMessage.WaitAsync();
+        }
+        
+        public void Dispose()
+        {
+            _waitForMessage.Dispose();
+        }
+    }
+}

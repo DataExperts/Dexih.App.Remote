@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging.Console.Internal;
 
 namespace dexih.remote
 {
-    public class ConsoleLogger: ILogger
+    public class DexihConsoleLogger: ILogger
     {
        private static readonly string _loglevelPadding = ": ";
         private static readonly string _messagePadding;
@@ -23,24 +23,25 @@ namespace dexih.remote
         [ThreadStatic]
         private static StringBuilder _logBuilder;
 
-        static ConsoleLogger()
+        static DexihConsoleLogger()
         {
             var logLevelString = GetLogLevelString(LogLevel.Information);
             _messagePadding = new string(' ', logLevelString.Length + _loglevelPadding.Length);
             _newLineWithMessagePadding = Environment.NewLine + _messagePadding;
         }
 
-        public ConsoleLogger(string name, Func<string, LogLevel, bool> filter, bool includeScopes)
+        public DexihConsoleLogger(string name, Func<string, LogLevel, bool> filter, bool includeScopes)
             : this(name, filter, includeScopes ? new LoggerExternalScopeProvider() : null, new ConsoleLoggerProcessor())
         {
         }
 
-        public ConsoleLogger(string name, Func<string, LogLevel, bool> filter, IExternalScopeProvider scopeProvider)
+        public DexihConsoleLogger(string name, Func<string, LogLevel, bool> filter, IExternalScopeProvider scopeProvider)
             : this(name, filter, scopeProvider, new ConsoleLoggerProcessor())
         {
         }
+        
 
-        internal ConsoleLogger(string name, Func<string, LogLevel, bool> filter, IExternalScopeProvider scopeProvider, ConsoleLoggerProcessor loggerProcessor)
+        internal DexihConsoleLogger(string name, Func<string, LogLevel, bool> filter, IExternalScopeProvider scopeProvider, ConsoleLoggerProcessor loggerProcessor)
         {
             Name = name ?? throw new ArgumentNullException(nameof(name));
             Filter = filter ?? ((category, logLevel) => true);

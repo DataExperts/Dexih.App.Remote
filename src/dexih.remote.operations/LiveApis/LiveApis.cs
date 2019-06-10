@@ -9,10 +9,14 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
 using dexih.functions.Query;
+using dexih.operations;
+using dexih.remote.operations;
+using dexih.repository;
 using dexih.transforms;
 using Dexih.Utils.Crypto;
 using Dexih.Utils.MessageHelpers;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
@@ -20,27 +24,35 @@ namespace dexih.remote.Operations.Services
 {
     public class LiveApis: ILiveApis
     {
-        public event EventHandler<ApiData> OnUpdate;
-        public event EventHandler<ApiQuery> OnQuery;
-        
+        private readonly ISharedSettings _sharedSettings;
+        private readonly ILogger<LiveApis> _logger;
 
         /// <summary>
         /// Dictionary grouped by HubKeys, then ApiKeys pointing to the securityKey
         /// </summary>
         private readonly ConcurrentDictionary<long, ConcurrentDictionary<long, string>> _hubs;
-        
-        /// <summary>
-        /// Apis Dictionary contains security keys pointing to the transform.
-        /// </summary>
-        private readonly ConcurrentDictionary<string, ApiData> _liveApis;
 
-        public LiveApis()
+        private readonly ConcurrentDictionary<string, ApiData> _liveApis;
+        
+        private bool _apiUpdateBusy;
+        private ConcurrentDictionary<long, ApiData> _apiDataUpdates;
+
+        private bool _apiQueryBusy;
+        private ConcurrentDictionary<long, ApiQuery> _apiQueryUpdates;
+
+        
+        public LiveApis(ISharedSettings sharedSettings, ILogger<LiveApis> logger)
         {
+            _sharedSettings = sharedSettings;
+            _logger = logger;
+
             _liveApis = new ConcurrentDictionary<string, ApiData>();
             _hubs = new ConcurrentDictionary<long, ConcurrentDictionary<long, string>>();
+            _apiDataUpdates = new ConcurrentDictionary<long, ApiData>();
+            _apiQueryUpdates = new ConcurrentDictionary<long, ApiQuery>();
         }
 
-
+        
         public string Add(long hubKey, long apiKey, Transform transform, TimeSpan? cacheRefreshInterval, string securityKey = null)
         {
             if(!_hubs.TryGetValue(hubKey, out var apiKeys))
@@ -84,7 +96,7 @@ namespace dexih.remote.Operations.Services
                 
                 if (_liveApis.TryAdd(securityKey, apiData))
                 {
-                    OnUpdate?.Invoke(this, new ApiData() {ApiKey = apiKey, HubKey = hubKey, SecurityKey = securityKey});
+                    ApiUpdate(new ApiData() {ApiKey = apiKey, HubKey = hubKey, SecurityKey = securityKey});
                     return securityKey;
                 }
                 else
@@ -109,7 +121,7 @@ namespace dexih.remote.Operations.Services
                         if (apiKeys.TryRemove(apiKey, out var _))
                         {
                             apiData.ApiStatus = ApiStatus.Deactivated;
-                            OnUpdate.Invoke(this, apiData);
+                            ApiUpdate(apiData);
                             return;
                         }
                         else
@@ -193,7 +205,7 @@ namespace dexih.remote.Operations.Services
                     var t = parameters["t"];
                     if (t != null)
                     {
-                        if (Int64.TryParse(t, out var timeout))
+                        if (long.TryParse(t, out var timeout))
                         {
                             cts.CancelAfter(TimeSpan.FromSeconds(timeout));    
                         }
@@ -207,13 +219,13 @@ namespace dexih.remote.Operations.Services
                     var r = parameters["r"];
                     if(r != null) 
                     {
-                        if (!Int32.TryParse(r, out rows))
+                        if (!int.TryParse(r, out rows))
                         {
                             throw new Exception($"The rows (r) was set to an invalid value {t}.  This needs to be the maximum number of rows.");
                         }
                     }
 
-                        //TODO add EDownloadFormat to api options.
+                    // TODO add EDownloadFormat to api options.
                     var selectQuery = new SelectQuery();
                     selectQuery.LoadJsonFilters(apiData.Transform.CacheTable, query);
                     selectQuery.LoadJsonInputs(inputs);
@@ -223,27 +235,20 @@ namespace dexih.remote.Operations.Services
                     var result = await apiData.Transform.LookupJson(selectQuery, Transform.EDuplicateStrategy.All, combinedCancel);
                     apiData.IncrementSuccess();
                     timer.Stop();
-
-                    if (OnQuery != null)
+                    
+                    var queryApi = new ApiQuery()
                     {
-//                        var inputs = selectQuery?.InputColumns?
-//                            .Select(c => new KeyValuePair<string, object>(c.Name, c.DefaultValue)).ToArray();
-                        
-                        var queryApi = new ApiQuery()
-                        {
-                            HubKey =  apiData.HubKey,
-                            ApiKey = apiData.ApiKey,
-                            Success = true, IpAddress = ipAddress, 
-                            Date = DateTime.Now, 
-                            Inputs = inputs?.ToString(),
-                            Filters = query?.ToString(),
-                            TimeTaken = timer.ElapsedMilliseconds
-                        };
+                        HubKey =  apiData.HubKey,
+                        ApiKey = apiData.ApiKey,
+                        Success = true, IpAddress = ipAddress, 
+                        Date = DateTime.Now, 
+                        Inputs = inputs?.ToString(),
+                        Filters = query?.ToString(),
+                        TimeTaken = timer.ElapsedMilliseconds
+                    };
 
-                        OnQuery.Invoke(this, queryApi);
-                    }
-
-                    OnUpdate?.Invoke(this, apiData);
+                    ApiQuery(queryApi);
+                    ApiUpdate(apiData);
 
                     return result;
                 }
@@ -252,24 +257,17 @@ namespace dexih.remote.Operations.Services
                     apiData.IncrementError();
                     timer.Stop();
                     
-                    if (OnQuery != null)
+                    var queryApi = new ApiQuery()
                     {
-//                        var inputs = selectQuery?.InputColumns?
-//                            .Select(c => new KeyValuePair<string, object>(c.Name, c.DefaultValue)).ToArray();
+                        Success = false, Message = ex.Message, Exception = ex, IpAddress = ipAddress,
+                        Date = DateTime.Now, Inputs = inputs?.ToString(),
+                        Filters = query?.ToString(), TimeTaken = timer.ElapsedMilliseconds
+                    };
 
-                        var queryApi = new ApiQuery()
-                        {
-                            Success = false, Message = ex.Message, Exception = ex, IpAddress = ipAddress,
-                            Date = DateTime.Now, Inputs = inputs?.ToString(),
-                            Filters = query?.ToString(), TimeTaken = timer.ElapsedMilliseconds
-                        };
-
-                        OnQuery?.Invoke(this, queryApi);
-                        
-                        var result = JToken.FromObject(new ReturnValue(false, ex.Message, ex));
-                        return JObject.FromObject(result);
-                    }
-                    OnUpdate?.Invoke(this, apiData);
+                    ApiQuery(queryApi);
+                    
+                    var result = JToken.FromObject(new ReturnValue(false, ex.Message, ex));
+                    return JObject.FromObject(result);
                 }
                 finally
                 {
@@ -312,6 +310,177 @@ namespace dexih.remote.Operations.Services
         public IEnumerable<ApiData> ActiveApis()
         {
             return _liveApis.Values;
+        }
+
+        private class PostApiStatus
+        {
+            public string SecurityToken { get; set; }
+            public IEnumerable<ApiData> ApiData { get; set; }
+
+        }
+
+        private class PostApiQuery
+        {
+            public string SecurityToken { get; set; }
+            public IEnumerable<ApiQuery> ApiQueries { get; set; }
+
+        }
+        
+        public (string securityKey, DexihApi api) ActivateApi(AutoStart autoStart)
+        {
+            var dbApi = autoStart.Hub.DexihApis.SingleOrDefault(c => c.Key == autoStart.Key);
+            if (dbApi == null)
+            {
+                throw new Exception($"Api with key {autoStart.Key} was not found");
+            }
+            
+            _logger.LogInformation("Starting API - {api}.", dbApi.Name);
+            
+            var settings =new TransformSettings()
+            {
+                HubVariables = autoStart.HubVariables,
+                RemoteSettings =  _sharedSettings.RemoteSettings
+            };
+
+            var hub = autoStart.Hub;
+
+            string key;
+            Transform transform;
+                        
+            if (dbApi.SourceType == ESourceType.Table)
+            {
+                var dbTable = hub.GetTableFromKey((dbApi.SourceTableKey.Value));
+                var dbConnection = hub.DexihConnections.Single(c => c.Key == dbTable.ConnectionKey);
+
+                var connection = dbConnection.GetConnection( settings);
+                var table = dbTable.GetTable(hub, connection, settings);
+
+                transform = connection.GetTransformReader(table);
+            }
+            else
+            {
+                var dbDatalink =
+                    hub.DexihDatalinks.Single(c => c.Key == dbApi.SourceDatalinkKey.Value);
+                var transformOperations = new TransformsManager(settings);
+                var runPlan = transformOperations.CreateRunPlan(hub, dbDatalink, null, null, null, null);
+                transform = runPlan.sourceTransform;
+            }
+
+            transform.SetCacheMethod(dbApi.CacheQueries ? Transform.ECacheMethod.LookupCache : Transform.ECacheMethod.NoCache);
+            key = Add(hub.HubKey, autoStart.Key, transform, dbApi.CacheResetInterval, autoStart.SecurityKey);
+
+            return (key, dbApi);
+        }
+
+        private async void ApiUpdate(ApiData apiData)
+        {
+            try
+            {
+                if (!_apiDataUpdates.ContainsKey(apiData.ApiKey))
+                {
+                    _apiDataUpdates.TryAdd(apiData.ApiKey, apiData);
+                }
+                
+                if (!_apiUpdateBusy)
+                {
+                    _apiUpdateBusy = true;
+
+                    while (_apiDataUpdates.Count > 0)
+                    {
+                        var apiUpdates = _apiDataUpdates.Values.ToList();
+                        _apiDataUpdates.Clear();
+                        
+                        var postData = new PostApiStatus()
+                        {
+                            SecurityToken =  _sharedSettings.SecurityToken,
+                            ApiData = apiUpdates
+                        };
+
+                        var start = new Stopwatch();
+                        start.Start();
+                        var response = await _sharedSettings.PostAsync("Remote/UpdateApi", postData, CancellationToken.None);
+                        start.Stop();
+                        _logger.LogTrace("Send api results completed in {0}ms.", start.ElapsedMilliseconds);
+
+                        var responseContent = await response.Content.ReadAsStringAsync();
+
+                        var result = Json.DeserializeObject<ReturnValue>(responseContent, _sharedSettings.SessionEncryptionKey);
+
+                        if (result.Success == false)
+                        {
+                            _logger.LogError(250, result.Exception,
+                                "Update api results failed.  Return message was: {0}." + result.Message);
+                        }
+
+                        // wait a little while for more tasks results to arrive.
+                        await Task.Delay(500);
+                    }
+
+                    _apiUpdateBusy = false;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(250, ex,
+                    "Update api status failed with error.  Error was: {0}." + ex.Message);
+                _apiUpdateBusy = false;
+            }
+        }
+        
+
+        private async void ApiQuery(ApiQuery query)
+        {
+            try
+            {
+                if (!_apiQueryUpdates.ContainsKey(query.ApiKey))
+                {
+                    _apiQueryUpdates.TryAdd(query.ApiKey, query);
+                }
+                
+                if (!_apiQueryBusy)
+                {
+                    _apiQueryBusy = true;
+
+                    while (_apiQueryUpdates.Count > 0)
+                    {
+                        var apiQueries = _apiQueryUpdates.Values.ToList();
+                        _apiQueryUpdates.Clear();
+
+                        var postQuery = new PostApiQuery()
+                        {
+                            SecurityToken = _sharedSettings.SecurityToken,
+                            ApiQueries = apiQueries
+                        };
+                        
+                        var start = new Stopwatch();
+                        start.Start();
+                        var response = await _sharedSettings.PostAsync("Remote/ApiQuery", postQuery, CancellationToken.None);
+                        start.Stop();
+                        _logger.LogTrace("Send api query completed in {0}ms.", start.ElapsedMilliseconds);
+
+                        var responseContent = await response.Content.ReadAsStringAsync();
+
+                        var result = Json.DeserializeObject<ReturnValue>(responseContent, _sharedSettings.SessionEncryptionKey);
+
+                        if (result.Success == false)
+                        {
+                            _logger.LogError(250, result.Exception,
+                                "Query api results failed.  Return message was: {0}." + result.Message);
+                        }
+
+                        // wait a little while for more tasks results to arrive.
+                        await Task.Delay(500);
+                    }
+
+                    _apiQueryBusy = false;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(250, ex,
+                    "Update api query failed with error.  Error was: {0}." + ex.Message);
+                _apiQueryBusy = false;
+            }
         }
     }
     

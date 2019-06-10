@@ -4,6 +4,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 using dexih.functions.Query;
+using dexih.remote.operations;
+using dexih.repository;
 using dexih.transforms;
 using Dexih.Utils.MessageHelpers;
 using Newtonsoft.Json;
@@ -13,9 +15,6 @@ namespace dexih.remote.Operations.Services
 {
     public interface ILiveApis
     {
-        event EventHandler<ApiData> OnUpdate;
-        event EventHandler<ApiQuery> OnQuery;
-        
         /// <summary>
         /// Add a new transform to the live api's
         /// </summary>
@@ -44,6 +43,8 @@ namespace dexih.remote.Operations.Services
         Task<JObject> Query(string securityKey, string action, string queryString, string ipAddress, CancellationToken cancellationToken = default);
 
         ReturnValue Ping(string securityKey);
+
+        (string securityKey, DexihApi api) ActivateApi(AutoStart autoStart);
     }
 
     public class ApiQuery: ReturnValue
