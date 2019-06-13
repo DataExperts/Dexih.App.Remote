@@ -25,54 +25,54 @@ EXPOSE 33944:33944
 
 ENV DEXIH_CONFIG_DIRECTORY="/config"
 
-# ENV "AppSettings__UserPrompt"=false
-# ENV "AppSettings__RemoteAgentId"=
-# ENV "AppSettings__User"=
-# ENV "AppSettings__UserToken"=
-# ENV "AppSettings__EncryptionKey"=
-# ENV "AppSettings__WebServer"="https://dexih.dataexpertsgroup.com"
-# ENV "AppSettings__Name"=
-# ENV "AppSettings__AutoUpgrade"=true
-# ENV "AppSettings__AllowPreReleases"=false
+# ENV "DEXIH_AppSettings__UserPrompt"=false
+# ENV "DEXIH_AppSettings__RemoteAgentId"=
+# ENV "DEXIH_AppSettings__User"=
+# ENV "DEXIH_AppSettings__UserToken"=
+# ENV "DEXIH_AppSettings__EncryptionKey"=
+# ENV "DEXIH_AppSettings__WebServer"="https://dexih.dataexpertsgroup.com"
+# ENV "DEXIH_AppSettings__Name"=
+# ENV "DEXIH_AppSettings__AutoUpgrade"=true
+# ENV "DEXIH_AppSettings__AllowPreReleases"=false
 
-# ENV "Permissions__AllowLocalFiles"=true
-ENV "Permissions__AllowAllPaths"=false
-ENV "Permissions__AllowedPaths__0"="/data"
-# ENV "Permissions__AllowAllHubs"=true
-# ENV "Permissions__AllowedHubs__0"=
+# ENV "DEXIH_Permissions__AllowLocalFiles"=true
+ENV "DEXIH_Permissions__AllowAllPaths"=false
+ENV "DEXIH_Permissions__AllowedPaths__0"="/data"
+# ENV "DEXIH_Permissions__AllowAllHubs"=true
+# ENV "DEXIH_Permissions__AllowedHubs__0"=
 
-ENV "Network__LocalDownloadIp"=
-ENV "Network__LocalDownloadPort"=
-# ENV "Network__ExternalDownloadUrl"=
-# ENV "Network__ProxyUrl"=
-# ENV "Network__DownloadPort"=33944
-# ENV "Network__EnforceHttps"=true
-# ENV "Network__AutoGenerateCertificate"=true
-# ENV "Network__DynamicDomain"=true
-# ENV "Network__CertificateFilename"=
-# ENV "Network__CertificatePassword"=
-# ENV "Network__EnableUPnP"=
+ENV "DEXIH_Network__LocalDownloadIp"=
+ENV "DEXIH_Network__LocalDownloadPort"=
+# ENV "DEXIH_Network__ExternalDownloadUrl"=
+# ENV "DEXIH_Network__ProxyUrl"=
+# ENV "DEXIH_Network__DownloadPort"=33944
+# ENV "DEXIH_Network__EnforceHttps"=true
+# ENV "DEXIH_Network__AutoGenerateCertificate"=true
+# ENV "DEXIH_Network__DynamicDomain"=true
+# ENV "DEXIH_Network__CertificateFilename"=
+# ENV "DEXIH_Network__CertificatePassword"=
+# ENV "DEXIH_Network__EnableUPnP"=
 
-# ENV "Privacy__AllowDataDownload"=true
-# ENV "Privacy__AllowDataUpload"=true
-# ENV "Privacy__AllowLanAccess"=true
-# ENV "Privacy__AllowExternalAccess"=true
-# ENV "Privacy__AllowProxy"=true
+# ENV "DEXIH_Privacy__AllowDataDownload"=true
+# ENV "DEXIH_Privacy__AllowDataUpload"=true
+# ENV "DEXIH_Privacy__AllowLanAccess"=true
+# ENV "DEXIH_Privacy__AllowExternalAccess"=true
+# ENV "DEXIH_Privacy__AllowProxy"=true
 
-# ENV "SystemSettings__MaxAcknowledgeWait"=5000
-# ENV "SystemSettings__ResponseTimeout"=1000000
-# ENV "SystemSettings__CancelDelay"=1000
-# ENV "SystemSettings__EncryptionIteractions"=1000
-# ENV "SystemSettings__MaxPreviewDuration"=10000
-# ENV "SystemSettings__MaxConcurrentTasks"=50
-# ENV "SystemSettings__MaxUploadSize"=1000000000
-# ENV "SystemSettings__SocketTransportType"=1
+# ENV "DEXIH_SystemSettings__MaxAcknowledgeWait"=5000
+# ENV "DEXIH_SystemSettings__ResponseTimeout"=1000000
+# ENV "DEXIH_SystemSettings__CancelDelay"=1000
+# ENV "DEXIH_SystemSettings__EncryptionIteractions"=1000
+# ENV "DEXIH_SystemSettings__MaxPreviewDuration"=10000
+# ENV "DEXIH_SystemSettings__MaxConcurrentTasks"=50
+# ENV "DEXIH_SystemSettings__MaxUploadSize"=1000000000
+# ENV "DEXIH_SystemSettings__SocketTransportType"=1
 
-# ENV "Logging__IncludeScopes"=false
-# ENV "Logging__LogLevel__Default"="Information"
-# ENV "Logging__LogLevel__System"="Information"
-# ENV "Logging__LogLevel__Microsoft"="Information"
-ENV "Logging__LogFilePath"="/log"
+# ENV "DEXIH_Logging__IncludeScopes"=false
+# ENV "DEXIH_Logging__LogLevel__Default"="Information"
+# ENV "DEXIH_Logging__LogLevel__System"="Information"
+# ENV "DEXIH_Logging__LogLevel__Microsoft"="Information"
+ENV "DEXIH_Logging__LogFilePath"="/log"
 
 
 VOLUME /data /config /logs

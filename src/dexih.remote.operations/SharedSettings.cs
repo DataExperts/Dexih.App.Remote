@@ -2,9 +2,6 @@ using System;
 using System.IO;
 using System.Net;
 using System.Net.Http;
-using System.Net.Sockets;
-using System.Reflection;
-using System.Security.Policy;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -17,7 +14,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using IApplicationLifetime = Microsoft.AspNetCore.Hosting.IApplicationLifetime;
 
 namespace dexih.remote.Operations.Services
 {
@@ -142,10 +138,7 @@ namespace dexih.remote.Operations.Services
 
                             var applicationLifetime = _host.Services.GetService<IApplicationLifetime>();
                             applicationLifetime.StopApplication();
-
-                            _loginSemaphore.Release();
                             return EConnectionResult.InvalidCredentials;
-
                         case EConnectionResult.InvalidLocation:
                             if (!retryStarted)
                             {
