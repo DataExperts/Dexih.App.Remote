@@ -38,7 +38,6 @@ namespace dexih.remote.operations
         private readonly IStreams _streams;
         private readonly ILiveApis _liveApis;
         private readonly RemoteSettings _remoteSettings;
-        private readonly RemoteLibraries _remoteLibraries;
         private readonly ISharedSettings _sharedSettings;
         private readonly IHost _host;
 
@@ -54,13 +53,6 @@ namespace dexih.remote.operations
             _liveApis = liveApis;
             _managedTasks = managedTasks;
             _host = host;
-
-            _remoteLibraries = new RemoteLibraries()
-            {
-                Functions = Functions.GetAllFunctions(),
-                Connections = Connections.GetAllConnections(),
-                Transforms = Transforms.GetAllTransforms()
-            };
 
             _httpClient = new HttpClient();
         }
@@ -118,7 +110,7 @@ namespace dexih.remote.operations
             return Task.FromResult(message.Value.ToObject<string>());
         }
 
-        public Task<RemoteAgentStatus> GetRemoteAgentStatus(RemoteMessage message, CancellationToken cancellationToken)
+        public async Task<RemoteAgentStatus> GetRemoteAgentStatus(RemoteMessage message, CancellationToken cancellationToken)
         {
             try 
             {
@@ -132,10 +124,10 @@ namespace dexih.remote.operations
                     PreviousDatajobs = _managedTasks.GetCompletedTasks("Datajob"),
                     PreviousDatalinks = _managedTasks.GetCompletedTasks("Datalink"),
                     PreviousDatalinkTests = _managedTasks.GetCompletedTasks("DatalinkTest"),
-                    RemoteLibraries = _remoteLibraries
+                    RemoteLibraries = await _sharedSettings.GetRemoteLibraries(cancellationToken)
                 };
 
-                return Task.FromResult(agentInformation);
+                return agentInformation;
 
             } catch (Exception ex)
             {

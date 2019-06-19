@@ -1,13 +1,20 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using dexih.functions;
+using dexih.operations;
 using dexih.remote.operations;
 using dexih.repository;
+using dexih.transforms;
+using dexih.transforms.Transforms;
 using Dexih.Utils.Crypto;
+using Dexih.Utils.MessageHelpers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -31,6 +38,8 @@ namespace dexih.remote.Operations.Services
         CookieContainer CookieContainer { get; }
 
         Task<EConnectionResult> WaitForLogin(bool reconnect = false, CancellationToken cancellationToken = default);
+
+        Task<RemoteLibraries> GetRemoteLibraries(CancellationToken cancellationToken);
         
         string BaseUrl { get; }
 
@@ -46,6 +55,8 @@ namespace dexih.remote.Operations.Services
         private readonly string _apiUri;
         private readonly SemaphoreSlim _loginSemaphore;
         private EConnectionResult _connectionStatus = EConnectionResult.Disconnected;
+
+        private RemoteLibraries _remoteLibraries;
 
         public string SessionEncryptionKey { get; }
         public string SecurityToken { get; set; }
@@ -103,6 +114,7 @@ namespace dexih.remote.Operations.Services
 
             return _httpClient.PostAsync(_apiUri + uri, jsonContent, cancellationToken);
         }
+        
 
         public void ResetConnection()
         {
@@ -296,6 +308,92 @@ namespace dexih.remote.Operations.Services
             }
         }
 
+        /// <summary>
+        /// Gets any libraries which are contained on the remote server, but not in the global server cache.
+        /// </summary>
+        /// <param name="cancellationToken"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        public async Task<RemoteLibraries> GetRemoteLibraries(CancellationToken cancellationToken)
+        {
+            if (_remoteLibraries != null)
+            {
+                return _remoteLibraries;
+            }
+
+            HttpResponseMessage response;
+            try
+            {
+                response = await _httpClient.GetAsync(_apiUri + "Account/GetGlobalCache", cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                    _logger.LogCritical(10, ex, "Internal error connecting to the server at location: {0}",
+                        "Account/GetGlobalCache");
+                    throw;
+            }
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                var message =
+                    $"Could not connect with server.  Status = {response.StatusCode.ToString()}, {response.ReasonPhrase}";
+                _logger.LogCritical(4, message);
+                throw new Exception(message);            
+            }
+            
+            var serverResponse = await response.Content.ReadAsStringAsync();
+            try
+            {
+                // get the global cache from the server, and return remote libraries which are missing.
+                var returnValue = Json.DeserializeObject<ReturnValue<CacheManager>>(serverResponse, "");
+
+                if (!returnValue.Success)
+                {
+                    var message = $"Error getting global cache: {returnValue.Message}";
+                    _logger.LogCritical(4, message);
+                    throw new Exception(returnValue.Message, new Exception(returnValue.ExceptionDetails));
+                }
+
+                var globalCache = returnValue.Value;
+
+                var globalFunctions = globalCache.DefaultRemoteLibraries.Functions
+                    .ToDictionary(c => (c.FunctionAssemblyName, c.FunctionClassName, c.FunctionMethodName));
+
+                var functions = Functions.GetAllFunctions().Where(c => !globalFunctions.ContainsKey((
+                    c.FunctionAssemblyName, c.FunctionClassName,
+                    c.FunctionMethodName))).ToList();
+
+                var globalConnections = globalCache.DefaultRemoteLibraries.Connections
+                    .ToDictionary(c => (c.ConnectionAssemblyName, c.ConnectionClassName));
+
+                var connections = Connections.GetAllConnections().Where(c => !globalConnections.ContainsKey((
+                    c.ConnectionAssemblyName, c.ConnectionClassName))).ToList();
+                
+                var globalTransforms = globalCache.DefaultRemoteLibraries.Transforms
+                    .ToDictionary(c => (c.TransformAssemblyName, c.TransformClassName));
+
+                var transforms = Transforms.GetAllTransforms().Where(c => !globalTransforms.ContainsKey((
+                    c.TransformAssemblyName, c.TransformClassName))).ToList();
+                
+                
+                var remoteLibraries = new RemoteLibraries()
+                {
+                    Functions = functions,
+                    Connections = connections,
+                    Transforms = transforms
+                };
+
+                _remoteLibraries = remoteLibraries;
+
+                return remoteLibraries;
+            }
+            catch (Exception)
+            {
+                _logger.LogCritical(4,
+                    $"An invalid response was returned connecting with server.  Response was: \"{serverResponse}\".");
+                throw;
+            }
+        }
 
 
     }
