@@ -67,7 +67,7 @@ namespace dexih.remote.operations
 
         bool RunDatajobs(RemoteMessage message, CancellationToken cancellationToken);
         bool ActivateDatajobs(RemoteMessage message, CancellationToken cancellationToken);
-        DexihDatajob ActivateDatajob(AutoStart autoStart, string clientId = "none");
+        DexihDatajob ActivateDatajob(AutoStart autoStart, string connectionId = "none");
         bool DeactivateDatajobs(RemoteMessage message, CancellationToken cancellationToken);
         bool ActivateApis(RemoteMessage message, CancellationToken cancellationToken);
         bool DeactivateApis(RemoteMessage message, CancellationToken cancellationToken);
@@ -89,9 +89,12 @@ namespace dexih.remote.operations
         Task<bool> MoveFiles(RemoteMessage message, CancellationToken cancellationToken);
         Task<bool> DeleteFiles(RemoteMessage message, CancellationToken cancellationToken);
         Task<List<DexihFileProperties>> GetFileList(RemoteMessage message, CancellationToken cancellationToken);
-        Task<bool> SaveFile(RemoteMessage message, CancellationToken cancellationToken);
+        // Task<bool> SaveFile(RemoteMessage message, CancellationToken cancellationToken);
         Task<string> UploadFile(RemoteMessage message, CancellationToken cancellationToken);
         ManagedTask DownloadFiles(RemoteMessage message, CancellationToken cancellationToken);
         ManagedTask DownloadData(RemoteMessage message, CancellationToken cancellationToken);
+
+        NamingStandards NamingStandards(RemoteMessage message, CancellationToken cancellationToken);
+        
     }
 }

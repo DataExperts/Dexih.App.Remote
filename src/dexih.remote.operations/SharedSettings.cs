@@ -13,6 +13,7 @@ using dexih.remote.operations;
 using dexih.repository;
 using dexih.transforms;
 using dexih.transforms.Transforms;
+using Dexih.Utils.CopyProperties;
 using Dexih.Utils.Crypto;
 using Dexih.Utils.MessageHelpers;
 using Microsoft.Extensions.Configuration;
@@ -31,6 +32,7 @@ namespace dexih.remote.Operations.Services
 
         string SessionEncryptionKey { get; }
         
+        string InstanceId { get; set; }
         string SecurityToken { get; set; }
 
         RemoteSettings RemoteSettings { get; }
@@ -59,7 +61,16 @@ namespace dexih.remote.Operations.Services
         private RemoteLibraries _remoteLibraries;
 
         public string SessionEncryptionKey { get; }
+
+        /// <summary>
+        /// Shared between the remote agent and the web server.  Ensures the connection hasn't been hijacked.
+        /// </summary>
         public string SecurityToken { get; set; }
+        
+        /// <summary>
+        /// Shared between the remote agent, web server, and clients.  Used to identify this running instance.
+        /// </summary>
+        public string InstanceId { get; set; }
         public RemoteSettings RemoteSettings { get; }
 
         public CookieContainer CookieContainer { get; }
@@ -158,10 +169,12 @@ namespace dexih.remote.Operations.Services
                             }
 
                             break;
+                        case EConnectionResult.Connected:
+                            break;
                         default:
                             if (!retryStarted)
                             {
-                                _logger.LogWarning("Unhandled exception on remote server.. retrying...");
+                                _logger.LogWarning($"Error:  Login returned {connectionResult}.. retrying...");
                             }
 
                             break;
@@ -253,12 +266,18 @@ namespace dexih.remote.Operations.Services
 
                 if ((bool) parsedServerResponse["success"])
                 {
+                    var instanceId = (string) parsedServerResponse["instanceId"];
                     var securityToken = (string) parsedServerResponse["securityToken"];
                     var userToken = (string) parsedServerResponse["userToken"];
                     var ipAddress = (string) parsedServerResponse["ipAddress"];
-                    // var userHash = (string)parsedServerResponse["userHash"];
+                    var defaultProxyUrl = (string) parsedServerResponse["defaultProxyUrl"];
+                    var remoteAgentKey = (long) parsedServerResponse["remoteAgentKey"];
+                    var userHash = (string) parsedServerResponse["userHash"];
 
                     RemoteSettings.Runtime.ExternalIpAddress = ipAddress;
+                    RemoteSettings.Runtime.DefaultProxyUrl = defaultProxyUrl;
+                    RemoteSettings.Runtime.RemoteAgentKey = remoteAgentKey;
+                    RemoteSettings.Runtime.UserHash = userHash;
 
                     if (RemoteSettings.Runtime.SaveSettings)
                     {
@@ -268,6 +287,8 @@ namespace dexih.remote.Operations.Services
                             RemoteSettings.AppSettings.UserToken = userToken;
                         }
 
+                        RemoteSettings.AppSettings.UserPrompt = false;
+                        
                         //create a temporary settings file that does not contain the RunTime property.
                         var tmpSettings = new RemoteSettings()
                         {
@@ -277,7 +298,8 @@ namespace dexih.remote.Operations.Services
                             Network = RemoteSettings.Network,
                             Privacy = RemoteSettings.Privacy,
                             Permissions = RemoteSettings.Permissions,
-                            NamingStandards = RemoteSettings.NamingStandards
+                            NamingStandards = RemoteSettings.NamingStandards,
+                            Runtime = null
                         };
 
                         File.WriteAllText(RemoteSettings.Runtime.AppSettingsPath,
@@ -285,11 +307,11 @@ namespace dexih.remote.Operations.Services
                         _logger.LogInformation(
                             "The appsettings.json file has been updated with the current settings.");
 
-
                         RemoteSettings.Runtime.SaveSettings = false;
 
                     }
 
+                    InstanceId = instanceId;
                     SecurityToken = securityToken;
 
                     _logger.LogInformation(2, "User authentication successful.");

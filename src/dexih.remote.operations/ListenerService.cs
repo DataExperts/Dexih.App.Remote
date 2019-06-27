@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using dexih.functions;
 using dexih.operations;
 using dexih.remote.Operations.Services;
 using dexih.repository;
@@ -68,6 +69,28 @@ namespace dexih.remote.operations
             }
 
         }
+
+        private DexihActiveAgent GetActiveAgent()
+        {
+            var activeAgent = new DexihActiveAgent()
+            {
+                Name = _remoteSettings.AppSettings.Name,
+                IsRunning = true,
+                DataPrivacyStatus = _remoteSettings.DataPrivacyStatus(),
+                DownloadUrls = _remoteSettings.GetDownloadUrls(),
+                IpAddress = _remoteSettings.Runtime.ExternalIpAddress,
+                IsEncrypted = _remoteSettings.Network.EnforceHttps,
+                InstanceId = _sharedSettings.InstanceId,
+                User =  _remoteSettings.AppSettings.User,
+                UpgradeAvailable = _remoteSettings.UpgradeAvailable(),
+                Version = _remoteSettings.Runtime.Version,
+                LatestVersion = _remoteSettings.Runtime.LatestVersion,
+                LatestDownloadUrl = _remoteSettings.Runtime.LatestDownloadUrl,
+                RemoteAgentKey = _remoteSettings.Runtime.RemoteAgentKey
+            };
+
+            return activeAgent;
+        }
              
          private HubConnection BuildHubConnection(HttpTransportType transportType, CancellationToken cancellationToken)
          {
@@ -89,6 +112,29 @@ namespace dexih.remote.operations
                  await ProcessMessage(message);
              });
 
+             con.On<RemoteMessage>("Response", async message =>
+             {
+                 _messageQueue.AddResponse(message.MessageId, message);
+             });
+             
+             // signals the agent is alive, and sends a response message back to the calling client.
+             con.On<string>("Ping", async connectionId =>
+             {
+                 _hubConnection.SendAsync("Ping", GetActiveAgent(), connectionId, cancellationToken);
+             });
+             
+             // signals the agent is alive, and sends a response message back to the calling client.
+             con.On<string>("PingServer", async pingKey =>
+             {
+                 _hubConnection.SendAsync("PingServer", GetActiveAgent(), pingKey, cancellationToken);
+             });
+
+             con.On<string>("Restart", async =>
+             {
+                 _remoteOperations.ReStart(null, cancellationToken);
+                 
+             });
+             
              con.On("Abort", async () =>
              {
                  _logger.LogInformation("Listener connection aborted.");
@@ -133,7 +179,10 @@ namespace dexih.remote.operations
              {
                  _logger.LogInformation("The listener service is connecting (via Websockets) with the server...");
                  await _hubConnection.StartAsync(cancellationToken);
-                 await _hubConnection.InvokeAsync("Connect", _sharedSettings.SecurityToken, cancellationToken: cancellationToken);
+                 await _hubConnection.InvokeAsync("Connect", 
+                     GetActiveAgent(),
+                     _sharedSettings.SecurityToken,
+                    cancellationToken: cancellationToken);
                  _logger.LogInformation("The listener service is connected.");
 
              }
@@ -163,12 +212,8 @@ namespace dexih.remote.operations
                 if (!remoteMessage.Success)
                     return;
 
-                //a method with "Response" is a special case where central server is responding to agent call.  This requires no response and can be exited.
-                if (remoteMessage.Method == "Response")
-                {
-                    _messageQueue.AddResponse(remoteMessage.MessageId, remoteMessage);
-                    return;
-                }
+                var cancellationTokenSource = new CancellationTokenSource();
+                var commandCancel = cancellationTokenSource.Token;
 
                 _logger.LogDebug("Message received is command: {command}.", remoteMessage.Method);
 
@@ -176,9 +221,6 @@ namespace dexih.remote.operations
                 // if (!string.IsNullOrEmpty((string)command.Value))
                 //     values = JObject.Parse((string)command.Value);
 
-                var cancellationTokenSource = new CancellationTokenSource();
-                
-                var commandCancel = cancellationTokenSource.Token;
 
                 var method = typeof(RemoteOperations).GetMethod(remoteMessage.Method);
 

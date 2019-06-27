@@ -119,6 +119,7 @@ namespace dexih.remote.Operations.Services
 
                         var postData = new DatalinkProgress
                         {
+                            InstanceId = _sharedSettings.InstanceId,
                             SecurityToken = _sharedSettings.SecurityToken,
                             Command = "task",
                             Results = managedTaskChanges.ToList()
@@ -158,6 +159,7 @@ namespace dexih.remote.Operations.Services
 
     internal class DatalinkProgress
     {
+        public string InstanceId { get; set; }
         public string SecurityToken { get; set; }
         public string Command { get; set; }
         public IEnumerable<ManagedTask> Results { get; set; } 

@@ -30,18 +30,7 @@ namespace dexih.remote.config
                 if (detailed)
                 {
                     checkSaveSettings = true;
-
-                    newSettings["AppSettings:WebServer"] = defaultWebServer;
-
-                    Console.Write($"Enter the dexih web server [{remoteSettings.AppSettings.WebServer}]: ");
-                    var webServer = Console.ReadLine();
-
-                    if (!string.IsNullOrEmpty(webServer))
-                    {
-                        newSettings["AppSettings:WebServer"] = webServer;
-                    }
-
-
+                    
                     if (string.IsNullOrEmpty(remoteSettings.AppSettings.EncryptionKey))
                     {
                         Console.WriteLine("Enter the encryption key.");
@@ -188,6 +177,16 @@ namespace dexih.remote.config
                 }
 
                 checkSaveSettings = true;
+                
+                newSettings["AppSettings:WebServer"] = defaultWebServer;
+
+                Console.Write($"Enter the dexih web server [{remoteSettings.AppSettings.WebServer}]: ");
+                var webServer = Console.ReadLine();
+
+                if (!string.IsNullOrEmpty(webServer))
+                {
+                    newSettings["AppSettings:WebServer"] = webServer;
+                }
 
                 Console.Write($"Enter the login email [{remoteSettings.AppSettings.User}]: ");
                 var user = Console.ReadLine();
@@ -338,8 +337,10 @@ namespace dexih.remote.config
                 while (string.IsNullOrEmpty(inputValue))
                 {
                     Console.Write("Enter a (non empty) value: ");
-                    result = Console.ReadLine();
+                    inputValue = Console.ReadLine();
                 }
+
+                result = inputValue;
             }
 
             return result;
