@@ -2,9 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
-using System.Linq.Expressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
@@ -15,7 +13,6 @@ using dexih.repository;
 using dexih.transforms;
 using Dexih.Utils.Crypto;
 using Dexih.Utils.MessageHelpers;
-using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -35,10 +32,10 @@ namespace dexih.remote.Operations.Services
         private readonly ConcurrentDictionary<string, ApiData> _liveApis;
         
         private bool _apiUpdateBusy;
-        private ConcurrentDictionary<long, ApiData> _apiDataUpdates;
+        private readonly ConcurrentDictionary<long, ApiData> _apiDataUpdates;
 
         private bool _apiQueryBusy;
-        private ConcurrentDictionary<long, ApiQuery> _apiQueryUpdates;
+        private readonly ConcurrentDictionary<long, ApiQuery> _apiQueryUpdates;
 
         
         public LiveApis(ISharedSettings sharedSettings, ILogger<LiveApis> logger)
@@ -68,7 +65,7 @@ namespace dexih.remote.Operations.Services
 
             if (securityKey == null)
             {
-                securityKey = Dexih.Utils.Crypto.EncryptString.GenerateRandomKey(25);
+                securityKey = EncryptString.GenerateRandomKey(25);
             }
 
             // strip non alphanumeric chars from the key to ensure url compatibility.
@@ -122,7 +119,6 @@ namespace dexih.remote.Operations.Services
                         {
                             apiData.ApiStatus = ApiStatus.Deactivated;
                             ApiUpdate(apiData);
-                            return;
                         }
                         else
                         {

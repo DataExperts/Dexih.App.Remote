@@ -19,14 +19,12 @@ namespace dexih.remote.operations
 {
     public class ListenerService : IHostedService
     {
-        private ISharedSettings _sharedSettings;
-        private IMessageQueue _messageQueue;
-        private IRemoteOperations _remoteOperations;
-        ILogger<ListenerService> _logger;
+        private readonly ISharedSettings _sharedSettings;
+        private readonly IMessageQueue _messageQueue;
+        private readonly IRemoteOperations _remoteOperations;
+        private readonly ILogger<ListenerService> _logger;
 
-        private RemoteSettings _remoteSettings;
-
-        private bool retryStarted = false;
+        private readonly RemoteSettings _remoteSettings;
 
         private HubConnection _hubConnection;
         
@@ -112,7 +110,7 @@ namespace dexih.remote.operations
                  await ProcessMessage(message);
              });
 
-             con.On<RemoteMessage>("Response", async message =>
+             con.On<RemoteMessage>("Response",  message =>
              {
                  _messageQueue.AddResponse(message.MessageId, message);
              });
@@ -120,13 +118,13 @@ namespace dexih.remote.operations
              // signals the agent is alive, and sends a response message back to the calling client.
              con.On<string>("Ping", async connectionId =>
              {
-                 _hubConnection.SendAsync("Ping", GetActiveAgent(), connectionId, cancellationToken);
+                 await _hubConnection.SendAsync("Ping", GetActiveAgent(), connectionId, cancellationToken);
              });
              
              // signals the agent is alive, and sends a response message back to the calling client.
              con.On<string>("PingServer", async pingKey =>
              {
-                 _hubConnection.SendAsync("PingServer", GetActiveAgent(), pingKey, cancellationToken);
+                 await _hubConnection.SendAsync("PingServer", GetActiveAgent(), pingKey, cancellationToken);
              });
 
              con.On<string>("Restart", async =>
@@ -140,7 +138,7 @@ namespace dexih.remote.operations
                  _logger.LogInformation("Listener connection aborted.");
                  _sharedSettings.ResetConnection();
                  
-                 await con.StopAsync();
+                 await con.StopAsync(cancellationToken);
              });
 
              // when closed cancel and exit

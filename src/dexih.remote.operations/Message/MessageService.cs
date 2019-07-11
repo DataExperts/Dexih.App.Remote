@@ -1,11 +1,7 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Net.Http;
-using System.Security.Policy;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using dexih.operations;
@@ -14,7 +10,6 @@ using Dexih.Utils.ManagedTasks;
 using Dexih.Utils.MessageHelpers;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Console.Internal;
 
 namespace dexih.remote.Operations.Services
 {
@@ -24,6 +19,8 @@ namespace dexih.remote.Operations.Services
         private readonly IMessageQueue _messageQueue;
         private readonly ISharedSettings _sharedSettings;
         private readonly IManagedTasks _managedTasks;
+
+        private Task _sendDatalinkProgress;
 
         public MessageService(
             ILogger<MessageService> logger, IMessageQueue messageQueue, ISharedSettings sharedSettings,
@@ -90,12 +87,20 @@ namespace dexih.remote.Operations.Services
 
         private void TaskProgressChange(object value, ManagedTaskProgressItem progressItem)
         {
-            SendDatalinkProgress();
+            // run as a separate task to minimise delays to core processes.
+            if (_sendDatalinkProgress == null || _sendDatalinkProgress.IsCompleted)
+            {
+                _sendDatalinkProgress = SendDatalinkProgress();
+            }
         }
 
         private void TaskStatusChange(object value, EManagedTaskStatus managedTaskStatus)
         {
-            SendDatalinkProgress();
+            // run as a separate task to minimise delays to core processes.
+            if (_sendDatalinkProgress == null || _sendDatalinkProgress.IsCompleted)
+            {
+                _sendDatalinkProgress = SendDatalinkProgress();
+            }
         }
 
         private bool _sendDatalinkProgressBusy;
@@ -138,7 +143,7 @@ namespace dexih.remote.Operations.Services
                         if (result.Success == false)
                         {
                             _logger.LogError(result.Exception,
-                                "Update task results failed.  Return message was: {0}." + result.Message);
+                                "Update task results failed.  Return message was: " + result.Message);
                         }
 
                         // wait a little while for more tasks results to arrive.

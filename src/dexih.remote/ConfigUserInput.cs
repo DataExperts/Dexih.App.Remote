@@ -4,7 +4,6 @@ using System.IO;
 using dexih.repository;
 using Dexih.Utils.Crypto;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
 
 namespace dexih.remote.config
 {

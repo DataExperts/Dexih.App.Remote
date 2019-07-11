@@ -1,13 +1,8 @@
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Net.Http;
-using System.Security.Policy;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using dexih.operations;
-using Dexih.Utils.Crypto;
 
 namespace dexih.remote.Operations.Services
 {
@@ -29,11 +24,8 @@ namespace dexih.remote.Operations.Services
     {
         private readonly ConcurrentQueue<ResponseMessage> _messageQueue; 
         private readonly ConcurrentDictionary<string, RemoteMessage> _responseMessages = new ConcurrentDictionary<string, RemoteMessage>(); //list of responses returned from clients.  This is updated by the hub.
-        
         private readonly SemaphoreSlim _waitForMessage = new SemaphoreSlim(1, 1);
 
-        private ISharedSettings _sharedSettings;
-        
         public MessageQueue()
         {
             _messageQueue = new ConcurrentQueue<ResponseMessage>();

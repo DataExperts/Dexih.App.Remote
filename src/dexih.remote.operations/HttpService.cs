@@ -18,12 +18,12 @@ namespace dexih.remote.operations.Services
 {
     public class HttpService : BackgroundService
     {
-        private ISharedSettings _sharedSettings;
-        private IStreams _streams;
-        private ILiveApis _liveApis;
+        private readonly ISharedSettings _sharedSettings;
+        private readonly IStreams _streams;
+        private readonly ILiveApis _liveApis;
         
-        private RemoteSettings _remoteSettings;
-        private ILogger<HttpService> _logger;
+        private readonly RemoteSettings _remoteSettings;
+        private readonly ILogger<HttpService> _logger;
         
         public HttpService(ISharedSettings sharedSettings, ILogger<HttpService> logger, IStreams streams, ILiveApis liveApis)
         {
@@ -193,10 +193,6 @@ namespace dexih.remote.operations.Services
                         }
                         catch (OperationCanceledException)
                         {
-                        }
-                        catch (Exception ex)
-                        {
-                            throw;
                         }
                     }
                 }

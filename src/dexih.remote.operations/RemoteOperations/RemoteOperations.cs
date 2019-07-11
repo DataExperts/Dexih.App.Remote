@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
-using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
 using System.Text;
@@ -17,7 +16,6 @@ using dexih.operations;
 using dexih.remote.Operations.Services;
 using dexih.repository;
 using dexih.transforms;
-using dexih.transforms.Transforms;
 using Dexih.Utils.CopyProperties;
 using Dexih.Utils.Crypto;
 using Dexih.Utils.ManagedTasks;
@@ -276,6 +274,8 @@ namespace dexih.remote.operations
                 var datalinkKeys = message.Value["datalinkKeys"].ToObject<long[]>();
                 var cache = Json.JTokenToObject<CacheManager>(message.Value["cache"], _sharedSettings.SessionEncryptionKey);
                 var connectionId = message.Value["connectionId"].ToString();
+                
+                _logger.LogDebug($"Running datalinks.  Progress sent to connection {connectionId}, keys: {message.Value["datalinkKeys"]}");
 
                 var transformWriterOptions = new TransformWriterOptions()
                 {
@@ -289,9 +289,7 @@ namespace dexih.remote.operations
                 };
 
                 var inputColumns = message.Value["inputColumns"]?.ToObject<InputColumn[]>();
-
-                _logger.LogInformation(25, "Run datalinks timer1: {0}", timer.Elapsed);
-
+                
                 foreach (var datalinkKey in datalinkKeys)
                 {
                     var dbDatalink = cache.Hub.DexihDatalinks.SingleOrDefault(c => c.Key == datalinkKey);
@@ -304,10 +302,7 @@ namespace dexih.remote.operations
                     var datalinkRun = new DatalinkRun(GetTransformSettings(message.HubVariables), _logger, 0, dbDatalink, cache.Hub, datalinkInputs, transformWriterOptions);
                     var runReturn = RunDataLink(connectionId, cache.HubKey, datalinkRun, null, null);
                 }
-
-                timer.Stop();
-                _logger.LogInformation(25, "Run datalinks timer4: {0}", timer.Elapsed);
-
+                
                 return true;
             }
             catch (Exception ex)
@@ -317,42 +312,48 @@ namespace dexih.remote.operations
             }
         }
 
-        private ManagedTask RunDataLink(string connectionId, long hubKey, DatalinkRun datalinkRun, DatajobRun parentDataJobRun, string[] dependencies)
+        private  Task<ManagedTask> RunDataLink(string connectionId, long hubKey, DatalinkRun datalinkRun, DatajobRun parentDataJobRun, string[] dependencies)
         {
             try
             {
                 var reference = Guid.NewGuid().ToString();
+                
+                if (parentDataJobRun != null)
+                {
+                    datalinkRun.OnProgressUpdate += parentDataJobRun.DatalinkStatus;
+                    datalinkRun.OnStatusUpdate += parentDataJobRun.DatalinkStatus;
+                }
 
                 // put the download into an action and allow to complete in the scheduler.
-                async Task DatalinkRunTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken cancellationToken)
-                {
-                    // set the data to the writer result, which is used for real-time progress events sent back to the client.
-                    managedTask.Data = datalinkRun.WriterTarget.WriterResult;
-                    
-                    progress.Report(0, 0, "Compiling datalink...");
-                    datalinkRun.Build(cancellationToken);
-
-                    void ProgressUpdate(DatalinkRun datalinkRun2, TransformWriterResult writerResult)
-                    {
-                        if (writerResult.AuditType == "Datalink")
-                        {
-                            progress.Report(writerResult.PercentageComplete, writerResult.RowsTotal + writerResult.RowsReadPrimary,
-                                writerResult.IsFinished ? "" : "Running datalink...");
-                        }
-                    }
-
-                    datalinkRun.OnProgressUpdate += ProgressUpdate;
-                    datalinkRun.OnStatusUpdate += ProgressUpdate;
-
-                    if (parentDataJobRun != null)
-                    {
-                        datalinkRun.OnProgressUpdate += parentDataJobRun.DatalinkStatus;
-                        datalinkRun.OnStatusUpdate += parentDataJobRun.DatalinkStatus;
-                    }
-
-                    progress.Report(0, 0, "Running datalink...");
-                    await datalinkRun.Run(cancellationToken);
-                }
+//                async Task DatalinkRunTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken cancellationToken)
+//                {
+//                    // set the data to the writer result, which is used for real-time progress events sent back to the client.
+//                    managedTask.Data = datalinkRun.WriterTarget.WriterResult;
+//                    
+//                    progress.Report(0, 0, "Compiling datalink...");
+//                    datalinkRun.Build(cancellationToken);
+//
+//                    void ProgressUpdate(DatalinkRun datalinkRun2, TransformWriterResult writerResult)
+//                    {
+//                        if (writerResult.AuditType == "Datalink")
+//                        {
+//                            progress.Report(writerResult.PercentageComplete, writerResult.RowsTotal + writerResult.RowsReadPrimary,
+//                                writerResult.IsFinished ? "" : "Running datalink...");
+//                        }
+//                    }
+//
+//                    datalinkRun.OnProgressUpdate += ProgressUpdate;
+//                    datalinkRun.OnStatusUpdate += ProgressUpdate;
+//
+//                    if (parentDataJobRun != null)
+//                    {
+//                        datalinkRun.OnProgressUpdate += parentDataJobRun.DatalinkStatus;
+//                        datalinkRun.OnStatusUpdate += parentDataJobRun.DatalinkStatus;
+//                    }
+//
+//                    progress.Report(0, 0, "Running datalink...");
+//                    await datalinkRun.Run(cancellationToken);
+//                }
                 
                 var task = new ManagedTask
                 {
@@ -363,21 +364,20 @@ namespace dexih.remote.operations
                     CategoryKey = datalinkRun.Datalink.Key,
                     ReferenceKey = hubKey,
                     ReferenceId = null,
-                    Data = datalinkRun.WriterTarget.WriterResult,
-                    Action = DatalinkRunTask,
+                    ManagedObject = datalinkRun,
                     Triggers = null,
                     FileWatchers = null,
                     DependentReferences = dependencies,
                     ConcurrentTaskAction = parentDataJobRun == null ? EConcurrentTaskAction.Abend : EConcurrentTaskAction.Sequence
                 };
 
-                var newTask = _managedTasks.Add(task);
-                if (newTask != null)
-                {
-                    return newTask;
-                }
-
-                throw new RemoteOperationException($"Task not successfully created.", null);
+                return _managedTasks.Add(task);
+//                if (newTask != null)
+//                {
+//                    return newTask;
+//                }
+//
+//                throw new RemoteOperationException($"Task not successfully created.", null);
             }
             catch (Exception ex)
             {
@@ -399,7 +399,17 @@ namespace dexih.remote.operations
                     {
                         if (cancellationToken.IsCancellationRequested) break;
                         var task = _managedTasks.GetTask("Datalink", datalinkKey);
+                        if (task == null)
+                        {
+                            throw new RemoteOperationException(
+                                "The datalink could not be cancelled as it is not runnign.");
+                        }
+
                         task.Cancel();
+                    }
+                    catch (RemoteOperationException)
+                    {
+                        throw;
                     }
                     catch (Exception ex)
                     {
@@ -514,24 +524,25 @@ namespace dexih.remote.operations
                             GlobalVariables = CreateGlobalVariables(cache.CacheEncryptionKey),
                         };
                         var datalinkTestRun = new DatalinkTestRun(GetTransformSettings(message.HubVariables), _logger, datalinkTest, cache.Hub, transformWriterOptions);
+                        datalinkTestRun.StartMode = EStartMode.RunTests;
 
-                        async Task DatalinkTestTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken cancellationToken2)
-                        {
-                            void ProgressUpdate(TransformWriterResult writerResult)
-                            {
-                                progress.Report(writerResult.PercentageComplete, writerResult.Passed + writerResult.Failed, writerResult.IsFinished ? "" : "Running datalink tests...");
-                            }
-
-                            datalinkTestRun.OnProgressUpdate += ProgressUpdate;
-                            
-                            await datalinkTestRun.Initialize("DatalinkTest", cancellationToken);
-                            managedTask.Data = datalinkTestRun.WriterResult;
-
-                            progress.Report(0, 0, $"Running datalink test {datalinkTest.Name}...");
-                            await datalinkTestRun.Run(cancellationToken2);
-                        }
+//                        async Task DatalinkTestTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken cancellationToken2)
+//                        {
+//                            void ProgressUpdate(TransformWriterResult writerResult)
+//                            {
+//                                progress.Report(writerResult.PercentageComplete, writerResult.Passed + writerResult.Failed, writerResult.IsFinished ? "" : "Running datalink tests...");
+//                            }
+//
+//                            datalinkTestRun.OnProgressUpdate += ProgressUpdate;
+//                            
+//                            await datalinkTestRun.Initialize("DatalinkTest", cancellationToken);
+//                            managedTask.Data = datalinkTestRun.WriterResult;
+//
+//                            progress.Report(0, 0, $"Running datalink test {datalinkTest.Name}...");
+//                            await datalinkTestRun.Run(cancellationToken2);
+//                        }
                         
-                        var newTask = _managedTasks.Add(reference,  connectionId, $"Datalink Test: {datalinkTest.Name}.", "DatalinkTest", cache.HubKey, null, datalinkTest.Key, datalinkTestRun.WriterResult, DatalinkTestTask, null, null, null);
+                        var newTask = _managedTasks.Add(reference,  connectionId, $"Datalink Test: {datalinkTest.Name}.", "DatalinkTest", cache.HubKey, null, datalinkTest.Key, datalinkTestRun, null, null, null);
                         if (newTask == null)
                         {
                             throw new RemoteOperationException("Run datalink tests failed, as the task failed to initialize.");
@@ -593,26 +604,28 @@ namespace dexih.remote.operations
                             GlobalVariables = CreateGlobalVariables(cache.CacheEncryptionKey),
                         };
                         var datalinkTestRun = new DatalinkTestRun(GetTransformSettings(message.HubVariables), _logger, datalinkTest, cache.Hub, transformWriterOptions);
-
-                        async Task DatalinkTestSnapshotTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken cancellationToken2)
-                        {
-                            void ProgressUpdate(TransformWriterResult writerResult)
-                            {
-                                progress.Report(writerResult.PercentageComplete, writerResult.Passed + writerResult.Failed, writerResult.IsFinished ? "" : "Running datalink test snapshot...");
-                            }
-
-                            datalinkTestRun.OnProgressUpdate += ProgressUpdate;
-                            datalinkTestRun.OnStatusUpdate += ProgressUpdate;
-
-                            await datalinkTestRun.Initialize("DatalinkTest", cancellationToken);
-                            managedTask.Data = datalinkTestRun.WriterResult;
-                            
-                            progress.Report(0, 0, $"Running datalink test {datalinkTest.Name}...");
-                            await datalinkTestRun.RunSnapshot(cancellationToken2);
-                        }
+                        datalinkTestRun.StartMode = EStartMode.RunSnapshot;
+//                        ;
+//
+//                        async Task DatalinkTestSnapshotTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken cancellationToken2)
+//                        {
+//                            void ProgressUpdate(TransformWriterResult writerResult)
+//                            {
+//                                progress.Report(writerResult.PercentageComplete, writerResult.Passed + writerResult.Failed, writerResult.IsFinished ? "" : "Running datalink test snapshot...");
+//                            }
+//
+//                            datalinkTestRun.OnProgressUpdate += ProgressUpdate;
+//                            datalinkTestRun.OnStatusUpdate += ProgressUpdate;
+//
+//                            await datalinkTestRun.Initialize("DatalinkTest", cancellationToken);
+//                            managedTask.Data = datalinkTestRun.WriterResult;
+//                            
+//                            progress.Report(0, 0, $"Running datalink test {datalinkTest.Name}...");
+//                            await datalinkTestRun.RunSnapshot(cancellationToken2);
+//                        }
                         
 
-                        var newTask = _managedTasks.Add(reference, connectionId, $"Datalink Test Snapshot: {datalinkTest.Name}.", "DatalinkTestSnapshot", cache.HubKey, null, datalinkTest.Key, datalinkTestRun.WriterResult, DatalinkTestSnapshotTask, null, null, null);
+                        var newTask = _managedTasks.Add(reference, connectionId, $"Datalink Test Snapshot: {datalinkTest.Name}.", "DatalinkTestSnapshot", cache.HubKey, null, datalinkTest.Key, datalinkTestRun, null, null, null);
                         if (newTask == null)
                         {
                             throw new RemoteOperationException("Run datalink test snapshot failed, as the task failed to initialize.");
@@ -714,47 +727,50 @@ namespace dexih.remote.operations
             {
                 var datajobRun = new DatajobRun(transformSettings, _logger, dbHubDatajob, dbHub, transformWriterOptions);
 
-                async Task DatajobScheduleTask(ManagedTask managedTask, DateTime scheduleTime, CancellationToken ct)
+//                void DatajobScheduleTask(ManagedTask managedTask, DateTime scheduleTime, CancellationToken ct)
+//                {
+//                    managedTask.Data = datajobRun.WriterResult;
+//                    datajobRun.Schedule(scheduleTime).Wait();
+//                }
+//
+//                Task DatajobCancelScheduledTask(ManagedTask managedTask, CancellationToken ct)
+//                {
+//                    datajobRun.CancelSchedule(ct);
+//                    return Task.CompletedTask;
+//                }
+//
+//                async Task DatajobRunTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken ct)
+//                {
+//                    managedTask.Data = datajobRun.WriterResult;
+//
+//                    void DatajobProgressUpdate(TransformWriterResult writerResult)
+//                    {
+//                        progress.Report(writerResult.PercentageComplete, writerResult.RowsTotal, writerResult.IsFinished ? "" : "Running datajob...");
+//                    }
+//
+//
+//
+//                    datajobRun.ResetEvents();
+//
+//                    datajobRun.OnDatajobProgressUpdate += DatajobProgressUpdate;
+//                    datajobRun.OnDatajobStatusUpdate += DatajobProgressUpdate;
+//                    datajobRun.OnDatalinkStart += DatalinkStart;
+//
+//                    progress.Report(0, 0, "Initializing datajob...");
+//
+//                    await datajobRun.Initialize(ct);
+//
+//                    progress.Report(0, 0, "Running datajob...");
+//
+//                    await datajobRun.Run(ct);
+//                }
+                
+                void DatalinkStart(DatalinkRun datalinkRun)
                 {
-                    managedTask.Data = datajobRun.WriterResult;
-                    datajobRun.Schedule(scheduleTime, ct);
-                    await datajobRun.Initialize(ct);
+                    RunDataLink(connectionId, dbHub.HubKey, datalinkRun, datajobRun, null);
                 }
-
-                Task DatajobCancelScheduledTask(ManagedTask managedTask, CancellationToken ct)
-                {
-                    datajobRun.CancelSchedule(ct);
-                    return Task.CompletedTask;
-                }
-
-                async Task DatajobRunTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken ct)
-                {
-                    managedTask.Data = datajobRun.WriterResult;
-
-                    void DatajobProgressUpdate(TransformWriterResult writerResult)
-                    {
-                        progress.Report(writerResult.PercentageComplete, writerResult.RowsTotal, writerResult.IsFinished ? "" : "Running datajob...");
-                    }
-
-                    void DatalinkStart(DatalinkRun datalinkRun)
-                    {
-                        RunDataLink(connectionId, dbHub.HubKey, datalinkRun, datajobRun, null);
-                    }
-
-                    datajobRun.ResetEvents();
-
-                    datajobRun.OnDatajobProgressUpdate += DatajobProgressUpdate;
-                    datajobRun.OnDatajobStatusUpdate += DatajobProgressUpdate;
-                    datajobRun.OnDatalinkStart += DatalinkStart;
-
-                    progress.Report(0, 0, "Initializing datajob...");
-
-                    await datajobRun.Initialize(ct);
-
-                    progress.Report(0, 0, "Running datajob...");
-
-                    await datajobRun.Run(ct);
-                }
+                
+                datajobRun.OnDatalinkStart += DatalinkStart;
 
                 var newManagedTask = new ManagedTask
                 {
@@ -764,12 +780,9 @@ namespace dexih.remote.operations
                     Category = "Datajob",
                     CategoryKey = dbHubDatajob.Key,
                     ReferenceKey = dbHub.HubKey,
-                    Data = datajobRun.WriterResult,
-                    Action = DatajobRunTask,
+                    ManagedObject = datajobRun,
                     Triggers = managedTaskSchedules,
-                    FileWatchers = fileWatchers,
-                    ScheduleAction = DatajobScheduleTask,
-                    CancelScheduleAction = DatajobCancelScheduledTask
+                    FileWatchers = fileWatchers
                 };
 
                 _managedTasks.Add(newManagedTask);
@@ -871,8 +884,7 @@ namespace dexih.remote.operations
 
             foreach (var trigger in dbDatajob.DexihTriggers)
             {
-                var managedTaskSchedule = new ManagedTaskSchedule();
-                trigger.CopyProperties(managedTaskSchedule);
+                var managedTaskSchedule = trigger.CreateManagedTaskSchedule();
                 triggers.Add(managedTaskSchedule);
             }
 
@@ -1111,7 +1123,7 @@ namespace dexih.remote.operations
                 var downloadUrl = new DownloadUrl()
                     {Url = proxyUrl, IsEncrypted = true, DownloadUrlType = EDownloadUrlType.Proxy};
 
-                return await StartDataStream(stream, downloadUrl, "json", "", cancellationToken);
+                return await _sharedSettings.StartDataStream(stream, downloadUrl, "json", "", cancellationToken);
 
             }
             catch (Exception ex)
@@ -1363,7 +1375,7 @@ namespace dexih.remote.operations
 
                 var stream = new StreamJsonCompact(dbTable.Name, reader, selectQuery?.Rows ?? 100);
 
-                return await StartDataStream(stream, downloadUrl, "json", "preview_table.json", cancellationToken);
+                return await _sharedSettings.StartDataStream(stream, downloadUrl, "json", "preview_table.json", cancellationToken);
 
             }
             catch (Exception ex)
@@ -1373,56 +1385,7 @@ namespace dexih.remote.operations
             }
         }
 
-        private async Task<string> StartDataStream(Stream stream, DownloadUrl downloadUrl, string format, string fileName, CancellationToken cancellationToken)
-        {
-            if (downloadUrl.DownloadUrlType == EDownloadUrlType.Proxy)
-            {
-                // if downloading through a proxy, start a process to upload to the proxy.
-                var startResult = await _httpClient.GetAsync($"{downloadUrl.Url}/start/{format}/{fileName}", cancellationToken);
 
-                if (!startResult.IsSuccessStatusCode)
-                {
-                    throw new RemoteOperationException($"Failed to connect to the proxy server.  Message: {startResult.ReasonPhrase}");
-                }
-
-                var jsonReuslt = JObject.Parse(await startResult.Content.ReadAsStringAsync());
-
-                var upload = jsonReuslt["UploadUrl"].ToString();
-                var download = jsonReuslt["DownloadUrl"].ToString();
-            
-                async Task UploadDataTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken ct)
-                {
-                    await _httpClient.PostAsync(upload, new StreamContent(stream), ct);
-                }
-            
-                var newManagedTask = new ManagedTask
-                {
-                    Reference = Guid.NewGuid().ToString(),
-                    OriginatorId = "none",
-                    Name = $"Remote Data",
-                    Category = "ProxyDownload",
-                    CategoryKey = 0,
-                    ReferenceKey = 0,
-                    Data = 0,
-                    Action = UploadDataTask,
-                    Triggers = null,
-                    FileWatchers = null,
-                    ScheduleAction = null,
-                    CancelScheduleAction = null
-                };
-
-                _managedTasks.Add(newManagedTask);
-
-                return download;
-            }
-            else
-            {
-                // if downloading directly, then just get the stream ready for when the client connects.
-                var keys = _streams.SetDownloadStream(fileName, stream);
-                var url = $"{downloadUrl.Url}/{format}/{HttpUtility.UrlEncode(keys.Key)}/{HttpUtility.UrlEncode(keys.SecurityKey)}";
-                return url;
-            }
-        }
         
         private async Task<string> StartUploadStream(Func<Stream, Task> uploadAction, DownloadUrl downloadUrl, string format, string fileName, CancellationToken cancellationToken)
         {
@@ -1441,11 +1404,13 @@ namespace dexih.remote.operations
                 var upload = jsonReuslt["UploadUrl"].ToString();
                 var download = jsonReuslt["DownloadUrl"].ToString();
             
-                async Task DownloadDataTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken ct)
-                {
-                    var result = await _httpClient.GetAsync(download, ct);
-                    await uploadAction.Invoke(await result.Content.ReadAsStreamAsync());
-                }
+//                async Task DownloadDataTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken ct)
+//                {
+//                    var result = await _httpClient.GetAsync(download, ct);
+//                    await uploadAction.Invoke(await result.Content.ReadAsStreamAsync());
+//                }
+
+                var uploadDataTask = new UploadDataTask(_httpClient, uploadAction, download, upload);
             
                 var newManagedTask = new ManagedTask
                 {
@@ -1455,12 +1420,9 @@ namespace dexih.remote.operations
                     Category = "ProxyUpload",
                     CategoryKey = 0,
                     ReferenceKey = 0,
-                    Data = 0,
-                    Action = DownloadDataTask,
+                    ManagedObject = uploadDataTask,
                     Triggers = null,
                     FileWatchers = null,
-                    ScheduleAction = null,
-                    CancelScheduleAction = null
                 };
 
                 _managedTasks.Add(newManagedTask);
@@ -1512,7 +1474,7 @@ namespace dexih.remote.operations
                 transform.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
 
                 var stream = new StreamJsonCompact(dbDatalink.Name + " " + transform.Name, transform, transformWriterOptions.SelectQuery.Rows);
-                return await StartDataStream(stream, downloadUrl, "json", "preview_transform.json", cancellationToken);
+                return await _sharedSettings.StartDataStream(stream, downloadUrl, "json", "preview_transform.json", cancellationToken);
             }
             catch (Exception ex)
             {
@@ -1643,7 +1605,7 @@ namespace dexih.remote.operations
                 transform.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
 
                 var stream = new StreamJsonCompact(dbDatalink.Name, transform, transformWriterOptions.SelectQuery.Rows);
-                return await StartDataStream(stream, downloadUrl, "json", "preview_datalink.json", cancellationToken);
+                return await _sharedSettings.StartDataStream(stream, downloadUrl, "json", "preview_datalink.json", cancellationToken);
             }
             catch (Exception ex)
             {
@@ -1688,7 +1650,7 @@ namespace dexih.remote.operations
                 transform.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
 
                 var stream = new StreamCsv(transform);
-                return await StartDataStream(stream, downloadUrl, "csv", "reader_data.csv", cancellationToken);
+                return await _sharedSettings.StartDataStream(stream, downloadUrl, "csv", "reader_data.csv", cancellationToken);
             }
             catch (Exception ex)
             {
@@ -1736,7 +1698,7 @@ namespace dexih.remote.operations
                     _logger.LogInformation("Preview for profile results: " + profileTable.Name + ".");
                     var stream = new StreamJsonCompact(profileTable.Name, reader, query.Rows);
 
-                    return await StartDataStream(stream, downloadUrl, "json", "preview_table.json", cancellationToken);
+                    return await _sharedSettings.StartDataStream(stream, downloadUrl, "json", "preview_table.json", cancellationToken);
                 }
 
                 throw new RemoteOperationException("The profile results could not be found on existing managed connections.");
@@ -1802,8 +1764,8 @@ namespace dexih.remote.operations
         {
             try
             {
- 				var conntectionTable = GetFlatFile(message);
-                var result = await conntectionTable.connection.CreateFilePaths(conntectionTable.flatFile);
+ 				var connectionTable = GetFlatFile(message);
+                var result = await connectionTable.connection.CreateFilePaths(connectionTable.flatFile);
                 return result;
             }
             catch (Exception ex)
@@ -1817,7 +1779,7 @@ namespace dexih.remote.operations
         {
             try
             {
-				var conntectionTable = GetFlatFile(message);
+				var connectionTable = GetFlatFile(message);
 
                 var fromDirectory = message.Value["fromPath"].ToObject<EFlatFilePath>();
                 var toDirectory = message.Value["toPath"].ToObject<EFlatFilePath>();
@@ -1825,7 +1787,7 @@ namespace dexih.remote.operations
 
                 foreach (var file in files)
                 {
-                    var result = await conntectionTable.connection.MoveFile(conntectionTable.flatFile, file, fromDirectory, toDirectory);
+                    var result = await connectionTable.connection.MoveFile(connectionTable.flatFile, file, fromDirectory, toDirectory);
                     if (!result)
                     {
                         return false;
@@ -1845,13 +1807,13 @@ namespace dexih.remote.operations
         {
             try
             {
-				var conntectionTable = GetFlatFile(message);
+				var connectionTable = GetFlatFile(message);
                 var path = message.Value["path"].ToObject<EFlatFilePath>();
                 var files = message.Value["files"].ToObject<string[]>();
 
                 foreach(var file in files)
                 {
-                    var result = await conntectionTable.connection.DeleteFile(conntectionTable.flatFile, path, file);
+                    var result = await connectionTable.connection.DeleteFile(connectionTable.flatFile, path, file);
                     if(!result)
                     {
                         return false;
@@ -1873,10 +1835,10 @@ namespace dexih.remote.operations
         {
             try
             {
-				var conntectionTable = GetFlatFile(message);
+				var connectionTable = GetFlatFile(message);
                 var path = message.Value["path"].ToObject<EFlatFilePath>();
 
-                var fileList = await conntectionTable.connection.GetFileList(conntectionTable.flatFile, path);
+                var fileList = await connectionTable.connection.GetFileList(connectionTable.flatFile, path);
 
                 return fileList;
             }
@@ -2072,7 +2034,7 @@ namespace dexih.remote.operations
             }
         }
 
-        public ManagedTask DownloadFiles(RemoteMessage message, CancellationToken cancellationToken)
+        public async Task<ManagedTask> DownloadFiles(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
             {
@@ -2089,45 +2051,45 @@ namespace dexih.remote.operations
 
                 var reference = Guid.NewGuid().ToString();
 
-                // put the download into an action and allow to complete in the scheduler.
-                async Task DownloadTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken ct)
-                {
-                    progress.Report(50, 1, "Preparing files...");
+//                // put the download into an action and allow to complete in the scheduler.
+//                async Task DownloadTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken ct)
+//                {
+//                    progress.Report(50, 1, "Preparing files...");
+//
+//                    var downloadStream = await connectionTable.connection.DownloadFiles(connectionTable.flatFile, path, files, files.Length > 1);
+//                    var filename = files.Length == 1 ? files[0] : connectionTable.flatFile.Name + "_files.zip";
+//
+//                    progress.Report(100, 2, "Files ready for download...");
+//
+//                    var result = await StartDataStream(downloadStream, downloadUrl, "file", filename, cancellationToken);
+//
+//                    var downloadMessage = new
+//                    {
+//                        _sharedSettings.InstanceId,
+//                        _sharedSettings.SecurityToken,
+//                        ConnectionId = connectionId,
+//                        Reference = reference,
+//                        message.HubKey,
+//                        Url = result
+//                    };
+//                    
+//                    var response = await _sharedSettings.PostAsync("Remote/DownloadReady", downloadMessage, ct);
+//                    if (!response.IsSuccessStatusCode)
+//                    {
+//                        throw new RemoteOperationException($"The file download did not complete as the http server returned the response {response.ReasonPhrase}.");
+//                    }
+//
+//                    var returnValue = Json.DeserializeObject<ReturnValue>(await response.Content.ReadAsStringAsync(), _sharedSettings.SessionEncryptionKey);
+//                    if (!returnValue.Success)
+//                    {
+//                        throw new RemoteOperationException($"The file download did not completed.  {returnValue.Message}", returnValue.Exception);
+//                    }
+//                }
 
-                    var downloadStream = await connectionTable.connection.DownloadFiles(connectionTable.flatFile, path, files, files.Length > 1);
-                    var filename = files.Length == 1 ? files[0] : connectionTable.flatFile.Name + "_files.zip";
+                var downloadFilesTask = new DownloadFilesTask(_sharedSettings, message.HubKey, connectionTable.connection, connectionTable.flatFile, path, files, downloadUrl, connectionId, reference);
 
-                    progress.Report(100, 2, "Files ready for download...");
-
-                    var result = await StartDataStream(downloadStream, downloadUrl, "file", filename, cancellationToken);
-
-                    var downloadMessage = new
-                    {
-                        _sharedSettings.InstanceId,
-                        _sharedSettings.SecurityToken,
-                        ConnectionId = connectionId,
-                        Reference = reference,
-                        message.HubKey,
-                        Url = result
-                    };
-                    
-                    var response = await _sharedSettings.PostAsync("Remote/DownloadReady", downloadMessage, ct);
-                    if (!response.IsSuccessStatusCode)
-                    {
-                        throw new RemoteOperationException($"The file download did not complete as the http server returned the response {response.ReasonPhrase}.");
-                    }
-
-                    var returnValue = Json.DeserializeObject<ReturnValue>(await response.Content.ReadAsStringAsync(), _sharedSettings.SessionEncryptionKey);
-                    if (!returnValue.Success)
-                    {
-                        throw new RemoteOperationException($"The file download did not completed.  {returnValue.Message}", returnValue.Exception);
-                    }
-                }
-
-                // Taks.Run get's rid of the async warning
-                var startDownloadResult = _managedTasks.Add(reference, connectionId,
-                    $"Download file: {files[0]} from {path}.", "Download", connectionTable.hubKey, null, 0, null,
-                    DownloadTask, null, null, null);
+                var startDownloadResult = await _managedTasks.Add(reference, connectionId,
+                    $"Download file: {files[0]} from {path}.", "Download", connectionTable.hubKey, null, 0, downloadFilesTask, null, null, null);
                 return startDownloadResult;
             }
             catch (Exception ex)
@@ -2137,7 +2099,7 @@ namespace dexih.remote.operations
             }
         }
 
-        public ManagedTask DownloadData(RemoteMessage message, CancellationToken cancellationToken)
+        public async Task<ManagedTask> DownloadData(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
             {
@@ -2156,43 +2118,46 @@ namespace dexih.remote.operations
 
                 var reference = Guid.NewGuid().ToString();
 
-                // put the download into an action and allow to complete in the scheduler.
-                async Task DownloadTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken ct)
-                {
-                    progress.Report(50, 1, "Running data extract...");
-                    var downloadData = new DownloadData(GetTransformSettings(message.HubVariables));
-                    var downloadStream = await downloadData.GetStream(cache, downloadObjects, downloadFormat, zipFiles, cancellationToken);
-                    var filename = downloadStream.FileName;
-                    var stream = downloadStream.Stream;
+//                // put the download into an action and allow to complete in the scheduler.
+//                async Task DownloadTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken ct)
+//                {
+//                    progress.Report(50, 1, "Running data extract...");
+//                    var downloadData = new DownloadData(GetTransformSettings(message.HubVariables));
+//                    var downloadStream = await downloadData.GetStream(cache, downloadObjects, downloadFormat, zipFiles, cancellationToken);
+//                    var filename = downloadStream.FileName;
+//                    var stream = downloadStream.Stream;
+//
+//                    progress.Report(100, 2, "Download ready...");
+//
+//                    var result = await StartDataStream(stream, downloadUrl, "file", filename, cancellationToken);
+//                    
+//                    var downloadMessage = new
+//                    {
+//                        _sharedSettings.InstanceId,
+//                        SecurityToken = securityToken,
+//                        ConnectionId = connectionId,
+//                        Reference = reference,
+//                        HubKey = message.HubKey,
+//                        Url = result
+//                    };
+//
+//                    var response = await _sharedSettings.PostAsync("Remote/DownloadReady", downloadMessage, ct);
+//                    if (!response.IsSuccessStatusCode)
+//                    {
+//                        throw new RemoteOperationException($"The data download did not complete as the http server returned the response {response.ReasonPhrase}.");
+//                    }
+//                    var returnValue = Json.DeserializeObject<ReturnValue>(await response.Content.ReadAsStringAsync(), _sharedSettings.SessionEncryptionKey);
+//                    if (!returnValue.Success)
+//                    {
+//                        throw new RemoteOperationException($"The data download did not completed.  {returnValue.Message}", returnValue.Exception);
+//                    }
+//
+//                }
+                
+                var downloadData = new DownloadData(GetTransformSettings(message.HubVariables), cache, downloadObjects, downloadFormat, zipFiles);
+                var downloadDataTask = new DownloadDataTask(_sharedSettings, message.HubKey, downloadData, downloadUrl, connectionId, reference);
 
-                    progress.Report(100, 2, "Download ready...");
-
-                    var result = await StartDataStream(stream, downloadUrl, "file", filename, cancellationToken);
-                    
-                    var downloadMessage = new
-                    {
-                        _sharedSettings.InstanceId,
-                        SecurityToken = securityToken,
-                        ConnectionId = connectionId,
-                        Reference = reference,
-                        HubKey = message.HubKey,
-                        Url = result
-                    };
-
-                    var response = await _sharedSettings.PostAsync("Remote/DownloadReady", downloadMessage, ct);
-                    if (!response.IsSuccessStatusCode)
-                    {
-                        throw new RemoteOperationException($"The data download did not complete as the http server returned the response {response.ReasonPhrase}.");
-                    }
-                    var returnValue = Json.DeserializeObject<ReturnValue>(await response.Content.ReadAsStringAsync(), _sharedSettings.SessionEncryptionKey);
-                    if (!returnValue.Success)
-                    {
-                        throw new RemoteOperationException($"The data download did not completed.  {returnValue.Message}", returnValue.Exception);
-                    }
-
-                }
-
-                var startDownloadResult = _managedTasks.Add(reference, connectionId, $"Download Data File", "Download", cache.HubKey, null, 0, null, DownloadTask, null, null, null);
+                var startDownloadResult = await _managedTasks.Add(reference, connectionId, $"Download Data File", "Download", cache.HubKey, null, 0, downloadDataTask, null, null, null);
                 return startDownloadResult;
             }
             catch (Exception ex)

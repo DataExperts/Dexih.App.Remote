@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -9,18 +8,16 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
-using dexih.operations;
 using dexih.remote.config;
 using dexih.remote.operations;
 using dexih.remote.operations.Services;
 using dexih.remote.Operations.Services;
-using dexih.repository;
 using Dexih.Utils.ManagedTasks;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Configuration.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Console;
 
 namespace dexih.remote
 {
@@ -84,10 +81,9 @@ namespace dexih.remote
         {
             Welcome();
             
-            
             // create a temporary logger (until the log level settings have been loaded.
             var loggerFactory = new LoggerFactory();
-            loggerFactory.AddProvider(new DexihConsoleLoggerProvider());
+            loggerFactory.AddProvider(new ConsoleLoggerProvider((s, level) => true, true ));
             var logger = loggerFactory.CreateLogger("main");
 
             var configDirectory = Environment.GetEnvironmentVariable("DEXIH_CONFIG_DIRECTORY");
@@ -158,7 +154,9 @@ namespace dexih.remote
                 })
                 .ConfigureLogging((hostContext, configLogging) =>
                 {
-                    configLogging.AddDexihConsole();
+                    configLogging.AddConfiguration(hostContext.Configuration.GetSection("Logging"));
+                    //configLogging.AddDexihConsole();
+                    configLogging.AddConsole();
                     configLogging.AddDebug();
                 })
                 .UseConsoleLifetime();

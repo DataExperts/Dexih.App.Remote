@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -7,14 +6,15 @@ using System.Net.Http;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Web;
 using dexih.functions;
 using dexih.operations;
 using dexih.remote.operations;
 using dexih.repository;
 using dexih.transforms;
 using dexih.transforms.Transforms;
-using Dexih.Utils.CopyProperties;
 using Dexih.Utils.Crypto;
+using Dexih.Utils.ManagedTasks;
 using Dexih.Utils.MessageHelpers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -47,6 +47,10 @@ namespace dexih.remote.Operations.Services
 
         bool CompleteUpgrade { get; set; }
         void ResetConnection();
+
+        Task<string> StartDataStream(Stream stream, DownloadUrl downloadUrl, string format, string fileName,
+            CancellationToken cancellationToken);
+
     }
 
     public class SharedSettings : ISharedSettings, IDisposable
@@ -54,6 +58,8 @@ namespace dexih.remote.Operations.Services
         private readonly HttpClient _httpClient;
         private readonly ILogger<SharedSettings> _logger;
         private readonly IHost _host;
+        private readonly IManagedTasks _managedTasks;
+        private readonly IStreams _streams;
         private readonly string _apiUri;
         private readonly SemaphoreSlim _loginSemaphore;
         private EConnectionResult _connectionStatus = EConnectionResult.Disconnected;
@@ -79,10 +85,12 @@ namespace dexih.remote.Operations.Services
         
         public bool CompleteUpgrade { get; set; }
 
-        public SharedSettings(IConfiguration configuration, ILogger<SharedSettings> logger, IHost host)
+        public SharedSettings(IConfiguration configuration, ILogger<SharedSettings> logger, IHost host, IManagedTasks managedTasks, IStreams streams)
         {
             _logger = logger;
             _host = host;
+            _managedTasks = managedTasks;
+            _streams = streams;
 
             SessionEncryptionKey = EncryptString.GenerateRandomKey();
             RemoteSettings = configuration.Get<RemoteSettings>();
@@ -414,6 +422,56 @@ namespace dexih.remote.Operations.Services
                 _logger.LogCritical(4,
                     $"An invalid response was returned connecting with server.  Response was: \"{serverResponse}\".");
                 throw;
+            }
+        }
+        
+        public async Task<string> StartDataStream(Stream stream, DownloadUrl downloadUrl, string format, string fileName, CancellationToken cancellationToken)
+        {
+            if (downloadUrl.DownloadUrlType == EDownloadUrlType.Proxy)
+            {
+                // if downloading through a proxy, start a process to upload to the proxy.
+                var startResult = await _httpClient.GetAsync($"{downloadUrl.Url}/start/{format}/{fileName}", cancellationToken);
+
+                if (!startResult.IsSuccessStatusCode)
+                {
+                    throw new RemoteOperationException($"Failed to connect to the proxy server.  Message: {startResult.ReasonPhrase}");
+                }
+
+                var jsonResult = JObject.Parse(await startResult.Content.ReadAsStringAsync());
+
+                var upload = jsonResult["UploadUrl"].ToString();
+                var download = jsonResult["DownloadUrl"].ToString();
+            
+//                async Task UploadDataTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken ct)
+//                {
+//                    await _httpClient.PostAsync(upload, new StreamContent(stream), ct);
+//                }
+
+                var downloadDataTask = new PostDataTask(_httpClient, stream, upload);
+            
+                var newManagedTask = new ManagedTask
+                {
+                    Reference = Guid.NewGuid().ToString(),
+                    OriginatorId = "none",
+                    Name = $"Remote Data",
+                    Category = "ProxyDownload",
+                    CategoryKey = 0,
+                    ReferenceKey = 0,
+                    ManagedObject = downloadDataTask,
+                    Triggers = null,
+                    FileWatchers = null,
+                };
+
+                _managedTasks.Add(newManagedTask);
+
+                return download;
+            }
+            else
+            {
+                // if downloading directly, then just get the stream ready for when the client connects.
+                var keys = _streams.SetDownloadStream(fileName, stream);
+                var url = $"{downloadUrl.Url}/{format}/{HttpUtility.UrlEncode(keys.Key)}/{HttpUtility.UrlEncode(keys.SecurityKey)}";
+                return url;
             }
         }
 

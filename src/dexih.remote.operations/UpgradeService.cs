@@ -1,7 +1,5 @@
 using System;
 using System.IO;
-using System.IO.Compression;
-using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using dexih.remote.Operations.Services;
@@ -18,10 +16,10 @@ namespace dexih.remote.operations
         
             
         private Timer _timer;
-        private ILogger<UpgradeService> _logger;
-        private ISharedSettings _sharedSettings;
-        private RemoteSettings _remoteSettings;
-        private IApplicationLifetime _applicationLifetime;
+        private readonly ILogger<UpgradeService> _logger;
+        private readonly ISharedSettings _sharedSettings;
+        private readonly RemoteSettings _remoteSettings;
+        private readonly IApplicationLifetime _applicationLifetime;
 
         public UpgradeService(ISharedSettings sharedSettings, ILogger<UpgradeService> logger, IApplicationLifetime applicationLifetime)
         {

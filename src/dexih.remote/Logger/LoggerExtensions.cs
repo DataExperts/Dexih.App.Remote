@@ -31,8 +31,8 @@
 
       return builder;
     }
-    
-    internal class ConsoleLoggerOptionsSetup : ConfigureFromConfigurationOptions<ConsoleLoggerOptions>
+
+    private class ConsoleLoggerOptionsSetup : ConfigureFromConfigurationOptions<ConsoleLoggerOptions>
     {
       public ConsoleLoggerOptionsSetup(
         ILoggerProviderConfiguration<DexihConsoleLoggerProvider> providerConfiguration)

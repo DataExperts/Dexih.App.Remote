@@ -4,7 +4,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using dexih.functions;
 using dexih.operations;
-using dexih.remote.Operations.Services;
 using dexih.repository;
 using dexih.transforms;
 using Dexih.Utils.ManagedTasks;
@@ -91,8 +90,8 @@ namespace dexih.remote.operations
         Task<List<DexihFileProperties>> GetFileList(RemoteMessage message, CancellationToken cancellationToken);
         // Task<bool> SaveFile(RemoteMessage message, CancellationToken cancellationToken);
         Task<string> UploadFile(RemoteMessage message, CancellationToken cancellationToken);
-        ManagedTask DownloadFiles(RemoteMessage message, CancellationToken cancellationToken);
-        ManagedTask DownloadData(RemoteMessage message, CancellationToken cancellationToken);
+        Task<ManagedTask> DownloadFiles(RemoteMessage message, CancellationToken cancellationToken);
+        Task<ManagedTask> DownloadData(RemoteMessage message, CancellationToken cancellationToken);
 
         NamingStandards NamingStandards(RemoteMessage message, CancellationToken cancellationToken);
         

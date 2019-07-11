@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Console.Internal;
 
 namespace dexih.remote
 {

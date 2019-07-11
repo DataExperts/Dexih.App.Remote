@@ -1,14 +1,6 @@
 ﻿using System;
 using System.IO;
-using System.Linq;
-using System.Net.Http;
-using System.Net.Http.Headers;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Web;
-using dexih.functions;
-using dexih.functions.Query;
-using dexih.operations;
 using dexih.remote.Operations.Services;
 using Dexih.Utils.Crypto;
 using Dexih.Utils.MessageHelpers;
@@ -16,10 +8,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
-using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.Extensions.DependencyInjection;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 
 namespace dexih.remote.operations
 {

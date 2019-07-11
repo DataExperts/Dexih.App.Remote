@@ -1,17 +1,10 @@
 using System;
 using System.IO;
-using System.Linq;
-using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
-using dexih.functions;
-using dexih.operations;
 using dexih.remote.Operations.Services;
 using dexih.repository;
-using dexih.transforms;
-using dexih.transforms.Transforms;
 using Dexih.Utils.Crypto;
-using Dexih.Utils.ManagedTasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 

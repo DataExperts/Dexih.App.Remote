@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Concurrent;
 using System.IO;
-using System.Net;
 using System.Threading;
 using Microsoft.Extensions.Logging.Console.Internal;
 
@@ -45,29 +44,29 @@ namespace dexih.remote
                 }	
             }
             
-            this._outputThread = new Thread(ProcessLogQueue)
+            _outputThread = new Thread(ProcessLogQueue)
             {
                 IsBackground = true,
                 Name = "Console logger queue processing thread"
             };
-            this._outputThread.Start();
+            _outputThread.Start();
         }
 
         public virtual void EnqueueMessage(LogMessageEntry message)
         {
-            if (!this._messageQueue.IsAddingCompleted)
+            if (!_messageQueue.IsAddingCompleted)
             {
                 try
                 {
-                    this._messageQueue.Add(message);
+                    _messageQueue.Add(message);
                     return;
                 }
-                catch (InvalidOperationException ex)
+                catch (InvalidOperationException)
                 {
                 }
             }
 
-            this.WriteMessage(message);
+            WriteMessage(message);
         }
 
         internal virtual void WriteMessage(LogMessageEntry message)
@@ -86,13 +85,13 @@ namespace dexih.remote
             try
             {
                 foreach (LogMessageEntry consuming in _messageQueue.GetConsumingEnumerable())
-                    this.WriteMessage(consuming);
+                    WriteMessage(consuming);
             }
             catch
             {
                 try
                 {
-                    this._messageQueue.CompleteAdding();
+                    _messageQueue.CompleteAdding();
                 }
                 catch
                 {
@@ -102,12 +101,12 @@ namespace dexih.remote
 
         public void Dispose()
         {
-            this._messageQueue.CompleteAdding();
+            _messageQueue.CompleteAdding();
             try
             {
-                this._outputThread.Join(1500);
+                _outputThread.Join(1500);
             }
-            catch (ThreadStateException ex)
+            catch (ThreadStateException)
             {
             }
         }
