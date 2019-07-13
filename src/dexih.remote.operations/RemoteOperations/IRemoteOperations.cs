@@ -64,9 +64,9 @@ namespace dexih.remote.operations
         /// <exception cref="AggregateException"></exception>
         bool RunDatalinkTestSnapshots(RemoteMessage message, CancellationToken cancellationToken);
 
-        bool RunDatajobs(RemoteMessage message, CancellationToken cancellationToken);
-        bool ActivateDatajobs(RemoteMessage message, CancellationToken cancellationToken);
-        DexihDatajob ActivateDatajob(AutoStart autoStart, string connectionId = "none");
+        Task RunDatajobs(RemoteMessage message, CancellationToken cancellationToken);
+        Task ActivateDatajobs(RemoteMessage message, CancellationToken cancellationToken);
+        Task<DexihDatajob> ActivateDatajob(AutoStart autoStart, string connectionId = "none");
         bool DeactivateDatajobs(RemoteMessage message, CancellationToken cancellationToken);
         bool ActivateApis(RemoteMessage message, CancellationToken cancellationToken);
         bool DeactivateApis(RemoteMessage message, CancellationToken cancellationToken);

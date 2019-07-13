@@ -462,7 +462,7 @@ namespace dexih.remote.Operations.Services
                     FileWatchers = null,
                 };
 
-                _managedTasks.Add(newManagedTask);
+                await _managedTasks.Add(newManagedTask);
 
                 return download;
             }

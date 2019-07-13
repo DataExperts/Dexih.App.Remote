@@ -318,11 +318,11 @@ namespace dexih.remote.operations
             {
                 var reference = Guid.NewGuid().ToString();
                 
-                if (parentDataJobRun != null)
-                {
-                    datalinkRun.OnProgressUpdate += parentDataJobRun.DatalinkStatus;
-                    datalinkRun.OnStatusUpdate += parentDataJobRun.DatalinkStatus;
-                }
+//                if (parentDataJobRun != null)
+//                {
+//                    datalinkRun.OnProgressUpdate += parentDataJobRun.DatalinkStatus;
+//                    datalinkRun.OnStatusUpdate += parentDataJobRun.DatalinkStatus;
+//                }
 
                 // put the download into an action and allow to complete in the scheduler.
 //                async Task DatalinkRunTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken cancellationToken)
@@ -655,7 +655,7 @@ namespace dexih.remote.operations
             }
         }
 
-        public bool RunDatajobs(RemoteMessage message, CancellationToken cancellationToken)
+        public async Task RunDatajobs(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
             {
@@ -691,11 +691,7 @@ namespace dexih.remote.operations
                             throw new Exception($"Datajob with key {datajobKey} was not found");
                         }
 
-                        var addJobResult = AddDataJobTask(cache.Hub, GetTransformSettings(message.HubVariables), connectionId, dbDatajob, transformWriterOptions, null, null);
-                        if (!addJobResult)
-                        {
-                            throw new Exception($"Failed to start data job {dbDatajob.Name} task.");
-                        }
+                        await AddDataJobTask(cache.Hub, GetTransformSettings(message.HubVariables), connectionId, dbDatajob, transformWriterOptions, null, null);
                     }
                     catch (Exception ex)
                     {
@@ -711,8 +707,6 @@ namespace dexih.remote.operations
                 }
 
                 cancellationToken.ThrowIfCancellationRequested();
-
-                return true;
 			}
             catch (Exception ex)
             {
@@ -721,7 +715,7 @@ namespace dexih.remote.operations
             }
         }
 
-		private bool AddDataJobTask(DexihHub dbHub, TransformSettings transformSettings, string connectionId, DexihDatajob dbHubDatajob, TransformWriterOptions transformWriterOptions, IEnumerable<ManagedTaskSchedule> managedTaskSchedules, IEnumerable<ManagedTaskFileWatcher> fileWatchers)
+		private Task AddDataJobTask(DexihHub dbHub, TransformSettings transformSettings, string connectionId, DexihDatajob dbHubDatajob, TransformWriterOptions transformWriterOptions, IEnumerable<ManagedTaskSchedule> managedTaskSchedules, IEnumerable<ManagedTaskFileWatcher> fileWatchers)
 		{
             try
             {
@@ -785,9 +779,7 @@ namespace dexih.remote.operations
                     FileWatchers = fileWatchers
                 };
 
-                _managedTasks.Add(newManagedTask);
-
-                return true;
+                return _managedTasks.Add(newManagedTask);
             }
             catch (Exception ex)
             {
@@ -795,7 +787,7 @@ namespace dexih.remote.operations
             }
 		}
 
-        public bool ActivateDatajobs(RemoteMessage message, CancellationToken cancellationToken)
+        public async Task ActivateDatajobs(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
             {
@@ -820,7 +812,7 @@ namespace dexih.remote.operations
                             EncryptionKey = cache.CacheEncryptionKey
                         };
 
-                        var datajob = ActivateDatajob(package);
+                        var datajob = await ActivateDatajob(package);
                         
                         if (datajob.AutoStart && (datajob.DexihTriggers.Count > 0 || datajob.FileWatch) )
                         {
@@ -848,8 +840,6 @@ namespace dexih.remote.operations
                 }
 
                 cancellationToken.ThrowIfCancellationRequested();
-
-                return true;
             }
             catch (Exception ex)
             {
@@ -858,84 +848,96 @@ namespace dexih.remote.operations
             }
         }
 
-        public DexihDatajob ActivateDatajob(AutoStart autoStart, string connectionId = "none")
+        public async Task<DexihDatajob> ActivateDatajob(AutoStart autoStart, string connectionId = "none")
         {
-            var dbDatajob = autoStart.Hub.DexihDatajobs.SingleOrDefault(c => c.Key == autoStart.Key);
-            if (dbDatajob == null)
+            try
             {
-                throw new Exception($"dbDatajob with key {autoStart.Key} was not found");
-            }
-            
-            _logger.LogInformation("Starting Datajob - {datajob}.", dbDatajob.Name);
-
-            
-            var transformWriterOptions = new TransformWriterOptions()
-            {
-                TargetAction = TransformWriterOptions.ETargetAction.None,
-                ResetIncremental = false,
-                ResetIncrementalValue = null,
-                TriggerMethod = TransformWriterResult.ETriggerMethod.Schedule,
-                TriggerInfo = "Schedule activated at " + DateTime.Now.ToString(CultureInfo.InvariantCulture),
-                GlobalVariables = CreateGlobalVariables(autoStart.Hub.EncryptionKey),
-                PreviewMode = false
-            };
-
-            var triggers = new List<ManagedTaskSchedule>();
-
-            foreach (var trigger in dbDatajob.DexihTriggers)
-            {
-                var managedTaskSchedule = trigger.CreateManagedTaskSchedule();
-                triggers.Add(managedTaskSchedule);
-            }
-
-            List<ManagedTaskFileWatcher> paths = null;
-
-            if (dbDatajob.FileWatch)
-            {
-                paths = new List<ManagedTaskFileWatcher>();
-                foreach (var step in dbDatajob.DexihDatalinkSteps)
+                var dbDatajob = autoStart.Hub.DexihDatajobs.SingleOrDefault(c => c.Key == autoStart.Key);
+                if (dbDatajob == null)
                 {
-                    var datalink = autoStart.Hub.DexihDatalinks.SingleOrDefault(d => d.Key == step.DatalinkKey);
-                    if (datalink != null)
+                    throw new RemoteOperationException($"Datajob with key {autoStart.Key} was not found");
+                }
+
+                _logger.LogInformation("Starting Datajob - {datajob}.", dbDatajob.Name);
+
+
+                var transformWriterOptions = new TransformWriterOptions()
+                {
+                    TargetAction = TransformWriterOptions.ETargetAction.None,
+                    ResetIncremental = false,
+                    ResetIncrementalValue = null,
+                    TriggerMethod = TransformWriterResult.ETriggerMethod.Schedule,
+                    TriggerInfo = "Schedule activated at " + DateTime.Now.ToString(CultureInfo.InvariantCulture),
+                    GlobalVariables = CreateGlobalVariables(autoStart.Hub.EncryptionKey),
+                    PreviewMode = false
+                };
+
+                var triggers = new List<ManagedTaskSchedule>();
+
+                foreach (var trigger in dbDatajob.DexihTriggers)
+                {
+                    var managedTaskSchedule = trigger.CreateManagedTaskSchedule();
+                    triggers.Add(managedTaskSchedule);
+                }
+
+                List<ManagedTaskFileWatcher> paths = null;
+
+                if (dbDatajob.FileWatch)
+                {
+                    paths = new List<ManagedTaskFileWatcher>();
+                    foreach (var step in dbDatajob.DexihDatalinkSteps)
                     {
-                        var tables = datalink.GetAllSourceTables(autoStart.Hub);
-
-                        foreach (var dbTable in tables.Where(c => c.FileFormatKey != null))
+                        var datalink = autoStart.Hub.DexihDatalinks.SingleOrDefault(d => d.Key == step.DatalinkKey);
+                        if (datalink != null)
                         {
-                            var dbConnection =
-                                autoStart.Hub.DexihConnections.SingleOrDefault(
-                                    c => c.Key == dbTable.ConnectionKey);
+                            var tables = datalink.GetAllSourceTables(autoStart.Hub);
 
-                            if (dbConnection == null)
+                            foreach (var dbTable in tables.Where(c => c.FileFormatKey != null))
                             {
-                                throw new Exception(
-                                    $"Failed to find the connection with the key {dbTable.ConnectionKey} for table {dbTable.Name}.");
-                            }
+                                var dbConnection =
+                                    autoStart.Hub.DexihConnections.SingleOrDefault(
+                                        c => c.Key == dbTable.ConnectionKey);
 
-                            var transformSetting = GetTransformSettings(autoStart.HubVariables);
+                                if (dbConnection == null)
+                                {
+                                    throw new RemoteOperationException(
+                                        $"Failed to start the job {dbDatajob.Name}, due to missing connection with the key {dbTable.ConnectionKey} for table {dbTable.Name}.");
+                                }
 
-                            var connection = dbConnection.GetConnection(transformSetting);
-                            var table = dbTable.GetTable(autoStart.Hub, connection, step.DexihDatalinkStepColumns,
-                                transformSetting);
+                                var transformSetting = GetTransformSettings(autoStart.HubVariables);
 
-                            if (table is FlatFile flatFile && connection is ConnectionFlatFile connectionFlatFile)
-                            {
-                                var path = connectionFlatFile.GetFullPath(flatFile, EFlatFilePath.Incoming);
-                                paths.Add(new ManagedTaskFileWatcher(path, flatFile.FileMatchPattern));
+                                var connection = dbConnection.GetConnection(transformSetting);
+                                var table = dbTable.GetTable(autoStart.Hub, connection, step.DexihDatalinkStepColumns,
+                                    transformSetting);
+
+                                if (table is FlatFile flatFile && connection is ConnectionFlatFile connectionFlatFile)
+                                {
+                                    var path = connectionFlatFile.GetFullPath(flatFile, EFlatFilePath.Incoming);
+                                    paths.Add(new ManagedTaskFileWatcher(path, flatFile.FileMatchPattern));
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            var addJobResult = AddDataJobTask(autoStart.Hub, GetTransformSettings(autoStart.HubVariables), connectionId,
-                dbDatajob, transformWriterOptions, triggers, paths);
-            if (!addJobResult)
-            {
-                throw new Exception($"Failed to activate data job {dbDatajob.Name} task.");
+                try
+                {
+                    await AddDataJobTask(autoStart.Hub, GetTransformSettings(autoStart.HubVariables), connectionId,
+                        dbDatajob, transformWriterOptions, triggers, paths);
+                }
+                catch (Exception ex)
+                {
+                    throw new RemoteOperationException($"Failed to start the job {dbDatajob.Name}.");
+                }
+                
+                return dbDatajob;
             }
-            
-            return dbDatajob;
+            catch (Exception ex)
+            {
+                var message = $"Error activating datajob: {ex.Message}";
+                _logger.LogError(40, ex, message);
+                throw new RemoteOperationException(message, ex);
+            }
         }
 
         public bool DeactivateDatajobs(RemoteMessage message, CancellationToken cancellationToken)
@@ -1399,10 +1401,10 @@ namespace dexih.remote.operations
                     throw new RemoteOperationException($"Failed to connect to the proxy server.  Message: {startResult.ReasonPhrase}");
                 }
 
-                var jsonReuslt = JObject.Parse(await startResult.Content.ReadAsStringAsync());
+                var jsonResult = JObject.Parse(await startResult.Content.ReadAsStringAsync());
 
-                var upload = jsonReuslt["UploadUrl"].ToString();
-                var download = jsonReuslt["DownloadUrl"].ToString();
+                var upload = jsonResult["UploadUrl"].ToString();
+                var download = jsonResult["DownloadUrl"].ToString();
             
 //                async Task DownloadDataTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken ct)
 //                {
@@ -1425,7 +1427,7 @@ namespace dexih.remote.operations
                     FileWatchers = null,
                 };
 
-                _managedTasks.Add(newManagedTask);
+                await _managedTasks.Add(newManagedTask);
 
                 return upload;
             }
