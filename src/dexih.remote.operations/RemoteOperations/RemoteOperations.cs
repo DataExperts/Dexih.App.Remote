@@ -1370,7 +1370,7 @@ namespace dexih.remote.operations
                 var table = showRejectedData ? dbTable.GetRejectedTable(cache.Hub, connection, settings) : dbTable.GetTable(cache.Hub, connection, inputColumns, settings);
                 
                 var reader = connection.GetTransformReader(table, true);
-                reader = new TransformQuery(reader, selectQuery);
+                reader = new TransformQuery(reader, selectQuery) {Name = "Preview Query"};
                 await reader.Open(0, null, cancellationToken);
                 reader.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
 
@@ -1617,6 +1617,29 @@ namespace dexih.remote.operations
             }
 
         }
+
+        public async Task<TransformProperties> DatalinkProperties(RemoteMessage message, CancellationToken cancellationToken)
+        {
+            var cache = Json.JTokenToObject<CacheManager>(message.Value["cache"], _sharedSettings.SessionEncryptionKey);
+            var datalinkKey = message.Value["datalinkKey"].ToObject<long>();
+            var dbDatalink = cache.Hub.DexihDatalinks.Single(c => c.Key == datalinkKey);
+            var inputColumns = message.Value["inputColumns"].ToObject<InputColumn[]>();
+
+            var transformWriterOptions = new TransformWriterOptions()
+            {
+                PreviewMode = true,
+                GlobalVariables = CreateGlobalVariables(cache.CacheEncryptionKey),
+                SelectQuery = message.Value["selectQuery"].ToObject<SelectQuery>()
+            };
+                
+            var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
+            var runPlan = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, inputColumns, null, null, transformWriterOptions);
+            var transform = runPlan.sourceTransform;
+            var openReturn = await transform.Open(0, null, cancellationToken);
+
+            return transform.GetTransformProperties(true);
+        }
+        
         
         public async Task<string> GetReaderData(RemoteMessage message, CancellationToken cancellationToken)
         {
