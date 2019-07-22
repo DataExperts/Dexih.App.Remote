@@ -9,9 +9,6 @@ branches:
   - release
   - /dev-.*/
 platform: Any CPU
-init:
- - ps: $Env:LABEL = "CI" +$Env:APPVEYOR_BUILD_NUMBER.PadLeft(5, "0")
-
 clone_depth: 1
 before_build:
   - git clone --depth 1 --single-branch --branch %APPVEYOR_REPO_BRANCH% https://github.com/DataExperts/dexih.transforms ../dexih.transforms
@@ -24,10 +21,11 @@ artifacts:
 deploy:
 - provider: GitHub
   release: dexih-remote-v$(appveyor_build_version)
+  description: 'Dexih Remote Agent - %CONFIGURATION% release, version - $(appveyor_build_version)'
+
   auth_token:
     secure: lEaZ/om1UTRS6Xa947/5WxZVbBW6A+ZHmPu7aXRRDqkjX1+LYTfh9xL1CueonyuC
   artifact: /.*\.zip/
-  prerelease: true
 
 for:
 
@@ -42,17 +40,20 @@ for:
   - appveyor-retry dotnet restore -v Minimal
   - dotnet build -c %CONFIGURATION%
 
-  - dotnet publish src/dexih.remote/dexih.remote.csproj -c %CONFIGURATION% --version-suffix %LABEL% -p:VersionPrefix=%APPVEYOR_BUILD_VERSION% -o %APPVEYOR_BUILD_FOLDER%/dotnet
-  - 7z a dexih.remote.%APPVEYOR_BUILD_VERSION%-%LABEL%.zip %APPVEYOR_BUILD_FOLDER%/dotnet
+  - dotnet publish src/dexih.remote/dexih.remote.csproj -c %CONFIGURATION% -p:VersionPrefix=%APPVEYOR_BUILD_VERSION% -o %APPVEYOR_BUILD_FOLDER%/dotnet
+  - 7z a dexih.remote.%APPVEYOR_BUILD_VERSION%-.zip %APPVEYOR_BUILD_FOLDER%/dotnet
 
-  - dotnet publish src/dexih.remote/dexih.remote.csproj -c %CONFIGURATION% -r win7-x64 --version-suffix %LABEL% -p:VersionPrefix=%APPVEYOR_BUILD_VERSION% -o %APPVEYOR_BUILD_FOLDER%/win7-64
-  - 7z a dexih.remote.windows_%APPVEYOR_BUILD_VERSION%-%LABEL%.zip %APPVEYOR_BUILD_FOLDER%/win7-64
+  - dotnet publish src/dexih.remote/dexih.remote.csproj -c %CONFIGURATION% -r win7-x64 -p:VersionPrefix=%APPVEYOR_BUILD_VERSION% -o %APPVEYOR_BUILD_FOLDER%/win7-64
+  - 7z a dexih.remote.windows_%APPVEYOR_BUILD_VERSION%-.zip %APPVEYOR_BUILD_FOLDER%/win7-64
 
-  - dotnet publish src/dexih.remote/dexih.remote.csproj -c %CONFIGURATION% -r osx-x64 --version-suffix %LABEL% -p:VersionPrefix=%APPVEYOR_BUILD_VERSION% -o %APPVEYOR_BUILD_FOLDER%/osx-x64
-  - 7z a dexih.remote.osx_%APPVEYOR_BUILD_VERSION%-%LABEL%.zip %APPVEYOR_BUILD_FOLDER%/osx-x64
+  - dotnet publish src/dexih.remote/dexih.remote.csproj -c %CONFIGURATION% -r osx-x64 -p:VersionPrefix=%APPVEYOR_BUILD_VERSION% -o %APPVEYOR_BUILD_FOLDER%/osx-x64
+  - 7z a dexih.remote.osx_%APPVEYOR_BUILD_VERSION%-.zip %APPVEYOR_BUILD_FOLDER%/osx-x64
 
-  - dotnet publish src/dexih.remote/dexih.remote.csproj -c %CONFIGURATION% -r linux-x64 --version-suffix %LABEL% -p:VersionPrefix=%APPVEYOR_BUILD_VERSION% -o %APPVEYOR_BUILD_FOLDER%/linux-x64
-  - 7z a dexih.remote.linux_%APPVEYOR_BUILD_VERSION%-%LABEL%.zip %APPVEYOR_BUILD_FOLDER%/linux-x64
+  - dotnet publish src/dexih.remote/dexih.remote.csproj -c %CONFIGURATION% -r linux-x64 -p:VersionPrefix=%APPVEYOR_BUILD_VERSION% -o %APPVEYOR_BUILD_FOLDER%/linux-x64
+  - 7z a dexih.remote.linux_%APPVEYOR_BUILD_VERSION%-.zip %APPVEYOR_BUILD_FOLDER%/linux-x64
+
+  deploy:
+    prerelease: false
 
 # master and dev branch/dev publishes with prerelease:true
 -
@@ -66,7 +67,10 @@ for:
   - appveyor-retry dotnet restore -v Minimal
   - dotnet build -c %CONFIGURATION%
 
-  - dotnet publish src/dexih.remote/dexih.remote.csproj -c %CONFIGURATION% --version-suffix %LABEL% -p:VersionPrefix=%APPVEYOR_BUILD_VERSION% -o %APPVEYOR_BUILD_FOLDER%/dotnet
-  - 7z a dexih.remote.%APPVEYOR_BUILD_VERSION%-%LABEL%.zip %APPVEYOR_BUILD_FOLDER%/dotnet
+  - dotnet publish src/dexih.remote/dexih.remote.csproj -c %CONFIGURATION% --version-suffix  -p:VersionPrefix=%APPVEYOR_BUILD_VERSION% -o %APPVEYOR_BUILD_FOLDER%/dotnet
+  - 7z a dexih.remote.%APPVEYOR_BUILD_VERSION%-.zip %APPVEYOR_BUILD_FOLDER%/dotnet
+
+  deploy:
+    prerelease: false
 
   
