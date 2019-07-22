@@ -26,6 +26,7 @@ deploy:
   auth_token:
     secure: lEaZ/om1UTRS6Xa947/5WxZVbBW6A+ZHmPu7aXRRDqkjX1+LYTfh9xL1CueonyuC
   artifact: /.*\.zip/
+  prerelease: true
 
   for:
 
@@ -52,10 +53,9 @@ deploy:
   - dotnet publish src/dexih.remote/dexih.remote.csproj -c %CONFIGURATION% -r linux-x64 --version-suffix %APPVEYOR_BUILD_NUMBER% -p:VersionPrefix=%APPVEYOR_BUILD_VERSION% -o %APPVEYOR_BUILD_FOLDER%/linux-x64
   - 7z a dexih.remote.linux_%APPVEYOR_BUILD_VERSION%-%APPVEYOR_BUILD_NUMBER%.zip %APPVEYOR_BUILD_FOLDER%/linux-x64
 
-deploy:
-  prerelease: false
 
-# master and dev branchs runs test only, no publishing packages
+
+# master and dev branch/dev publishes with prerelease:true
 -
   branches:
     only:
@@ -70,6 +70,4 @@ deploy:
   - dotnet publish src/dexih.remote/dexih.remote.csproj -c %CONFIGURATION% --version-suffix %APPVEYOR_BUILD_NUMBER% -p:VersionPrefix=%APPVEYOR_BUILD_VERSION% -o %APPVEYOR_BUILD_FOLDER%/dotnet
   - 7z a dexih.remote.%APPVEYOR_BUILD_VERSION%-%APPVEYOR_BUILD_NUMBER%.zip %APPVEYOR_BUILD_FOLDER%/dotnet
 
-deploy:
-  prerelease: true
   
