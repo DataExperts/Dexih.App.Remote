@@ -39,18 +39,18 @@ deploy:
   configuration: Release
   build_script:
   - appveyor-retry dotnet restore -v Minimal
-  - dotnet build -c %CONFIGURATION%
+  - dotnet build -c Release
 
-  - dotnet publish src/dexih.remote/dexih.remote.csproj -c %CONFIGURATION% --version-suffix %LABEL% -p:VersionPrefix=%APPVEYOR_BUILD_VERSION% -o %APPVEYOR_BUILD_FOLDER%/dotnet
+  - dotnet publish src/dexih.remote/dexih.remote.csproj -c Release --version-suffix %LABEL% -p:VersionPrefix=%APPVEYOR_BUILD_VERSION% -o %APPVEYOR_BUILD_FOLDER%/dotnet
   - 7z a dexih.remote.%APPVEYOR_BUILD_VERSION%-%LABEL%.zip %APPVEYOR_BUILD_FOLDER%/dotnet
 
-  - dotnet publish src/dexih.remote/dexih.remote.csproj -c %CONFIGURATION% -r win7-x64 --version-suffix %LABEL% -p:VersionPrefix=%APPVEYOR_BUILD_VERSION% -o %APPVEYOR_BUILD_FOLDER%/win7-64
+  - dotnet publish src/dexih.remote/dexih.remote.csproj -c Release -r win7-x64 --version-suffix %LABEL% -p:VersionPrefix=%APPVEYOR_BUILD_VERSION% -o %APPVEYOR_BUILD_FOLDER%/win7-64
   - 7z a dexih.remote.windows_%APPVEYOR_BUILD_VERSION%-%LABEL%.zip %APPVEYOR_BUILD_FOLDER%/win7-64
 
-  - dotnet publish src/dexih.remote/dexih.remote.csproj -c %CONFIGURATION% -r osx-x64 --version-suffix %LABEL% -p:VersionPrefix=%APPVEYOR_BUILD_VERSION% -o %APPVEYOR_BUILD_FOLDER%/osx-x64
+  - dotnet publish src/dexih.remote/dexih.remote.csproj -c Release -r osx-x64 --version-suffix %LABEL% -p:VersionPrefix=%APPVEYOR_BUILD_VERSION% -o %APPVEYOR_BUILD_FOLDER%/osx-x64
   - 7z a dexih.remote.osx_%APPVEYOR_BUILD_VERSION%-%LABEL%.zip %APPVEYOR_BUILD_FOLDER%/osx-x64
 
-  - dotnet publish src/dexih.remote/dexih.remote.csproj -c %CONFIGURATION% -r linux-x64 --version-suffix %LABEL% -p:VersionPrefix=%APPVEYOR_BUILD_VERSION% -o %APPVEYOR_BUILD_FOLDER%/linux-x64
+  - dotnet publish src/dexih.remote/dexih.remote.csproj -c Release -r linux-x64 --version-suffix %LABEL% -p:VersionPrefix=%APPVEYOR_BUILD_VERSION% -o %APPVEYOR_BUILD_FOLDER%/linux-x64
   - 7z a dexih.remote.linux_%APPVEYOR_BUILD_VERSION%-%LABEL%.zip %APPVEYOR_BUILD_FOLDER%/linux-x64
 
 # master and dev branch/dev publishes with prerelease:true
@@ -63,9 +63,9 @@ deploy:
   configuration: Debug
   build_script:
   - appveyor-retry dotnet restore -v Minimal
-  - dotnet build -c %CONFIGURATION%
+  - dotnet build -c Release
 
-  - dotnet publish src/dexih.remote/dexih.remote.csproj -c %CONFIGURATION% --version-suffix %LABEL% -p:VersionPrefix=%APPVEYOR_BUILD_VERSION% -o %APPVEYOR_BUILD_FOLDER%/dotnet
+  - dotnet publish src/dexih.remote/dexih.remote.csproj -c Release --version-suffix %LABEL% -p:VersionPrefix=%APPVEYOR_BUILD_VERSION% -o %APPVEYOR_BUILD_FOLDER%/dotnet
   - 7z a dexih.remote.%APPVEYOR_BUILD_VERSION%-%LABEL%.zip %APPVEYOR_BUILD_FOLDER%/dotnet
 
   
