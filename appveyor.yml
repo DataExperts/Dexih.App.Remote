@@ -20,6 +20,12 @@ after_build:
 artifacts:
 - path: dexih*.zip
 
+deploy:
+- provider: GitHub
+  release: dexih-remote-v$(appveyor_build_version)
+  auth_token:
+    secure: lEaZ/om1UTRS6Xa947/5WxZVbBW6A+ZHmPu7aXRRDqkjX1+LYTfh9xL1CueonyuC
+  artifact: /.*\.zip/
 
   for:
 
@@ -47,11 +53,6 @@ artifacts:
   - 7z a dexih.remote.linux_%APPVEYOR_BUILD_VERSION%-%APPVEYOR_BUILD_NUMBER%.zip %APPVEYOR_BUILD_FOLDER%/linux-x64
 
 deploy:
-- provider: GitHub
-  release: dexih-remote-v$(appveyor_build_version)
-  auth_token:
-    secure: lEaZ/om1UTRS6Xa947/5WxZVbBW6A+ZHmPu7aXRRDqkjX1+LYTfh9xL1CueonyuC
-  artifact: /.*\.zip/
   prerelease: false
 
 # master and dev branchs runs test only, no publishing packages
@@ -70,10 +71,5 @@ deploy:
   - 7z a dexih.remote.%APPVEYOR_BUILD_VERSION%-%APPVEYOR_BUILD_NUMBER%.zip %APPVEYOR_BUILD_FOLDER%/dotnet
 
 deploy:
-- provider: GitHub
-  release: dexih-remote-v$(appveyor_build_version)
-  auth_token:
-    secure: lEaZ/om1UTRS6Xa947/5WxZVbBW6A+ZHmPu7aXRRDqkjX1+LYTfh9xL1CueonyuC
-  artifact: /.*\.zip/
   prerelease: true
   
