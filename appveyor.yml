@@ -32,7 +32,7 @@ for:
 
   configuration: Release
   build_script:
-  - appveyor-retry dotnet restore -v Minimal
+  - dotnet restore -v Minimal
   - dotnet build -c ${CONFIGURATION}
 
   - dotnet publish src/dexih.remote/dexih.remote.csproj -c ${CONFIGURATION} -p:Version=${APPVEYOR_BUILD_VERSION} -o ${APPVEYOR_BUILD_FOLDER}/dotnet
