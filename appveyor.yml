@@ -54,8 +54,8 @@ for:
 
   deploy:
   - provider: GitHub
-    release: dexih-remote-v$(appveyor_build_version)
-    description: 'Dexih Remote Agent - ${CONFIGURATION} release, version - $(appveyor_build_version)'
+    release: dexih-remote-v${APPVEYOR_BUILD_VERSION}
+    description: 'Dexih Remote Agent - ${CONFIGURATION} release, version - ${APPVEYOR_BUILD_VERSION}'
     auth_token:
       secure: lEaZ/om1UTRS6Xa947/5WxZVbBW6A+ZHmPu7aXRRDqkjX1+LYTfh9xL1CueonyuC
     artifact: /.*\.zip/
@@ -78,8 +78,8 @@ for:
 
   deploy:
   - provider: GitHub
-    release: dexih-remote-v$(appveyor_build_version)
-    description: 'Dexih Remote Agent - ${CONFIGURATION} release, version - $(appveyor_build_version)'
+    release: dexih-remote-v${APPVEYOR_BUILD_VERSION}
+    description: 'Dexih Remote Agent - ${CONFIGURATION} release, version - ${APPVEYOR_BUILD_VERSION}'
     auth_token:
       secure: lEaZ/om1UTRS6Xa947/5WxZVbBW6A+ZHmPu7aXRRDqkjX1+LYTfh9xL1CueonyuC
     artifact: /.*\.zip/
