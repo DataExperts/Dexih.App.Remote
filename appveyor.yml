@@ -36,19 +36,19 @@ for:
   - dotnet build -c ${CONFIGURATION}
 
   - dotnet publish src/dexih.remote/dexih.remote.csproj -c ${CONFIGURATION} -p:Version=${APPVEYOR_BUILD_VERSION} -o ${APPVEYOR_BUILD_FOLDER}/dotnet
-  - 7z a dexih.remote.${APPVEYOR_BUILD_VERSION}-.zip ${APPVEYOR_BUILD_FOLDER}/dotnet
+  - 7z a dexih.remote.${APPVEYOR_BUILD_VERSION}.zip ${APPVEYOR_BUILD_FOLDER}/dotnet
 
   - dotnet publish src/dexih.remote/dexih.remote.csproj -c ${CONFIGURATION} -r win7-x64 -p:Version=${APPVEYOR_BUILD_VERSION} -o ${APPVEYOR_BUILD_FOLDER}/win7-64
-  - 7z a dexih.remote.windows_${APPVEYOR_BUILD_VERSION}-.zip ${APPVEYOR_BUILD_FOLDER}/win7-64
+  - 7z a dexih.remote.windows_${APPVEYOR_BUILD_VERSION}.zip ${APPVEYOR_BUILD_FOLDER}/win7-64
 
   - dotnet publish src/dexih.remote/dexih.remote.csproj -c ${CONFIGURATION} -r osx-x64 -p:Version=${APPVEYOR_BUILD_VERSION} -o ${APPVEYOR_BUILD_FOLDER}/osx-x64
-  - 7z a dexih.remote.osx_${APPVEYOR_BUILD_VERSION}-.zip ${APPVEYOR_BUILD_FOLDER}/osx-x64
+  - 7z a dexih.remote.osx_${APPVEYOR_BUILD_VERSION}.zip ${APPVEYOR_BUILD_FOLDER}/osx-x64
 
   - dotnet publish src/dexih.remote/dexih.remote.csproj -c ${CONFIGURATION} -r linux-x64 -p:Version=${APPVEYOR_BUILD_VERSION} -o ${APPVEYOR_BUILD_FOLDER}/linux-x64
-  - 7z a dexih.remote.linux_${APPVEYOR_BUILD_VERSION}-.zip ${APPVEYOR_BUILD_FOLDER}/linux-x64
+  - 7z a dexih.remote.linux_${APPVEYOR_BUILD_VERSION}.zip ${APPVEYOR_BUILD_FOLDER}/linux-x64
 
   - dotnet publish src/dexih.remote/dexih.remote.csproj -c ${CONFIGURATION} -r alpine.3.6-x64 -p:Version=${APPVEYOR_BUILD_VERSION} -o ${APPVEYOR_BUILD_FOLDER}/alpine
-  - 7z a dexih.remote.alpine_${APPVEYOR_BUILD_VERSION}-.zip ${APPVEYOR_BUILD_FOLDER}/alpine
+  - 7z a dexih.remote.alpine_${APPVEYOR_BUILD_VERSION}.zip ${APPVEYOR_BUILD_FOLDER}/alpine
 
 #  - docker build src/dexih.remote/. -t dexih/remote:latest -t dexih/remote:${APPVEYOR_BUILD_VERSION} --build-arg RELEASE=${APPVEYOR_BUILD_FOLDER}/dexih.remote.alpine_${VERSION_PREFIX}-${VERSION_SUFFIX}.zip
 
@@ -59,14 +59,13 @@ for:
     auth_token:
       secure: lEaZ/om1UTRS6Xa947/5WxZVbBW6A+ZHmPu7aXRRDqkjX1+LYTfh9xL1CueonyuC
     artifact: /.*\.zip/
-    prerelease: true
+    prerelease: false
 
 # master and dev branch/dev publishes with prerelease:true
 -
   branches:
     only:
       - master
-      - /dev-.*/
 
   configuration: Debug
   build_script:
@@ -74,7 +73,7 @@ for:
   - dotnet build -c ${CONFIGURATION}
 
   - dotnet publish src/dexih.remote/dexih.remote.csproj -c ${CONFIGURATION} -p:Version=${APPVEYOR_BUILD_VERSION} -o ${APPVEYOR_BUILD_FOLDER}/dotnet
-  - 7z a dexih.remote.${APPVEYOR_BUILD_VERSION}-.zip ${APPVEYOR_BUILD_FOLDER}/dotnet
+  - 7z a dexih.remote.${APPVEYOR_BUILD_VERSION}.zip ${APPVEYOR_BUILD_FOLDER}/dotnet
 
   deploy:
   - provider: GitHub
@@ -83,6 +82,6 @@ for:
     auth_token:
       secure: lEaZ/om1UTRS6Xa947/5WxZVbBW6A+ZHmPu7aXRRDqkjX1+LYTfh9xL1CueonyuC
     artifact: /.*\.zip/
-    prerelease: false
+    prerelease: true
 
   
