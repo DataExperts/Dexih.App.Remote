@@ -1,15 +1,17 @@
 version: 0.5.{build}
-branches:
-  only:
-  - dev-gh
-  - master
-  - release
 image: Visual Studio 2019
 configuration:
 - Debug
 - Release
+branches:
+  only:
+  - master
+  - release
+  - /dev-.*/
+platform: Any CPU
 init:
  - ps: $Env:LABEL = "CI" +$Env:APPVEYOR_BUILD_NUMBER.PadLeft(5, "0")
+
 clone_depth: 1
 before_build:
   - git clone --depth 1 --single-branch --branch %APPVEYOR_REPO_BRANCH% https://github.com/DataExperts/dexih.transforms ../dexih.transforms
@@ -26,12 +28,8 @@ deploy:
     secure: lEaZ/om1UTRS6Xa947/5WxZVbBW6A+ZHmPu7aXRRDqkjX1+LYTfh9xL1CueonyuC
   artifact: /.*\.zip/
   prerelease: true
-   on: 
-    branch: 
-     - master
-     - release
 
-  for:
+for:
 
 # The release branch publishes without the version suffix, making an official release.
 -
