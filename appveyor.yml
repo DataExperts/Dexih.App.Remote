@@ -18,23 +18,6 @@ before_build:
 artifacts:
 - path: dexih*.zip
 
-deploy:
-- provider: GitHub
-  release: dexih-remote-v$(appveyor_build_version)
-  description: 'Dexih Remote Agent - %CONFIGURATION% release, version - $(appveyor_build_version)'
-  auth_token:
-    secure: lEaZ/om1UTRS6Xa947/5WxZVbBW6A+ZHmPu7aXRRDqkjX1+LYTfh9xL1CueonyuC
-  artifact: /.*\.zip/
-  prerelease: true
-    on:
-      branch:
-        - master
-        - release
-  prerelease: false
-    on:
-      branch:
-        - release
-
 for:
 
 # The release branch publishes without the version suffix, making an official release.
@@ -61,7 +44,13 @@ for:
   - 7z a dexih.remote.linux_%APPVEYOR_BUILD_VERSION%-.zip %APPVEYOR_BUILD_FOLDER%/linux-x64
 
   deploy:
-    prerelease: false
+  - provider: GitHub
+    release: dexih-remote-v$(appveyor_build_version)
+    description: 'Dexih Remote Agent - %CONFIGURATION% release, version - $(appveyor_build_version)'
+    auth_token:
+      secure: lEaZ/om1UTRS6Xa947/5WxZVbBW6A+ZHmPu7aXRRDqkjX1+LYTfh9xL1CueonyuC
+    artifact: /.*\.zip/
+    prerelease: true
 
 # master and dev branch/dev publishes with prerelease:true
 -
@@ -79,6 +68,12 @@ for:
   - 7z a dexih.remote.%APPVEYOR_BUILD_VERSION%-.zip %APPVEYOR_BUILD_FOLDER%/dotnet
 
   deploy:
+  - provider: GitHub
+    release: dexih-remote-v$(appveyor_build_version)
+    description: 'Dexih Remote Agent - %CONFIGURATION% release, version - $(appveyor_build_version)'
+    auth_token:
+      secure: lEaZ/om1UTRS6Xa947/5WxZVbBW6A+ZHmPu7aXRRDqkjX1+LYTfh9xL1CueonyuC
+    artifact: /.*\.zip/
     prerelease: false
 
   
