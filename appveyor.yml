@@ -59,7 +59,8 @@ for:
     auth_token:
       secure: lEaZ/om1UTRS6Xa947/5WxZVbBW6A+ZHmPu7aXRRDqkjX1+LYTfh9xL1CueonyuC
     artifact: /.*\.zip/
-    prerelease: false
+    prerelease: false,
+    tag: $(APPVEYOR_REPO_TAG_NAME)
 
 # master and dev branch/dev publishes with prerelease:true
 -
@@ -82,6 +83,7 @@ for:
     auth_token:
       secure: lEaZ/om1UTRS6Xa947/5WxZVbBW6A+ZHmPu7aXRRDqkjX1+LYTfh9xL1CueonyuC
     artifact: /.*\.zip/
-    prerelease: true
+    prerelease: true,
+    tag: $(APPVEYOR_REPO_TAG_NAME)
 
   
