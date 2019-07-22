@@ -13,6 +13,5 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\Dexih.App.Operations\src\dexih.operations\dexih.operations.csproj">
     </ProjectReference>
-    <ProjectReference Include="..\..\..\Dexih.Utils.ManagedTasks\src\Dexih.Utils.ManagedTasks\Dexih.Utils.ManagedTasks.csproj" />
   </ItemGroup>
 </Project>

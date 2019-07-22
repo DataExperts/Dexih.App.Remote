@@ -45,6 +45,14 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "dexih.connections.sqlite", 
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "dexih.connections.sqlserver", "..\dexih.transforms\src\dexih.connections.sqlserver\dexih.connections.sqlserver.csproj", "{5E8381AE-B43F-476D-A163-BD70B6B36B24}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "dexih.functions.builtIn", "..\dexih.transforms\src\dexih.functions.builtIn\dexih.functions.builtIn.csproj", "{382E2241-EEF5-4CA8-BFD9-B344E36F0123}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "dexih.functions.external", "..\dexih.transforms\src\dexih.functions.external\dexih.functions.external.csproj", "{F163843C-3E33-4D17-BA8C-975B85694B36}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "dexih.functions.maths", "..\dexih.transforms\src\dexih.functions.maths\dexih.functions.maths.csproj", "{92A76D5E-2D77-4BC6-9C3A-DC9699ADD246}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "dexih.functions.financial", "..\dexih.transforms\src\dexih.functions.financial\dexih.functions.financial.csproj", "{2512551C-12EE-430B-A400-B7FB2EE10626}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -123,6 +131,22 @@ Global
 		{5E8381AE-B43F-476D-A163-BD70B6B36B24}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5E8381AE-B43F-476D-A163-BD70B6B36B24}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5E8381AE-B43F-476D-A163-BD70B6B36B24}.Release|Any CPU.Build.0 = Release|Any CPU
+		{382E2241-EEF5-4CA8-BFD9-B344E36F0123}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{382E2241-EEF5-4CA8-BFD9-B344E36F0123}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{382E2241-EEF5-4CA8-BFD9-B344E36F0123}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{382E2241-EEF5-4CA8-BFD9-B344E36F0123}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F163843C-3E33-4D17-BA8C-975B85694B36}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F163843C-3E33-4D17-BA8C-975B85694B36}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F163843C-3E33-4D17-BA8C-975B85694B36}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F163843C-3E33-4D17-BA8C-975B85694B36}.Release|Any CPU.Build.0 = Release|Any CPU
+		{92A76D5E-2D77-4BC6-9C3A-DC9699ADD246}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{92A76D5E-2D77-4BC6-9C3A-DC9699ADD246}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{92A76D5E-2D77-4BC6-9C3A-DC9699ADD246}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{92A76D5E-2D77-4BC6-9C3A-DC9699ADD246}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2512551C-12EE-430B-A400-B7FB2EE10626}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2512551C-12EE-430B-A400-B7FB2EE10626}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2512551C-12EE-430B-A400-B7FB2EE10626}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2512551C-12EE-430B-A400-B7FB2EE10626}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -146,6 +170,10 @@ Global
 		{BB97977F-3719-484F-B8FA-05C1F161E37C} = {60A319A6-A6FA-4151-89F9-6C29E551735C}
 		{28C98468-897E-42AB-A27A-2B4FC4EA7433} = {60A319A6-A6FA-4151-89F9-6C29E551735C}
 		{5E8381AE-B43F-476D-A163-BD70B6B36B24} = {60A319A6-A6FA-4151-89F9-6C29E551735C}
+		{382E2241-EEF5-4CA8-BFD9-B344E36F0123} = {60A319A6-A6FA-4151-89F9-6C29E551735C}
+		{F163843C-3E33-4D17-BA8C-975B85694B36} = {60A319A6-A6FA-4151-89F9-6C29E551735C}
+		{92A76D5E-2D77-4BC6-9C3A-DC9699ADD246} = {60A319A6-A6FA-4151-89F9-6C29E551735C}
+		{2512551C-12EE-430B-A400-B7FB2EE10626} = {60A319A6-A6FA-4151-89F9-6C29E551735C}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {37BFDEC2-7606-4C9B-8CE0-67ACD29831D4}

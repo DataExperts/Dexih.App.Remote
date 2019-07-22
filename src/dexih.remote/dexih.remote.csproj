@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Description>dexih_remote Console Application</Description>
-    <AssemblyTitle>Data Experts Information Hub - Remote </AssemblyTitle>
+    <Description>Dexih - Remote Agent</Description>
+    <AssemblyTitle>Data Experts Information Hub - Remote Agent</AssemblyTitle>
     <VersionPrefix>0.4.0-beta</VersionPrefix>
     <VersionSuffix>00103</VersionSuffix>
     <Authors>Gary</Authors>
@@ -26,9 +26,9 @@
     </Content>
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="2.2.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="2.2.4" />
     <PackageReference Include="Microsoft.Extensions.Configuration.CommandLine" Version="2.2.0" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="2.2.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="2.2.4" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="2.2.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="2.2.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="2.2.0" />
@@ -68,10 +68,5 @@
   <ItemGroup>
     <Folder Include="autoStart" />
     <Folder Include="certificates" />
-  </ItemGroup>
-  <ItemGroup>
-    <Reference Include="Microsoft.Extensions.Hosting, Version=2.2.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60">
-      <HintPath>..\..\..\..\..\..\usr\local\share\dotnet\sdk\NuGetFallbackFolder\microsoft.extensions.hosting\2.2.0\lib\netstandard2.0\Microsoft.Extensions.Hosting.dll</HintPath>
-    </Reference>
   </ItemGroup>
 </Project>

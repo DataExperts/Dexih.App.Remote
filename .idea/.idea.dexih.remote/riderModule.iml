@@ -9,10 +9,18 @@
     <content url="file://$MODULE_DIR$/../../../dexih.transforms/src/dexih.connections.excel" />
     <content url="file://$MODULE_DIR$/../../../dexih.transforms/src/dexih.connections.flatfile" />
     <content url="file://$MODULE_DIR$/../../../dexih.transforms/src/dexih.connections.ftp" />
+    <content url="file://$MODULE_DIR$/../../../dexih.transforms/src/dexih.connections.mysql" />
+    <content url="file://$MODULE_DIR$/../../../dexih.transforms/src/dexih.connections.oracle" />
+    <content url="file://$MODULE_DIR$/../../../dexih.transforms/src/dexih.connections.postgressql" />
     <content url="file://$MODULE_DIR$/../../../dexih.transforms/src/dexih.connections.sftp" />
-    <content url="file://$MODULE_DIR$/../../../dexih.transforms/src/dexih.connections.sql" />
+    <content url="file://$MODULE_DIR$/../../../dexih.transforms/src/dexih.connections.sqlite" />
+    <content url="file://$MODULE_DIR$/../../../dexih.transforms/src/dexih.connections.sqlserver" />
     <content url="file://$MODULE_DIR$/../../../dexih.transforms/src/dexih.connections.webservice.restful" />
     <content url="file://$MODULE_DIR$/../../../dexih.transforms/src/dexih.functions" />
+    <content url="file://$MODULE_DIR$/../../../dexih.transforms/src/dexih.functions.builtIn" />
+    <content url="file://$MODULE_DIR$/../../../dexih.transforms/src/dexih.functions.external" />
+    <content url="file://$MODULE_DIR$/../../../dexih.transforms/src/dexih.functions.financial" />
+    <content url="file://$MODULE_DIR$/../../../dexih.transforms/src/dexih.functions.maths" />
     <content url="file://$MODULE_DIR$/../../../dexih.transforms/src/dexih.transforms" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
