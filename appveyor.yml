@@ -10,6 +10,8 @@ branches:
   - release
   - /dev-.*/
 
+skip_tags: true
+
 platform: Any CPU
 
 clone_depth: 1
@@ -32,8 +34,8 @@ for:
 
   configuration: Release
   build_script:
-  - dotnet restore dexih.remote.sln  -v Minimal
-  - dotnet build  dexih.remote.sln -c ${CONFIGURATION}
+  - dotnet restore dexih.remote.sln -v Minimal
+  - dotnet build dexih.remote.sln -c ${CONFIGURATION}
 
   - dotnet publish src/dexih.remote/dexih.remote.csproj -c ${CONFIGURATION} -p:Version=${APPVEYOR_BUILD_VERSION} -o ${APPVEYOR_BUILD_FOLDER}/dotnet
   - 7z a dexih.remote.${APPVEYOR_BUILD_VERSION}.zip ${APPVEYOR_BUILD_FOLDER}/dotnet
@@ -60,30 +62,17 @@ for:
       secure: lEaZ/om1UTRS6Xa947/5WxZVbBW6A+ZHmPu7aXRRDqkjX1+LYTfh9xL1CueonyuC
     artifact: /.*\.zip/
     prerelease: false,
-    tag: ${APPVEYOR_REPO_TAG_NAME}
+    tag: v${APPVEYOR_BUILD_VERSION}
 
-# master and dev branch/dev publishes with prerelease:true
-# -
-#   branches:
-#     only:
-#       - master
+# fallback configuration, create debug artefact only.
+-
+  configuration: Debug
+  build_script:
+  - dotnet restore -v Minimal
+  - dotnet build -c ${CONFIGURATION}
 
-#   configuration: Debug
-#   build_script:
-#   - dotnet restore -v Minimal
-#   - dotnet build -c ${CONFIGURATION}
+  - dotnet publish src/dexih.remote/dexih.remote.csproj -c ${CONFIGURATION} -p:Version=${APPVEYOR_BUILD_VERSION} -o ${APPVEYOR_BUILD_FOLDER}/dotnet
+  - 7z a dexih.remote.${APPVEYOR_BUILD_VERSION}.zip ${APPVEYOR_BUILD_FOLDER}/dotnet
 
-#   - dotnet publish src/dexih.remote/dexih.remote.csproj -c ${CONFIGURATION} -p:Version=${APPVEYOR_BUILD_VERSION} -o ${APPVEYOR_BUILD_FOLDER}/dotnet
-#   - 7z a dexih.remote.${APPVEYOR_BUILD_VERSION}.zip ${APPVEYOR_BUILD_FOLDER}/dotnet
-
-#   deploy:
-#   - provider: GitHub
-#     release: dexih-remote-v${APPVEYOR_BUILD_VERSION}
-#     description: 'Dexih Remote Agent - ${CONFIGURATION} release, version - ${APPVEYOR_BUILD_VERSION}'
-#     auth_token:
-#       secure: lEaZ/om1UTRS6Xa947/5WxZVbBW6A+ZHmPu7aXRRDqkjX1+LYTfh9xL1CueonyuC
-#     artifact: /.*\.zip/
-#     prerelease: true,
-#     tag: ${APPVEYOR_REPO_TAG_NAME}
 
   
