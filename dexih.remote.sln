@@ -53,8 +53,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "dexih.functions.maths", "..
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "dexih.functions.financial", "..\dexih.transforms\src\dexih.functions.financial\dexih.functions.financial.csproj", "{2512551C-12EE-430B-A400-B7FB2EE10626}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "dexih.remote.update", "src\dexih.remote.update\dexih.remote.update.csproj", "{2A552C82-732B-42A3-8143-2E3FAC7CF901}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -149,10 +147,6 @@ Global
 		{2512551C-12EE-430B-A400-B7FB2EE10626}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2512551C-12EE-430B-A400-B7FB2EE10626}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2512551C-12EE-430B-A400-B7FB2EE10626}.Release|Any CPU.Build.0 = Release|Any CPU
-		{2A552C82-732B-42A3-8143-2E3FAC7CF901}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{2A552C82-732B-42A3-8143-2E3FAC7CF901}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{2A552C82-732B-42A3-8143-2E3FAC7CF901}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{2A552C82-732B-42A3-8143-2E3FAC7CF901}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -180,7 +174,6 @@ Global
 		{F163843C-3E33-4D17-BA8C-975B85694B36} = {60A319A6-A6FA-4151-89F9-6C29E551735C}
 		{92A76D5E-2D77-4BC6-9C3A-DC9699ADD246} = {60A319A6-A6FA-4151-89F9-6C29E551735C}
 		{2512551C-12EE-430B-A400-B7FB2EE10626} = {60A319A6-A6FA-4151-89F9-6C29E551735C}
-		{2A552C82-732B-42A3-8143-2E3FAC7CF901} = {8EAE3DB9-6473-420B-94D6-756DF381FE89}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {37BFDEC2-7606-4C9B-8CE0-67ACD29831D4}

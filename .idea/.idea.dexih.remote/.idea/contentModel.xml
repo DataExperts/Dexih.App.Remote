@@ -171,7 +171,7 @@
           </e>
           <e p="obj" t="ExcludeRecursive">
             <e p="Debug" t="Include">
-              <e p="netcoreapp2.1" t="Include">
+              <e p="netcoreapp2.2" t="Include">
                 <e p="dexih.remote.AssemblyInfo.cs" t="Include" />
               </e>
             </e>
@@ -242,19 +242,6 @@
             <e p="StreamSecurityKeys.cs" t="Include" />
           </e>
           <e p="UpgradeService.cs" t="Include" />
-        </e>
-        <e p="dexih.remote.update" t="IncludeRecursive">
-          <e p="bin" t="ExcludeRecursive" />
-          <e p="dexih.remote.update.csproj" t="IncludeRecursive" />
-          <e p="obj" t="ExcludeRecursive">
-            <e p="Debug" t="Include">
-              <e p="netcoreapp2.1" t="Include">
-                <e p="dexih.remote.update.AssemblyInfo.cs" t="Include" />
-              </e>
-            </e>
-          </e>
-          <e p="Program.cs" t="Include" />
-          <e p="ProgressBar.cs" t="Include" />
         </e>
       </e>
       <e p="test" t="Include" />
