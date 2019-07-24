@@ -12,6 +12,7 @@ using dexih.remote.config;
 using dexih.remote.operations;
 using dexih.remote.operations.Services;
 using dexih.remote.Operations.Services;
+using dexih.repository;
 using Dexih.Utils.ManagedTasks;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -80,6 +81,7 @@ namespace dexih.remote
         public static async Task<int> Start(string[] args)
         {
             Welcome();
+            WriteVersion();
             
             // create a temporary logger (until the log level settings have been loaded.
             var loggerFactory = new LoggerFactory();
@@ -127,7 +129,6 @@ namespace dexih.remote
                 })
                 .ConfigureAppConfiguration((hostContext, configApp) =>
                 {
-
                     // add user secrets when development mode
                     if (hostContext.HostingEnvironment.IsDevelopment())
                     {
@@ -135,18 +136,36 @@ namespace dexih.remote
                     }
 
                     configApp.AddCommandLine(args, commandlineMappings);
-                    configApp.AddUserInput();
+
+                    var remoteSettings = configApp.Build().Get<RemoteSettings>() ?? new RemoteSettings();
+                    if (remoteSettings.AppSettings.AutoUpgrade && remoteSettings.CheckUpgrade().Result)
+                    {
+                        otherSettings.Add("Runtime:DoUpgrade", "true");
+                    }
+                    else
+                    {
+                        configApp.AddUserInput();
+                    }
+                    
                     configApp.AddInMemoryCollection(otherSettings);
                 })
                 .ConfigureServices((hostContext, services) =>
                 {
                     services.AddSingleton<ISharedSettings, SharedSettings>();
-                    services.AddSingleton<IMessageQueue, MessageQueue>();
-                    services.AddSingleton<IStreams, Streams>();
-                    services.AddSingleton<ILiveApis, LiveApis>();
-                    services.AddSingleton<IManagedTasks, ManagedTasks>();
-                    services.AddSingleton<IRemoteOperations, RemoteOperations>();
                     services.AddHostedService<UpgradeService>();
+                    services.AddSingleton<IManagedTasks, ManagedTasks>();
+                    services.AddSingleton<IStreams, Streams>();
+
+                    // don't load ther other services if an upgrade is pending.
+                    var doUpgrade = hostContext.Configuration.GetValue<bool>("Runtime:DoUpgrade");
+                    if (doUpgrade)
+                    {
+                        return;
+                    }
+
+                    services.AddSingleton<IMessageQueue, MessageQueue>();
+                    services.AddSingleton<ILiveApis, LiveApis>();
+                    services.AddSingleton<IRemoteOperations, RemoteOperations>();
                     services.AddHostedService<MessageService>();
                     services.AddHostedService<HttpService>();
                     services.AddHostedService<ListenerService>();
@@ -176,15 +195,21 @@ namespace dexih.remote
             
             if (sharedSettings.CompleteUpgrade)
             {
-                var process = Process.GetCurrentProcess().Id;
-                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                {
-                    Process.Start("dexih.remote.upgrade.exe", process.ToString());    
-                }
-                else
-                {
-                    Process.Start("dexih.remote.upgrade", process.ToString());
-                }
+//                var process = Process.GetCurrentProcess().Id;
+//                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+//                {
+//                    if (File.Exists("dexih.remote.upgrade.exe"))
+//                    {
+//                        Process.Start("dexih.remote.upgrade.exe", process.ToString());
+//                    }
+//                }
+//                else
+//                {
+//                    if (File.Exists("dexih.remote.upgrade"))
+//                    {
+//                        Process.Start("dexih.remote.upgrade", process.ToString());
+//                    }
+//                }
                 
                 return (int)EExitCode.Upgrade;
             }
@@ -296,6 +321,13 @@ Welcome to Dexih - The Data Experts Information Hub
 
             Console.WriteLine($"Remote Agent - Version {runtimeVersion}");
             
+        }
+
+        private static void WriteVersion()
+        {
+            var assembly = Assembly.GetEntryAssembly();
+            var localVersion = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>().InformationalVersion;
+            File.WriteAllText(assembly.GetName().Name + ".version", localVersion);
         }
         
         /// <summary>

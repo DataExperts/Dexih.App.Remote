@@ -2,7 +2,7 @@
   <PropertyGroup>
     <Description>Dexih - Remote Agent</Description>
     <AssemblyTitle>Data Experts Information Hub - Remote Agent</AssemblyTitle>
-    <VersionPrefix>0.4.0-beta</VersionPrefix>
+    <VersionPrefix>0.5.0</VersionPrefix>
     <VersionSuffix>00103</VersionSuffix>
     <Authors>Gary</Authors>
     <AssemblyName>dexih.remote</AssemblyName>
@@ -19,9 +19,13 @@
     <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
     <LangVersion>7.3</LangVersion>
     <TargetFramework>netcoreapp2.1</TargetFramework>
+    <PackageVersion>v0.5.0</PackageVersion>
   </PropertyGroup>
   <ItemGroup>
-    <Content Include="dexih_start.sh;dexih_unblock.ps1;version.txt">
+    <Content Include="dexih_start.sh">
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="dexih_unblock.ps1">
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
   </ItemGroup>

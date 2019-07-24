@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading.Tasks;
+using dexih.remote.operations;
 using dexih.repository;
 using Dexih.Utils.Crypto;
 using Microsoft.Extensions.Configuration;
@@ -13,19 +15,18 @@ namespace dexih.remote.config
         {
             const string defaultWebServer = "https://dexih.com";
 
-            var checkSaveSettings = false;
-
             var configBuild = configurationBuilder.Build();
             var remoteSettings = configBuild.Get<RemoteSettings>() ?? new RemoteSettings();
-
-            var newSettings = new Dictionary<string, string>();
             
+            var newSettings = new Dictionary<string, string>();
+
             if (remoteSettings.RequiresUserInput())
             {
                 var detailed = GetBoolInput("Would you like to enter detailed configuration options?", false);
 
                 var sslConfigureComplete = false;
 
+                var checkSaveSettings = false;
                 if (detailed)
                 {
                     checkSaveSettings = true;

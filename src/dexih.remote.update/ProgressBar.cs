@@ -6,7 +6,7 @@ using System.Threading;
 /// <summary>
 /// Console progress bar.  Code found at https://gist.github.com/DanielSWolf/0ab6a96899cc5377bf54
 /// </summary>
-namespace dexih.remote.run
+namespace dexih.remote.update
 {
     /// <summary>
     /// An ASCII progress bar
