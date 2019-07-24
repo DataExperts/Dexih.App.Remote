@@ -1,0 +1,2 @@
+v0.5.10
+https://github.com/DataExperts/Dexih.App.Remote/releases/download/v0.5.10/dexih.remote.osx_0.5.10.zip
