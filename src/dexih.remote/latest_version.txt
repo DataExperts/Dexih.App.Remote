@@ -1,2 +1,0 @@
-v0.4.0-beta-00158
-https://github.com/DataExperts/Dexih.App.Remote/releases/download/v0.4.0-beta-00158/dexih.remote.osx_0.4.0-beta-00158.zip
