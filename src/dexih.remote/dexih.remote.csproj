@@ -55,6 +55,7 @@
     <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.postgressql\dexih.connections.postgressql.csproj" />
     <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.sqlite\dexih.connections.sqlite.csproj" />
     <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.sqlserver\dexih.connections.sqlserver.csproj" />
+    <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.functions.ml\dexih.functions.ml.csproj" />
     <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.functions\dexih.functions.csproj" />
     <ProjectReference Include="..\..\..\Dexih.App.Operations\src\dexih.operations\dexih.operations.csproj" />
     <ProjectReference Include="..\..\..\Dexih.App.Operations\src\dexih.repository\dexih.repository.csproj" />
