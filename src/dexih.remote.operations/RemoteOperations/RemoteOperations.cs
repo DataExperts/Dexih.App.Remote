@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
 using System.Text;
@@ -10,6 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
 using dexih.functions;
+using dexih.functions.File;
 using dexih.functions.Parameter;
 using dexih.functions.Query;
 using dexih.operations;
@@ -1406,13 +1408,7 @@ namespace dexih.remote.operations
 
                 var upload = jsonResult["UploadUrl"].ToString();
                 var download = jsonResult["DownloadUrl"].ToString();
-            
-//                async Task DownloadDataTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken ct)
-//                {
-//                    var result = await _httpClient.GetAsync(download, ct);
-//                    await uploadAction.Invoke(await result.Content.ReadAsStreamAsync());
-//                }
-
+                
                 var uploadDataTask = new UploadDataTask(_httpClient, uploadAction, download, upload);
             
                 var newManagedTask = new ManagedTask
@@ -2052,6 +2048,149 @@ namespace dexih.remote.operations
 
                 var url = await StartUploadStream(ProcessTask, downloadUrl, "file", fileName, cancellationToken);
                 return url;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(60, ex, "Error in UploadFiles: {0}", ex.Message);
+                throw new RemoteOperationException($"The file upload did not completed.  {ex.Message}", ex);
+            }
+        }
+        
+        private async Task<FlatFile> CreateTable(ConnectionFlatFile connection, string fileName, Stream stream, CancellationToken cancellationToken)
+        {
+            var name = Path.GetFileNameWithoutExtension(fileName);
+
+            var file = new FlatFile()
+            {
+                Name = name,
+                LogicalName = name,
+                AutoManageFiles = true,
+                BaseTableName = name,
+                Description = "File information for " + name,
+                FileRootPath = fileName,
+                FormatType = DataType.ETypeCode.Text,
+            };
+            
+
+            var fileSample = new StringBuilder();
+            var reader = new StreamReader(stream);
+
+            for (var i = 0; i < 20; i++)
+            {
+                fileSample.AppendLine(await reader.ReadLineAsync());
+
+                if (reader.EndOfStream)
+                    break;
+            }
+
+            file.FileSample = fileSample.ToString();
+
+            var newFile = (FlatFile) await connection.GetSourceTableInfo(file, cancellationToken);
+
+            stream.Position = 0;
+            
+            await connection.SaveFileStream(newFile, EFlatFilePath.Incoming, fileName, stream);
+
+            return newFile;
+        }
+        
+        public async Task<(string url, string reference)> BulkUploadFiles(RemoteMessage message, CancellationToken cancellationToken)
+        {
+            try
+            {
+                if (!_remoteSettings.Privacy.AllowDataUpload)
+                {
+                    throw new RemoteSecurityException(
+                        "This remote agent's privacy settings does not allow remote data to be accessed.");
+                }
+
+                var dbCache =
+                    Json.JTokenToObject<CacheManager>(message.Value["cache"], _sharedSettings.SessionEncryptionKey);
+                var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
+                var connectionId = message.Value["connectionId"].ToString();
+                
+                var dbConnection = dbCache.Hub.DexihConnections.First();
+                if (dbConnection == null)
+                {
+                    throw new RemoteOperationException("The connection could not be found.");
+                }
+
+                var transformSettings = GetTransformSettings(message.HubVariables);
+                var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
+                var connection = (ConnectionFlatFile) dbConnection.GetConnection(transformSettings);
+
+                var fileName = message.GetParameter("FileName");
+                var reference = Guid.NewGuid().ToString();
+
+                _logger.LogInformation(
+                    $"Create files for connection: {connection.Name}, FileName {fileName}");
+
+                async Task ProcessTask(Stream stream)
+                {
+                    var flatFiles = new List<FlatFile>();
+
+                    try
+                    {
+                        if (fileName.EndsWith(".zip"))
+                        {
+                            var memoryStream = new MemoryStream();
+                            await stream.CopyToAsync(memoryStream, cancellationToken);
+                            using (var archive = new ZipArchive(memoryStream, ZipArchiveMode.Read, true))
+                            {
+                                foreach (var entry in archive.Entries)
+                                {
+                                    flatFiles.Add(await CreateTable(connection, entry.Name, entry.Open(), cancellationToken));
+                                }
+                            }
+
+                        }
+                        else if (fileName.EndsWith(".gz"))
+                        {
+                            var newFileName = fileName.Substring(0, fileName.Length - 3);
+
+                            using (var decompressionStream = new GZipStream(stream, CompressionMode.Decompress))
+                            {
+                                flatFiles.Add(await CreateTable(connection, newFileName, decompressionStream, cancellationToken));
+                            }
+                        }
+                        else
+                        {
+                            flatFiles.Add(await CreateTable(connection, fileName, stream, cancellationToken));
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(60, ex, "Error processing uploaded file.  {0}", ex.Message);
+                        throw;
+                    }
+                    
+                    // convert the table object to dexihTable
+                    var tables = flatFiles.Select(c => transformOperations.GetDexihTable(c)).ToArray();
+                    foreach (var table in tables)
+                    {
+                        table.ConnectionKey = dbConnection.Key;
+                        table.HubKey = message.HubKey;
+                    }
+                    
+                    var readyMessage = new
+                    {
+                        message.HubKey,
+                        _sharedSettings.InstanceId,
+                        _sharedSettings.SecurityToken,
+                        ConnectionId = connectionId,
+                        reference,
+                        tables
+                    };
+                    
+                    var response = await _sharedSettings.PostAsync("Remote/FlatFilesReady", readyMessage, cancellationToken);
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        throw new RemoteOperationException($"The bulk upload files did not complete as the http server returned the response {response.ReasonPhrase}.");
+                    }
+                }
+
+                var url = await StartUploadStream(ProcessTask, downloadUrl, "file", fileName, cancellationToken);
+                return (url, reference);
             }
             catch (Exception ex)
             {
