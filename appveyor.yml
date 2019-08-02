@@ -62,7 +62,7 @@ for:
       secure: lEaZ/om1UTRS6Xa947/5WxZVbBW6A+ZHmPu7aXRRDqkjX1+LYTfh9xL1CueonyuC
     artifact: /.*\.zip/
     prerelease: false,
-    tag: v${APPVEYOR_BUILD_VERSION}
+    tag: ${APPVEYOR_BUILD_VERSION}
 
 # fallback configuration, create debug artefact only.
 -
