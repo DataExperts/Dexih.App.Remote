@@ -216,7 +216,7 @@ namespace dexih.remote.operations
                             parameter => Dexih.Utils.DataType.Operations.Parse(parameter.DataType, parameter.Rank, testValues[i++])).ToArray<object>();
 
                     var result = createFunction.function.RunFunction(new FunctionVariables(), inputs, out object[] outputs, cancellationToken);
-                    return new object[] {result}.Concat(outputs);
+                    return new object[] {result.returnValue}.Concat(outputs);
                 }
                 return null;
             }
@@ -2056,9 +2056,11 @@ namespace dexih.remote.operations
             }
         }
         
-        private async Task<FlatFile> CreateTable(ConnectionFlatFile connection, string fileName, Stream stream, CancellationToken cancellationToken)
+        private async Task<FlatFile> CreateTable(ConnectionFlatFile connection, DexihFileFormat fileFormat, DataType.ETypeCode formatType, string fileName, Stream stream, CancellationToken cancellationToken)
         {
             var name = Path.GetFileNameWithoutExtension(fileName);
+
+            var fileConfiguration = fileFormat?.GetFileFormat();
 
             var file = new FlatFile()
             {
@@ -2066,21 +2068,29 @@ namespace dexih.remote.operations
                 LogicalName = name,
                 AutoManageFiles = true,
                 BaseTableName = name,
-                Description = "File information for " + name,
+                Description = $"File information for {name}.",
                 FileRootPath = fileName,
-                FormatType = DataType.ETypeCode.Text,
+                FormatType = formatType,
+                FileConfiguration = fileConfiguration
             };
             
 
             var fileSample = new StringBuilder();
             var reader = new StreamReader(stream);
 
-            for (var i = 0; i < 20; i++)
+            if (formatType == DataType.ETypeCode.Text)
             {
-                fileSample.AppendLine(await reader.ReadLineAsync());
+                for (var i = 0; i < 20; i++)
+                {
+                    fileSample.AppendLine(await reader.ReadLineAsync());
 
-                if (reader.EndOfStream)
-                    break;
+                    if (reader.EndOfStream)
+                        break;
+                }
+            }
+            else
+            {
+                fileSample.AppendLine(await reader.ReadToEndAsync());
             }
 
             file.FileSample = fileSample.ToString();
@@ -2108,11 +2118,25 @@ namespace dexih.remote.operations
                     Json.JTokenToObject<CacheManager>(message.Value["cache"], _sharedSettings.SessionEncryptionKey);
                 var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
                 var connectionId = message.Value["connectionId"].ToString();
-                
-                var dbConnection = dbCache.Hub.DexihConnections.First();
+                var connectionKey = message.Value["connectionKey"].ToObject<long>();
+                var fileFormatKey = message.Value["fileFormatKey"].ToObject<long>();
+                var formatType = message.Value["formatType"].ToObject<DataType.ETypeCode>();
+
+                var dbConnection = dbCache.Hub.DexihConnections.SingleOrDefault(c => c.Key == connectionKey);
                 if (dbConnection == null)
                 {
-                    throw new RemoteOperationException("The connection could not be found.");
+                    throw new RemoteOperationException($"The connection with the key {connectionKey} could not be found.");
+                }
+
+                DexihFileFormat dbFileFormat = null;
+                if (fileFormatKey > 0)
+                {
+                    dbFileFormat = dbCache.Hub.DexihFileFormats.SingleOrDefault(c => c.Key == fileFormatKey);
+                    if (dbFileFormat == null)
+                    {
+                        throw new RemoteOperationException(
+                            $"The file format with the key {fileFormatKey} could not be found.");
+                    }
                 }
 
                 var transformSettings = GetTransformSettings(message.HubVariables);
@@ -2139,7 +2163,7 @@ namespace dexih.remote.operations
                             {
                                 foreach (var entry in archive.Entries)
                                 {
-                                    flatFiles.Add(await CreateTable(connection, entry.Name, entry.Open(), cancellationToken));
+                                    flatFiles.Add(await CreateTable(connection, dbFileFormat, formatType, entry.Name, entry.Open(), cancellationToken));
                                 }
                             }
 
@@ -2150,12 +2174,12 @@ namespace dexih.remote.operations
 
                             using (var decompressionStream = new GZipStream(stream, CompressionMode.Decompress))
                             {
-                                flatFiles.Add(await CreateTable(connection, newFileName, decompressionStream, cancellationToken));
+                                flatFiles.Add(await CreateTable(connection, dbFileFormat, formatType, newFileName, decompressionStream, cancellationToken));
                             }
                         }
                         else
                         {
-                            flatFiles.Add(await CreateTable(connection, fileName, stream, cancellationToken));
+                            flatFiles.Add(await CreateTable(connection, dbFileFormat, formatType, fileName, stream, cancellationToken));
                         }
                     }
                     catch (Exception ex)
