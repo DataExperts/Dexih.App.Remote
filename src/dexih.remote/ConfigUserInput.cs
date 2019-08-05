@@ -224,7 +224,7 @@ namespace dexih.remote.config
                 if (string.IsNullOrEmpty(pass))
                 {
                     remoteAgentId = GetStringInput(
-                        $"Enter the unique remote agent id (create new tokens at: {remoteSettings.AppSettings.WebServer}/hubs/index/remoteAgents:",
+                        $"Enter the unique remote agent id (create new tokens at: {newSettings["AppSettings:WebServer"]}/hubs/index/remoteAgents:",
                         remoteSettings.AppSettings.RemoteAgentId, false);
 
                     newSettings["AppSettings:RemoteAgentId"] = remoteAgentId;
