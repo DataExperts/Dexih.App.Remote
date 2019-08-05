@@ -8,7 +8,7 @@ branches:
   only:
   - master
   - release
-  - /dev-.*/
+  # - /dev-.*/
 
 skip_tags: true
 
@@ -37,8 +37,8 @@ for:
   - dotnet restore dexih.remote.sln -v Minimal
   - dotnet build dexih.remote.sln -c ${CONFIGURATION}
 
-  - dotnet publish src/dexih.remote/dexih.remote.csproj -c ${CONFIGURATION} -p:Version=${APPVEYOR_BUILD_VERSION} -o ${APPVEYOR_BUILD_FOLDER}/dotnet
-  - 7z a dexih.remote.${APPVEYOR_BUILD_VERSION}.zip ${APPVEYOR_BUILD_FOLDER}/dotnet/*
+  # - dotnet publish src/dexih.remote/dexih.remote.csproj -c ${CONFIGURATION} -p:Version=${APPVEYOR_BUILD_VERSION} -o ${APPVEYOR_BUILD_FOLDER}/dotnet
+  # - 7z a dexih.remote.${APPVEYOR_BUILD_VERSION}.zip ${APPVEYOR_BUILD_FOLDER}/dotnet/*
 
   - dotnet publish src/dexih.remote/dexih.remote.csproj -c ${CONFIGURATION} -r win7-x64 -p:Version=${APPVEYOR_BUILD_VERSION} -o ${APPVEYOR_BUILD_FOLDER}/win7-64
   - 7z a dexih.remote.windows_${APPVEYOR_BUILD_VERSION}.zip ${APPVEYOR_BUILD_FOLDER}/win7-64/*
