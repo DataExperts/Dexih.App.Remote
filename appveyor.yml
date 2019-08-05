@@ -8,7 +8,7 @@ branches:
   only:
   - master
   - release
-  - /dev-.*/
+  # - /dev-.*/
 
 skip_tags: true
 
@@ -37,8 +37,8 @@ for:
   - dotnet restore dexih.remote.sln -v Minimal
   - dotnet build dexih.remote.sln -c ${CONFIGURATION}
 
-  - dotnet publish src/dexih.remote/dexih.remote.csproj -c ${CONFIGURATION} -p:Version=${APPVEYOR_BUILD_VERSION} -o ${APPVEYOR_BUILD_FOLDER}/dotnet
-  - 7z a dexih.remote.${APPVEYOR_BUILD_VERSION}.zip ${APPVEYOR_BUILD_FOLDER}/dotnet/*
+  # - dotnet publish src/dexih.remote/dexih.remote.csproj -c ${CONFIGURATION} -p:Version=${APPVEYOR_BUILD_VERSION} -o ${APPVEYOR_BUILD_FOLDER}/dotnet
+  # - 7z a dexih.remote.${APPVEYOR_BUILD_VERSION}.zip ${APPVEYOR_BUILD_FOLDER}/dotnet/*
 
   - dotnet publish src/dexih.remote/dexih.remote.csproj -c ${CONFIGURATION} -r win7-x64 -p:Version=${APPVEYOR_BUILD_VERSION} -o ${APPVEYOR_BUILD_FOLDER}/win7-64
   - 7z a dexih.remote.windows_${APPVEYOR_BUILD_VERSION}.zip ${APPVEYOR_BUILD_FOLDER}/win7-64/*
@@ -49,8 +49,8 @@ for:
   - dotnet publish src/dexih.remote/dexih.remote.csproj -c ${CONFIGURATION} -r linux-x64 -p:Version=${APPVEYOR_BUILD_VERSION} -o ${APPVEYOR_BUILD_FOLDER}/linux-x64
   - 7z a dexih.remote.linux_${APPVEYOR_BUILD_VERSION}.zip ${APPVEYOR_BUILD_FOLDER}/linux-x64/*
 
-  - dotnet publish src/dexih.remote/dexih.remote.csproj -c ${CONFIGURATION} -r alpine.3.6-x64 -p:Version=${APPVEYOR_BUILD_VERSION} -o ${APPVEYOR_BUILD_FOLDER}/alpine
-  - 7z a dexih.remote.alpine_${APPVEYOR_BUILD_VERSION}.zip ${APPVEYOR_BUILD_FOLDER}/alpine/*
+  # - dotnet publish src/dexih.remote/dexih.remote.csproj -c ${CONFIGURATION} -r alpine.3.6-x64 -p:Version=${APPVEYOR_BUILD_VERSION} -o ${APPVEYOR_BUILD_FOLDER}/alpine
+  # - 7z a dexih.remote.alpine_${APPVEYOR_BUILD_VERSION}.zip ${APPVEYOR_BUILD_FOLDER}/alpine/*
 
 #  - docker build src/dexih.remote/. -t dexih/remote:latest -t dexih/remote:${APPVEYOR_BUILD_VERSION} --build-arg RELEASE=${APPVEYOR_BUILD_FOLDER}/dexih.remote.alpine_${VERSION_PREFIX}-${VERSION_SUFFIX}.zip
 
