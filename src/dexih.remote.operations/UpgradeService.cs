@@ -54,6 +54,9 @@ namespace dexih.remote.operations
 
         public Task StopAsync(CancellationToken cancellationToken)
         {
+            // check one last time before exiting.
+            CheckUpgrade(null);
+            
             _timer?.Change(Timeout.Infinite, 0);
             _logger.LogInformation("The upgrade service has stopped.");
             return Task.CompletedTask;
@@ -66,7 +69,7 @@ namespace dexih.remote.operations
 
         public bool UpgradeRequired { get; set; } = false;
 
-        private async void CheckUpgrade(object state)
+        public async void CheckUpgrade(object state)
         {
             // if an upgrade is required return the ExitCode.Upgrade value, which will be picked up by executing script to complete upgrade.
             try
