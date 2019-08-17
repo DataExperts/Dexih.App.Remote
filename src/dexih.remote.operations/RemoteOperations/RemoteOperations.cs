@@ -1358,6 +1358,8 @@ namespace dexih.remote.operations
                 var selectQuery = message.Value["selectQuery"].ToObject<SelectQuery>();
                 var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
                 var inputColumns = message.Value["inputColumns"].ToObject<InputColumn[]>();
+                var parameters =message.Value["parameters"].ToObject<InputParameters>();
+                selectQuery.AddParameters(parameters);
 
                 //retrieve the source tables into the cache.
                 var settings = GetTransformSettings(message.HubVariables);
@@ -1458,6 +1460,8 @@ namespace dexih.remote.operations
                     GlobalVariables = CreateGlobalVariables(cache.CacheEncryptionKey),
                     SelectQuery = message.Value["selectQuery"].ToObject<SelectQuery>(),
                 };
+                var parameters =message.Value["parameters"].ToObject<InputParameters>();
+                transformWriterOptions.SelectQuery.AddParameters(parameters);
 
                 var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
                 var runPlan = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, inputColumns,
@@ -1583,6 +1587,7 @@ namespace dexih.remote.operations
                 var dbDatalink = cache.Hub.DexihDatalinks.Single(c => c.Key == datalinkKey);
                 var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
                 var inputColumns = message.Value["inputColumns"].ToObject<InputColumn[]>();
+                var parameters = message.Value["parameters"].ToObject<InputParameters>();
 
                 var transformWriterOptions = new TransformWriterOptions()
                 {
@@ -1590,6 +1595,8 @@ namespace dexih.remote.operations
                     GlobalVariables = CreateGlobalVariables(cache.CacheEncryptionKey),
                     SelectQuery = message.Value["selectQuery"].ToObject<SelectQuery>()
                 };
+                
+                transformWriterOptions.SelectQuery.AddParameters(parameters);
                 
                 var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
                 var runPlan = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, inputColumns, null, null, transformWriterOptions);
@@ -1620,6 +1627,7 @@ namespace dexih.remote.operations
             var datalinkKey = message.Value["datalinkKey"].ToObject<long>();
             var dbDatalink = cache.Hub.DexihDatalinks.Single(c => c.Key == datalinkKey);
             var inputColumns = message.Value["inputColumns"].ToObject<InputColumn[]>();
+            var parameters = message.Value["parameters"].ToObject<InputParameters>();
 
             var transformWriterOptions = new TransformWriterOptions()
             {
@@ -1627,6 +1635,8 @@ namespace dexih.remote.operations
                 GlobalVariables = CreateGlobalVariables(cache.CacheEncryptionKey),
                 SelectQuery = message.Value["selectQuery"].ToObject<SelectQuery>()
             };
+            
+            transformWriterOptions.SelectQuery.AddParameters(parameters);
                 
             var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
             var runPlan = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, inputColumns, null, null, transformWriterOptions);
