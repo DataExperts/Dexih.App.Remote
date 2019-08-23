@@ -22,9 +22,10 @@ namespace dexih.remote.operations
         /// </summary>
         /// <param name="cache"></param>
         /// <returns></returns>
-        GlobalVariables CreateGlobalVariables(string hubEncryptionKey);
+        GlobalSettings CreateGlobalSettings(string hubEncryptionKey);
 
-        TransformSettings GetTransformSettings(DexihHubVariable[] hubHubVariables);
+        TransformSettings GetTransformSettings(DexihHubVariable[] hubHubVariables,
+            IEnumerable<InputParameterBase> inputParameters);
         Task<bool> Ping(RemoteMessage message, CancellationToken cancellationToken);
         Task<string> Echo(RemoteMessage message, CancellationToken cancellationToken);
         Task<RemoteAgentStatus> GetRemoteAgentStatus(RemoteMessage message, CancellationToken cancellationToken);

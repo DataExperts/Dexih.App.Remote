@@ -11,6 +11,7 @@ using dexih.operations;
 using dexih.remote.operations;
 using dexih.repository;
 using dexih.transforms;
+using Dexih.Utils.CopyProperties;
 using Dexih.Utils.Crypto;
 using Dexih.Utils.MessageHelpers;
 using Microsoft.Extensions.Logging;
@@ -50,7 +51,7 @@ namespace dexih.remote.Operations.Services
         }
 
         
-        public string Add(long hubKey, long apiKey, Transform transform, TimeSpan? cacheRefreshInterval, string securityKey = null)
+        public string Add(long hubKey, long apiKey, Transform transform, TimeSpan? cacheRefreshInterval, string securityKey, SelectQuery selectQuery)
         {
             if(!_hubs.TryGetValue(hubKey, out var apiKeys))
             {
@@ -83,7 +84,8 @@ namespace dexih.remote.Operations.Services
                     HubKey = hubKey,
                     ApiKey = apiKey,
                     SecurityKey = securityKey,
-                    Transform =  transform
+                    Transform =  transform,
+                    SelectQuery = selectQuery
                 };
 
                 if (cacheRefreshInterval != null)
@@ -167,8 +169,9 @@ namespace dexih.remote.Operations.Services
                 var timer = Stopwatch.StartNew();
                 await apiData.WaitForTask(cancellationToken);
 
-                JObject inputs = null;
+                JObject inputColumns = null;
                 JObject query = null;
+                JObject inputParameters = null;
 
                 try
                 {
@@ -178,13 +181,13 @@ namespace dexih.remote.Operations.Services
                     if (action.ToLower() == "info")
                     {
                         var columns = apiData.Transform.CacheTable.Columns;
-                        var inputColumns = apiData.Transform.GetSourceReader().CacheTable.Columns.Where(c => c.IsInput);
+                        var inputColumns2 = apiData.Transform.GetSourceReader().CacheTable.Columns.Where(c => c.IsInput);
 
                         var infoQuery = new
                         {
                             Success = true,
                             QueryColumns = columns,
-                            InputColumns = inputColumns
+                            InputColumns = inputColumns2
                         };
 
                         return JObject.FromObject(infoQuery, new JsonSerializer { NullValueHandling = NullValueHandling.Ignore } );
@@ -195,7 +198,10 @@ namespace dexih.remote.Operations.Services
                     query = q == null ? null : JObject.Parse(q); 
 
                     var i = parameters["i"];
-                    inputs = i == null ? null : JObject.Parse(i);
+                    inputColumns = i == null ? null : JObject.Parse(i);
+
+                    var p = parameters["p"];
+                    inputParameters = p == null ? null : JObject.Parse(p);
 
                     var cts = new CancellationTokenSource();
                     var t = parameters["t"];
@@ -222,9 +228,10 @@ namespace dexih.remote.Operations.Services
                     }
 
                     // TODO add EDownloadFormat to api options.
-                    var selectQuery = new SelectQuery();
+                    var selectQuery = apiData.SelectQuery.CloneProperties<SelectQuery>();
                     selectQuery.LoadJsonFilters(apiData.Transform.CacheTable, query);
-                    selectQuery.LoadJsonInputs(inputs);
+                    selectQuery.LoadJsonInputColumns(inputColumns);
+                    selectQuery.LoadJsonParameters(inputParameters);
                     selectQuery.Rows = rows;
 
                     var combinedCancel = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, cts.Token).Token;
@@ -238,7 +245,8 @@ namespace dexih.remote.Operations.Services
                         ApiKey = apiData.ApiKey,
                         Success = true, IpAddress = ipAddress, 
                         Date = DateTime.Now, 
-                        Inputs = inputs?.ToString(),
+                        InputColumns = inputColumns?.ToString(),
+                        InputParameters = inputParameters?.ToString(),
                         Filters = query?.ToString(),
                         TimeTaken = timer.ElapsedMilliseconds
                     };
@@ -256,7 +264,7 @@ namespace dexih.remote.Operations.Services
                     var queryApi = new ApiQuery()
                     {
                         Success = false, Message = ex.Message, Exception = ex, IpAddress = ipAddress,
-                        Date = DateTime.Now, Inputs = inputs?.ToString(),
+                        Date = DateTime.Now, InputColumns = inputColumns?.ToString(),
                         Filters = query?.ToString(), TimeTaken = timer.ElapsedMilliseconds
                     };
 
@@ -362,8 +370,9 @@ namespace dexih.remote.Operations.Services
                 transform = runPlan.sourceTransform;
             }
 
+            
             transform.SetCacheMethod(dbApi.CacheQueries ? Transform.ECacheMethod.LookupCache : Transform.ECacheMethod.NoCache);
-            key = Add(hub.HubKey, autoStart.Key, transform, dbApi.CacheResetInterval, autoStart.SecurityKey);
+            key = Add(hub.HubKey, autoStart.Key, transform, dbApi.CacheResetInterval, autoStart.SecurityKey, dbApi.SelectQuery);
 
             return (key, dbApi);
         }

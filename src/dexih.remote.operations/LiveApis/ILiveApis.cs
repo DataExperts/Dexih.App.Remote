@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using dexih.functions.Query;
 using dexih.remote.operations;
 using dexih.repository;
 using dexih.transforms;
@@ -17,7 +18,7 @@ namespace dexih.remote.Operations.Services
         /// </summary>
         /// <param name="transform"></param>
         /// <returns></returns>
-        string Add(long hubKey, long apiKey, Transform transform, TimeSpan? cacheRefreshInterval, string securityKey);
+        string Add(long hubKey, long apiKey, Transform transform, TimeSpan? cacheRefreshInterval, string securityKey, SelectQuery selectQuery);
 
         /// <summary>
         /// Remove a transform from the live api's
@@ -53,6 +54,7 @@ namespace dexih.remote.Operations.Services
         public long TimeTaken { get; set; }
         
         public string Filters { get; set; }
-        public string Inputs { get; set; }
+        public string InputColumns { get; set; }
+        public string InputParameters { get; set; }
     }
 }

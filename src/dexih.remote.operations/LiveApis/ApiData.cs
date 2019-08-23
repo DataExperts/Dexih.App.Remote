@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using dexih.functions.Query;
 using dexih.transforms;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
@@ -29,6 +30,8 @@ namespace dexih.remote.Operations.Services
         public ApiStatus ApiStatus { get; set; }
         public long HubKey { get; set; }
         public long ApiKey { get; set; }
+        
+        public SelectQuery SelectQuery { get; set; }
         public string SecurityKey { get; set; }
         public long SuccessCount { get; set; }
 
