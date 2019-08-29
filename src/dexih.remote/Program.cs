@@ -151,12 +151,13 @@ namespace dexih.remote
                 })
                 .ConfigureServices((hostContext, services) =>
                 {
+                    services.AddMemoryCache();
                     services.AddSingleton<ISharedSettings, SharedSettings>();
                     services.AddHostedService<UpgradeService>();
                     services.AddSingleton<IManagedTasks, ManagedTasks>();
                     services.AddSingleton<IStreams, Streams>();
 
-                    // don't load ther other services if an upgrade is pending.
+                    // don't load there other services if an upgrade is pending.
                     var doUpgrade = hostContext.Configuration.GetValue<bool>("Runtime:DoUpgrade");
                     if (doUpgrade)
                     {

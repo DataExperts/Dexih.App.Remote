@@ -8,6 +8,7 @@ using dexih.remote.Operations.Services;
 using dexih.repository;
 using Dexih.Utils.MessageHelpers;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -21,17 +22,19 @@ namespace dexih.remote.operations.Services
         private readonly ISharedSettings _sharedSettings;
         private readonly IStreams _streams;
         private readonly ILiveApis _liveApis;
+        private readonly IMemoryCache _memoryCache;
         
         private readonly RemoteSettings _remoteSettings;
         private readonly ILogger<HttpService> _logger;
         
-        public HttpService(ISharedSettings sharedSettings, ILogger<HttpService> logger, IStreams streams, ILiveApis liveApis)
+        public HttpService(ISharedSettings sharedSettings, ILogger<HttpService> logger, IStreams streams, ILiveApis liveApis, IMemoryCache memoryCache)
         {
             _sharedSettings = sharedSettings;
             _streams = streams;
             _liveApis = liveApis;
             _remoteSettings = _sharedSettings.RemoteSettings;
             _logger = logger;
+            _memoryCache = memoryCache;
         }
         
         protected override async Task ExecuteAsync(CancellationToken cancellationToken)
@@ -170,6 +173,7 @@ namespace dexih.remote.operations.Services
                                 {
                                     s.AddSingleton(_streams);
                                     s.AddSingleton(_liveApis);
+                                    s.AddSingleton(_memoryCache);
                                 })
                                 .UseKestrel(options =>
                                 {

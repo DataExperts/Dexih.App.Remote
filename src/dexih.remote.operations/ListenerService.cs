@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -7,10 +8,12 @@ using dexih.functions;
 using dexih.operations;
 using dexih.remote.Operations.Services;
 using dexih.repository;
+using dexih.transforms;
 using Dexih.Utils.Crypto;
 using Dexih.Utils.MessageHelpers;
 using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json.Linq;
@@ -25,16 +28,18 @@ namespace dexih.remote.operations
         private readonly ILogger<ListenerService> _logger;
 
         private readonly RemoteSettings _remoteSettings;
+        private readonly IMemoryCache _memoryCache;
 
         private HubConnection _hubConnection;
         
-        public ListenerService(ISharedSettings sharedSettings, ILogger<ListenerService> logger, IMessageQueue messageQueue, IRemoteOperations remoteOperations)
+        public ListenerService(ISharedSettings sharedSettings, ILogger<ListenerService> logger, IMessageQueue messageQueue, IRemoteOperations remoteOperations, IMemoryCache memoryCache)
         {
             _sharedSettings = sharedSettings;
             _remoteSettings = _sharedSettings.RemoteSettings;
             _messageQueue = messageQueue;
             _remoteOperations = remoteOperations;
             _logger = logger;
+            _memoryCache = memoryCache;
         }
         
         public Task StartAsync(CancellationToken cancellationToken)
@@ -108,6 +113,11 @@ namespace dexih.remote.operations
              con.On<RemoteMessage>("Command", async message =>
              {
                  await ProcessMessage(message);
+             });
+             
+             con.On<RemoteMessage>("Command2", async message =>
+             {
+                 await ProcessMessage2(message);
              });
 
              con.On<RemoteMessage>("Response",  message =>
@@ -193,7 +203,8 @@ namespace dexih.remote.operations
              return EConnectionResult.Connected;
          }
          
-            /// <summary>
+         
+         /// <summary>
         /// Processes a message from the webserver, and redirects to the appropriate method.
         /// </summary>
         /// <param name="remoteMessage"></param>
@@ -214,11 +225,6 @@ namespace dexih.remote.operations
                 var commandCancel = cancellationTokenSource.Token;
 
                 _logger.LogDebug("Message received is command: {command}.", remoteMessage.Method);
-
-                //JObject values = (JObject)command.Value;
-                // if (!string.IsNullOrEmpty((string)command.Value))
-                //     values = JObject.Parse((string)command.Value);
-
 
                 var method = typeof(RemoteOperations).GetMethod(remoteMessage.Method);
 
@@ -355,6 +361,85 @@ namespace dexih.remote.operations
             }
 
         }
+         
+        /// <summary>
+        /// Processes a message from the webserver, and redirects to the appropriate method.
+        /// </summary>
+        /// <param name="remoteMessage"></param>
+        /// <returns></returns>
+        private async Task ProcessMessage2(RemoteMessage remoteMessage)
+        {
+            // LoggerMessages.LogTrace("New Message Content: ", message);
+
+            try
+            {
+                // var remoteMessage = Json.DeserializeObject<RemoteMessage>(message, TemporaryEncryptionKey);
+
+                //if the success is false, then it is a dummy message returned through a long polling timeout, so just ignore.
+                if (!remoteMessage.Success)
+                    return;
+
+                var cancellationTokenSource = new CancellationTokenSource();
+                var commandCancel = cancellationTokenSource.Token;
+
+                _logger.LogDebug("Message received is command: {command}.", remoteMessage.Method);
+
+                //JObject values = (JObject)command.Value;
+                // if (!string.IsNullOrEmpty((string)command.Value))
+                //     values = JObject.Parse((string)command.Value);
+
+                var method = typeof(RemoteOperations).GetMethod(remoteMessage.Method);
+
+                if (method == null)
+                {
+                    _logger.LogError(100, "Unknown method : " + remoteMessage.Method);
+                    var error = new ReturnValue<JToken>(false, $"Unknown method: {remoteMessage.Method}.", null);
+                    AddResponseMessage(remoteMessage.MessageId, error);
+                    return;
+                }
+
+                if (remoteMessage.SecurityToken == _sharedSettings.SecurityToken)
+                {
+                    Stream stream;
+                    if (method.ReturnType.BaseType == typeof(Task))
+                    {
+                        stream = new StreamAsyncAction<object>(async () =>
+                        {
+                            var task = (Task) method.Invoke(_remoteOperations,
+                                new object[] {remoteMessage, commandCancel});
+                            await task.ConfigureAwait(false);
+                            var resultProperty = task.GetType().GetProperty("Result");
+                            return resultProperty.GetValue(task);
+                        });
+                    }
+                    else
+                    {
+                        stream = new StreamAction<object>(() =>
+                            method.Invoke(_remoteOperations, new object[] {remoteMessage, commandCancel}));
+                    }
+                    
+                    _memoryCache.Set(remoteMessage.MessageId, stream, TimeSpan.FromSeconds(5));
+                }
+                else
+                {
+                    var messageString = "The command " + remoteMessage.Method +
+                                        " failed due to mismatching security tokens.";
+                    AddResponseMessage(remoteMessage.MessageId,
+                        new ReturnValue<JToken>(false, messageString, null));
+                    _logger.LogWarning(messageString);
+                }
+            }
+            catch  (Exception ex)
+            {
+                _logger.LogError(100, ex, "Unknown error processing incoming message: " + ex.Message);
+                var error = new ReturnValue<JToken>(false, $"{ex.Message}", ex);
+                var responseMessage = SendHttpResponseMessage(remoteMessage.MessageId, error);
+                
+                if (!responseMessage.Success)
+                    _logger.LogError("Error occurred sending a response to the web server.  Error was: " + responseMessage.Message);
+            }
+
+        }
             
             private ReturnValue SendHttpResponseMessage(string messageId, ReturnValue<JToken> returnMessage)
             {
@@ -368,6 +453,28 @@ namespace dexih.remote.operations
                 catch (Exception ex)
                 {
                     return new ReturnValue(false, "Error occurred sending remote message: " + ex.Message, ex);
+                }
+            }
+
+            private void AddResponseMessage(string messageId, ReturnValue<JToken> returnMessage)
+            {
+                try
+                {
+                    var json = Json.SerializeObject(returnMessage, "");
+                    var memoryStream = new MemoryStream();
+                    var streamWriter = new StreamWriter(memoryStream);
+                    streamWriter.Write(json);
+                    memoryStream.Position = 0;
+                    
+                    var entry = _memoryCache.CreateEntry(messageId);
+                    entry.SlidingExpiration = TimeSpan.FromSeconds(10);
+                    entry.Value = memoryStream;
+
+                    _memoryCache.Set(messageId, memoryStream, TimeSpan.FromSeconds(5));
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error occurred adding a response message.  Error was: " + ex.Message);
                 }
             }
 

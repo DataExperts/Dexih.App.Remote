@@ -51,6 +51,9 @@ namespace dexih.remote.Operations.Services
         Task<string> StartDataStream(Stream stream, DownloadUrl downloadUrl, string format, string fileName,
             CancellationToken cancellationToken);
 
+        Task<string> StartDataStream(Stream stream, DownloadUrl downloadUrl, string messageId, string format, string fileName,
+            CancellationToken cancellationToken);
+
     }
 
     public class SharedSettings : ISharedSettings, IDisposable
@@ -474,8 +477,55 @@ namespace dexih.remote.Operations.Services
                 return url;
             }
         }
+        
+        public async Task<string> StartDataStream(Stream stream, DownloadUrl downloadUrl, string messageId, string format, string fileName, CancellationToken cancellationToken)
+        {
+            if (downloadUrl.DownloadUrlType == EDownloadUrlType.Proxy)
+            {
+                // if downloading through a proxy, start a process to upload to the proxy.
+                var startResult = await _httpClient.GetAsync($"{downloadUrl.Url}/start/{format}/{fileName}", cancellationToken);
 
+                if (!startResult.IsSuccessStatusCode)
+                {
+                    throw new RemoteOperationException($"Failed to connect to the proxy server.  Message: {startResult.ReasonPhrase}");
+                }
 
+                var jsonResult = JObject.Parse(await startResult.Content.ReadAsStringAsync());
+
+                var upload = jsonResult["UploadUrl"].ToString();
+                var download = jsonResult["DownloadUrl"].ToString();
+            
+//                async Task UploadDataTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken ct)
+//                {
+//                    await _httpClient.PostAsync(upload, new StreamContent(stream), ct);
+//                }
+
+                var downloadDataTask = new PostDataTask(_httpClient, stream, upload);
+            
+                var newManagedTask = new ManagedTask
+                {
+                    Reference = Guid.NewGuid().ToString(),
+                    OriginatorId = "none",
+                    Name = $"Remote Data",
+                    Category = "ProxyDownload",
+                    CategoryKey = 0,
+                    ReferenceKey = 0,
+                    ManagedObject = downloadDataTask,
+                    Triggers = null,
+                    FileWatchers = null,
+                };
+
+                await _managedTasks.Add(newManagedTask);
+
+                return download;
+            }
+            else
+            {
+                // if downloading directly, then just get the stream ready for when the client connects.
+                var keys = _streams.SetDownloadStream(fileName, stream);
+                var url = $"{downloadUrl.Url}/{format}/{HttpUtility.UrlEncode(keys.Key)}/{HttpUtility.UrlEncode(keys.SecurityKey)}";
+                return url;
+            }
+        }
     }
-
 }

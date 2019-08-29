@@ -84,7 +84,7 @@ namespace dexih.remote.operations
         Task<string> PreviewDatalink(RemoteMessage message, CancellationToken cancellationToken);
         Task<string> GetReaderData(RemoteMessage message, CancellationToken cancellationToken);
         Task<string> PreviewProfile(RemoteMessage message, CancellationToken cancellationToken);
-        Task<List<TransformWriterResult>> GetResults(RemoteMessage message, CancellationToken cancellationToken);
+        Task<string> GetAuditResults(RemoteMessage message, CancellationToken cancellationToken);
         Task<bool> CreateFilePaths(RemoteMessage message, CancellationToken cancellationToken);
         Task<bool> MoveFiles(RemoteMessage message, CancellationToken cancellationToken);
         Task<bool> DeleteFiles(RemoteMessage message, CancellationToken cancellationToken);

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Threading.Tasks;
 using System.Web;
 using dexih.remote.Operations.Services;
 using Dexih.Utils.Crypto;
@@ -8,6 +9,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace dexih.remote.operations
@@ -23,7 +25,7 @@ namespace dexih.remote.operations
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IHostingEnvironment env, IStreams streams, ILiveApis liveApis)
+        public void Configure(IApplicationBuilder app, IHostingEnvironment env, IStreams streams, ILiveApis liveApis, IMemoryCache memoryCache)
         {
 //            if (env.IsDevelopment())
 //            {
@@ -112,6 +114,24 @@ namespace dexih.remote.operations
                     }
                 }
                 
+                else if (segments[1] == "message")
+                {
+                    var messageId = segments[2];
+
+                    for(var i = 0; i< 10; i++)
+                    {
+                        if(memoryCache.TryGetValue(messageId, out Stream stream))
+                        {
+                            memoryCache.Remove(messageId);
+                            await stream.CopyToAsync(context.Response.Body);
+                            return;
+                        }
+                        await Task.Delay(100);
+                    }
+
+                    throw new Exception("The response message was not found.");
+                }
+                
                 else if (segments.Length >= 4)
                 {
                     var command = segments[1];
@@ -156,8 +176,7 @@ namespace dexih.remote.operations
                             }
 
                             context.Response.StatusCode = 200;
-                            context.Response.Headers.Add("Content-Disposition",
-                                "attachment; filename=" + downloadStream.FileName);
+                            context.Response.Headers.Add("Content-Disposition", "attachment; filename=" + downloadStream.FileName);
                             await downloadStream.DownloadStream.CopyToAsync(context.Response.Body);
                             downloadStream.Dispose();
                         }

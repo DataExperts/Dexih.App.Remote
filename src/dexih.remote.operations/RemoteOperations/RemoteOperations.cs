@@ -6,6 +6,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
+using System.Runtime.Serialization.Json;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -26,7 +27,9 @@ using Dexih.Utils.MessageHelpers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Newtonsoft.Json.Serialization;
 
 namespace dexih.remote.operations
 {
@@ -171,6 +174,7 @@ namespace dexih.remote.operations
 			{
 				var value = message.Value.ToObject<string>();
 				var result = EncryptString.Decrypt(value, _remoteSettings.AppSettings.EncryptionKey, _remoteSettings.SystemSettings.EncryptionIterations);
+                
                 return result;
             }
             catch (Exception ex)
@@ -199,7 +203,7 @@ namespace dexih.remote.operations
             try
             {
                 var dbDatalinkTransformItem = message.Value["datalinkTransformItem"].ToObject<DexihDatalinkTransformItem>();
-                var dbHub = message.Value["hub"].ToObject<DexihHub>();
+                var dbHub = new DexihHub() {HubKey = message.HubKey};
                 var testValues = message.Value["testValues"]?.ToObject<object[]>();
 
                 var createFunction = dbDatalinkTransformItem.CreateFunctionMethod(dbHub, CreateGlobalSettings(null), false);
@@ -232,13 +236,12 @@ namespace dexih.remote.operations
         {
             try
             {
-                var dbColumnValidation = message.Value["columnValidation"].ToObject<DexihColumnValidation>();
-                var dbHub = message.Value["hub"].ToObject<DexihHub>();
-                object testValue = null;
-                testValue = message.Value["testValue"]?.ToObject<object>();
+                var cache = message.Value["cache"].ToObject<CacheManager>();
+                var columnValidation = message.Value["columnValidation"].ToObject<DexihColumnValidation>();
+                object testValue = message.Value["testValue"]?.ToObject<object>();
 
                 var validationRun =
-                    new ColumnValidationRun(GetTransformSettings(message.HubVariables), dbColumnValidation, dbHub)
+                    new ColumnValidationRun(GetTransformSettings(message.HubVariables), columnValidation, cache.Hub)
                     {
                         DefaultValue = "<default value>"
                     };
@@ -609,9 +612,9 @@ namespace dexih.remote.operations
                         {
                             GlobalSettings = CreateGlobalSettings(cache.CacheEncryptionKey),
                         };
-                        var datalinkTestRun = new DatalinkTestRun(GetTransformSettings(message.HubVariables), _logger, datalinkTest, cache.Hub, transformWriterOptions);
-                        datalinkTestRun.StartMode = EStartMode.RunSnapshot;
-//                        ;
+                        var datalinkTestRun = new DatalinkTestRun(GetTransformSettings(message.HubVariables), _logger,
+                            datalinkTest, cache.Hub, transformWriterOptions) {StartMode = EStartMode.RunSnapshot};
+                        //                        ;
 //
 //                        async Task DatalinkTestSnapshotTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken cancellationToken2)
 //                        {
@@ -936,7 +939,7 @@ namespace dexih.remote.operations
                 }
                 catch (Exception ex)
                 {
-                    throw new RemoteOperationException($"Failed to start the job {dbDatajob.Name}.");
+                    throw new RemoteOperationException($"Failed to start the job {dbDatajob.Name}.  Error: {ex.Message}", ex);
                 }
                 
                 return dbDatajob;
@@ -1397,8 +1400,6 @@ namespace dexih.remote.operations
                 throw;
             }
         }
-
-
         
         private async Task<string> StartUploadStream(Func<Stream, Task> uploadAction, DownloadUrl downloadUrl, string format, string fileName, CancellationToken cancellationToken)
         {
@@ -1749,36 +1750,52 @@ namespace dexih.remote.operations
             }
         }
 
-        public async Task<List<TransformWriterResult>> GetResults(RemoteMessage message, CancellationToken cancellationToken)
+        public async Task<string> GetAuditResults(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
             {
-                var dbConnections = message.Value["connections"].ToObject<DexihConnection[]>();
+                var cache = Json.JTokenToObject<CacheManager>(message.Value["cache"],
+                    _sharedSettings.SessionEncryptionKey);
                 var hubKey = message.HubKey;
+                var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
                 var referenceKeys = message.Value["referenceKeys"]?.ToObject<long[]>();
                 var auditType = message.Value["auditType"]?.ToObject<string>();
-                var auditKey = message.Value["auditKey"]?.ToObject<long>();
-                var runStatus = message.Value["runStatus"]?.ToObject<TransformWriterResult.ERunStatus>();
-                var previousResult = message.Value["previousResult"]?.ToObject<bool>()??false;
-                var previousSuccessResult = message.Value["previousSuccessResult"]?.ToObject<bool>()??false;
-                var currentResult = message.Value["currentResult"]?.ToObject<bool>()??false;
-                var startTime = message.Value["startTime"]?.ToObject<DateTime>();
-                var rows = message.Value["rows"]?.ToObject<int>()??int.MaxValue;
-                var parentAuditKey = message.Value["parentAuditKey"]?.ToObject<long>();
-                var childItems = message.Value["childItems"]?.ToObject<bool>()??false;
+                var auditKey = message.Value["auditKey"]?.ToObject<long?>();
+                var runStatus = message.Value["runStatus"]?.ToObject<TransformWriterResult.ERunStatus?>();
+                var previousResult = message.Value["previousResult"]?.ToObject<bool?>() ?? false;
+                var previousSuccessResult = message.Value["previousSuccessResult"]?.ToObject<bool?>() ?? false;
+                var currentResult = message.Value["currentResult"]?.ToObject<bool?>() ?? false;
+                var startTime = message.Value["startTime"]?.ToObject<DateTime?>();
+                var rows = message.Value["rows"]?.ToObject<int?>() ?? int.MaxValue;
+                var parentAuditKey = message.Value["parentAuditKey"]?.ToObject<long?>();
+                var childItems = message.Value["childItems"]?.ToObject<bool?>() ?? false;
 
                 var transformWriterResults = new List<TransformWriterResult>();
 
                 //_loggerMessages.LogInformation("Preview of datalink results for keys: {keys}", string.Join(",", referenceKeys?.Select(c => c.ToString()).ToArray()));
 
-                foreach (var dbConnection in dbConnections)
+                foreach (var dbConnection in cache.Hub.DexihConnections)
                 {
                     var connection = dbConnection.GetConnection(GetTransformSettings(message.HubVariables));
-                    var writerResults = await connection.GetTransformWriterResults(hubKey, dbConnection.Key, referenceKeys, auditType, auditKey, runStatus, previousResult, previousSuccessResult, currentResult, startTime, rows, parentAuditKey, childItems, cancellationToken);
+                    var writerResults = await connection.GetTransformWriterResults(hubKey, dbConnection.Key,
+                        referenceKeys, auditType, auditKey, runStatus, previousResult, previousSuccessResult,
+                        currentResult, startTime, rows, parentAuditKey, childItems, cancellationToken);
                     transformWriterResults.AddRange(writerResults);
                 }
 
-                return transformWriterResults;
+                var content = JsonConvert.SerializeObject(transformWriterResults,
+                    new JsonSerializerSettings {ContractResolver = new CamelCasePropertyNamesContractResolver()});
+                
+                var stream = new MemoryStream();
+                var writer = new StreamWriter(stream);
+                writer.Write(content);
+                writer.Flush();
+                stream.Position = 0;
+//            var stream = new MemoryStream();
+//                var ser = new DataContractJsonSerializer(typeof(List<TransformWriterResult>));
+//                ser.WriteObject(stream, transformWriterResults);
+//                stream.Position = 0;
+                return await _sharedSettings.StartDataStream(stream, downloadUrl, "json", "audit_results.json", cancellationToken);
             }
             catch (Exception ex)
             {
@@ -1790,13 +1807,13 @@ namespace dexih.remote.operations
         private (long hubKey, ConnectionFlatFile connection, FlatFile flatFile) GetFlatFile(RemoteMessage message)
 		{
             // Import the datalink metadata.
-            var dbHub = message.Value["hub"].ToObject<DexihHub>();
-            var dbTable = Json.JTokenToObject<DexihTable>(message.Value["table"], _sharedSettings.SessionEncryptionKey);
-            var dbConnection =dbHub.DexihConnections.First();
+            var cache = Json.JTokenToObject<CacheManager>(message.Value["cache"], _sharedSettings.SessionEncryptionKey);
+            var dbTable = message.Value["table"]?.ToObject<DexihTable>();
+            var dbConnection =cache.Hub.DexihConnections.SingleOrDefault(c => c.Key == dbTable.ConnectionKey);
 		    var transformSettings = GetTransformSettings(message.HubVariables);
 		    var connection = (ConnectionFlatFile)dbConnection.GetConnection(transformSettings);
-            var table = dbTable.GetTable(dbHub, connection, transformSettings);
-			return (dbHub.HubKey, connection, (FlatFile) table);
+            var table = dbTable.GetTable(cache.Hub, connection, transformSettings);
+			return (cache.HubKey, connection, (FlatFile) table);
 		}
 
         public async Task<bool> CreateFilePaths(RemoteMessage message, CancellationToken cancellationToken)
@@ -1831,7 +1848,6 @@ namespace dexih.remote.operations
                     {
                         return false;
                     }
-
                 }
                 return true;
             }
@@ -1857,7 +1873,6 @@ namespace dexih.remote.operations
                     {
                         return false;
                     }
-
                 }
                 return true;
             }
@@ -1867,8 +1882,6 @@ namespace dexih.remote.operations
                 throw;
             }
         }
-
-
 
         public async Task<List<DexihFileProperties>> GetFileList(RemoteMessage message, CancellationToken cancellationToken)
         {
@@ -1888,99 +1901,6 @@ namespace dexih.remote.operations
             }
         }
 
-//        public async Task<bool> SaveFile(RemoteMessage message, CancellationToken cancellationToken)
-//        {
-//            try
-//            {
-//                if (!_remoteSettings.Privacy.AllowDataUpload)
-//                {
-//                    throw new RemoteSecurityException("This remote agent's privacy settings does not allow remote data to be accessed.");
-//                }
-//
-//                var dbCache = Json.JTokenToObject<CacheManager>(message.Value, _sharedSettings.SessionEncryptionKey);
-//
-//                var dbTable = dbCache.Hub.DexihTables.FirstOrDefault();
-//                if (dbTable == null)
-//                {
-//                    throw new RemoteOperationException("The table could not be found.");
-//                }
-//
-//                var dbConnection = dbCache.Hub.DexihConnections.SingleOrDefault(c => c.Key == dbTable.ConnectionKey);
-//                if(dbConnection == null)
-//                {
-//                    throw new RemoteOperationException("The connection could not be found.");
-//                }
-//
-//                var transformSettings = GetTransformSettings(message.HubVariables);
-//                var connection = (ConnectionFlatFile)dbConnection.GetConnection(transformSettings);
-//                var table = dbTable.GetTable(dbCache.Hub, connection, transformSettings);
-//
-//                var flatFile = (FlatFile)table;
-//
-//                _logger.LogInformation($"SaveFile for connection: {connection.Name}, FileName {flatFile.Name}.");
-//
-//				var fileReference = message.GetParameter("FileReference");
-//				var fileName = message.GetParameter("FileName");
-//
-//                //progress messages are send and forget as it is not critical that they are received.
-//                var content = new FormUrlEncodedContent(new[]
-//                {
-//                    new KeyValuePair<string, string>("InstanceId", _sharedSettings.InstanceId),
-//                    new KeyValuePair<string, string>("SecurityToken", _sharedSettings.SecurityToken),
-//                    new KeyValuePair<string, string>("FileReference", fileReference),
-//                });
-//
-//                var response = await _sharedSettings.PostAsync( "Remote/GetFileStream", content, cancellationToken);
-//
-//                if (response.IsSuccessStatusCode)
-//                {
-//                    if(fileName.EndsWith(".zip"))
-//                    {
-//                        using (var archive = new ZipArchive(await response.Content.ReadAsStreamAsync(), ZipArchiveMode.Read, true))
-//                        {
-//                            foreach(var entry in archive.Entries)
-//                            {
-//                                var saveArchiveFile = await connection.SaveFileStream(flatFile, EFlatFilePath.Incoming, entry.Name, entry.Open());
-//                                if(!saveArchiveFile)
-//                                {
-//                                    throw new RemoteOperationException("The save file stream failed.");
-//                                }
-//                            }
-//                        }
-//
-//                        return true;
-//                    } 
-//                    else if (fileName.EndsWith(".gz"))
-//                    {
-//                        var newFileName = fileName.Substring(0, fileName.Length - 3);
-//
-//                        using (var decompressionStream = new GZipStream(await response.Content.ReadAsStreamAsync(), CompressionMode.Decompress))
-//                        {
-//                            var saveArchiveFile = await connection.SaveFileStream(flatFile, EFlatFilePath.Incoming, newFileName, decompressionStream);
-//                            if(!saveArchiveFile)
-//                            {
-//                                throw new RemoteOperationException("The save file stream failed.");
-//                            }
-//                        }
-//
-//                        return true;
-//                    }
-//                    else
-//                    {
-//                        var stream = await response.Content.ReadAsStreamAsync();
-//                        var saveFile = await connection.SaveFileStream(flatFile, EFlatFilePath.Incoming, fileName, stream);
-//                        return saveFile;
-//                    }
-//                }
-//
-//                throw new RemoteOperationException(response.ReasonPhrase);
-//            }
-//            catch (Exception ex)
-//            {
-//                _logger.LogError(240, ex, "Error in SaveFile: {0}", ex.Message);
-//                throw;
-//            }
-//        }
 
         public async Task<string> UploadFile(RemoteMessage message, CancellationToken cancellationToken)
         {
@@ -1993,7 +1913,8 @@ namespace dexih.remote.operations
 
                 var dbCache = Json.JTokenToObject<CacheManager>(message.Value["cache"], _sharedSettings.SessionEncryptionKey);
                 var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
-
+                var fileName = message.Value["fileName"].ToObject<string>();
+                var path = message.Value["path"].ToObject<EFlatFilePath>();
                 var dbTable = dbCache.Hub.DexihTables.FirstOrDefault();
                 if (dbTable == null)
                 {
@@ -2011,7 +1932,7 @@ namespace dexih.remote.operations
                 var table = dbTable.GetTable(dbCache.Hub, connection, transformSettings);
 
                 var flatFile = (FlatFile)table;
-                var fileName = message.GetParameter("FileName");
+                
 
                 _logger.LogInformation($"UploadFile for connection: {connection.Name}, Name {flatFile.Name}, FileName {fileName}");
 
@@ -2053,7 +1974,7 @@ namespace dexih.remote.operations
 //                        }
 //                        else
 //                        {
-                            var saveFile = await connection.SaveFiles(flatFile, EFlatFilePath.Incoming, fileName, stream);
+                            var saveFile = await connection.SaveFiles(flatFile, path, fileName, stream);
 //                        }
                     }
                     catch (Exception ex)
@@ -2131,14 +2052,14 @@ namespace dexih.remote.operations
                         "This remote agent's privacy settings does not allow remote data to be accessed.");
                 }
 
-                var dbCache =
-                    Json.JTokenToObject<CacheManager>(message.Value["cache"], _sharedSettings.SessionEncryptionKey);
+                var dbCache = Json.JTokenToObject<CacheManager>(message.Value["cache"], _sharedSettings.SessionEncryptionKey);
                 var downloadUrl = message.Value["downloadUrl"].ToObject<DownloadUrl>();
                 var connectionId = message.Value["connectionId"].ToString();
                 var connectionKey = message.Value["connectionKey"].ToObject<long>();
                 var fileFormatKey = message.Value["fileFormatKey"].ToObject<long>();
                 var formatType = message.Value["formatType"].ToObject<DataType.ETypeCode>();
-
+                var fileName = message.Value["fileName"].ToObject<string>();
+                
                 var dbConnection = dbCache.Hub.DexihConnections.SingleOrDefault(c => c.Key == connectionKey);
                 if (dbConnection == null)
                 {
@@ -2160,7 +2081,6 @@ namespace dexih.remote.operations
                 var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
                 var connection = (ConnectionFlatFile) dbConnection.GetConnection(transformSettings);
 
-                var fileName = message.GetParameter("FileName");
                 var reference = Guid.NewGuid().ToString();
 
                 _logger.LogInformation(
