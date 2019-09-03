@@ -224,6 +224,12 @@ namespace dexih.remote.Operations.Services
                 var messagesString = Json.SerializeObject(RemoteSettings, SessionEncryptionKey);
                 var content = new StringContent(messagesString, Encoding.UTF8, "application/json");
 
+                // if no remoteAgentId specified, then create one before attempting login.
+                if(string.IsNullOrEmpty(RemoteSettings.AppSettings.RemoteAgentId))
+                {
+                    RemoteSettings.AppSettings.RemoteAgentId = Guid.NewGuid().ToString();
+                }
+
                 HttpResponseMessage response;
                 try
                 {
