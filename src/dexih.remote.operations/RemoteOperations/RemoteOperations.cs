@@ -1389,7 +1389,7 @@ namespace dexih.remote.operations
 
                 _logger.LogInformation("Preview for table: " + dbTable.Name + ".");
 
-                var stream = new StreamJsonCompact(dbTable.Name, reader, selectQuery?.Rows ?? 100);
+                var stream = new StreamJsonCompact(dbTable.Name, reader, 1000, selectQuery?.Rows ?? 100);
 
                 return await _sharedSettings.StartDataStream(stream, downloadUrl, "json", "preview_table.json", cancellationToken);
 
@@ -1484,7 +1484,7 @@ namespace dexih.remote.operations
                 transform.SetCacheMethod(Transform.ECacheMethod.DemandCache);
                 transform.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
 
-                var stream = new StreamJsonCompact(dbDatalink.Name + " " + transform.Name, transform, transformWriterOptions.SelectQuery.Rows);
+                var stream = new StreamJsonCompact(dbDatalink.Name + " " + transform.Name, transform, 1000, transformWriterOptions.SelectQuery.Rows);
                 return await _sharedSettings.StartDataStream(stream, downloadUrl, "json", "preview_transform.json", cancellationToken);
             }
             catch (Exception ex)
@@ -1618,7 +1618,7 @@ namespace dexih.remote.operations
                 transform.SetCacheMethod(Transform.ECacheMethod.DemandCache);
                 transform.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
 
-                var stream = new StreamJsonCompact(dbDatalink.Name, transform, transformWriterOptions.SelectQuery.Rows);
+                var stream = new StreamJsonCompact(dbDatalink.Name, transform, 1000, transformWriterOptions.SelectQuery.Rows);
                 return await _sharedSettings.StartDataStream(stream, downloadUrl, "json", "preview_datalink.json", cancellationToken);
             }
             catch (Exception ex)
@@ -1736,7 +1736,7 @@ namespace dexih.remote.operations
                     reader.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
 
                     _logger.LogInformation("Preview for profile results: " + profileTable.Name + ".");
-                    var stream = new StreamJsonCompact(profileTable.Name, reader, query.Rows);
+                    var stream = new StreamJsonCompact(profileTable.Name, reader, 1000, query.Rows);
 
                     return await _sharedSettings.StartDataStream(stream, downloadUrl, "json", "preview_table.json", cancellationToken);
                 }
@@ -2243,43 +2243,7 @@ namespace dexih.remote.operations
                 var securityToken = _sharedSettings.SecurityToken;
 
                 var reference = Guid.NewGuid().ToString();
-
-//                // put the download into an action and allow to complete in the scheduler.
-//                async Task DownloadTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken ct)
-//                {
-//                    progress.Report(50, 1, "Running data extract...");
-//                    var downloadData = new DownloadData(GetTransformSettings(message.HubVariables));
-//                    var downloadStream = await downloadData.GetStream(cache, downloadObjects, downloadFormat, zipFiles, cancellationToken);
-//                    var filename = downloadStream.FileName;
-//                    var stream = downloadStream.Stream;
-//
-//                    progress.Report(100, 2, "Download ready...");
-//
-//                    var result = await StartDataStream(stream, downloadUrl, "file", filename, cancellationToken);
-//                    
-//                    var downloadMessage = new
-//                    {
-//                        _sharedSettings.InstanceId,
-//                        SecurityToken = securityToken,
-//                        ConnectionId = connectionId,
-//                        Reference = reference,
-//                        HubKey = message.HubKey,
-//                        Url = result
-//                    };
-//
-//                    var response = await _sharedSettings.PostAsync("Remote/DownloadReady", downloadMessage, ct);
-//                    if (!response.IsSuccessStatusCode)
-//                    {
-//                        throw new RemoteOperationException($"The data download did not complete as the http server returned the response {response.ReasonPhrase}.");
-//                    }
-//                    var returnValue = Json.DeserializeObject<ReturnValue>(await response.Content.ReadAsStringAsync(), _sharedSettings.SessionEncryptionKey);
-//                    if (!returnValue.Success)
-//                    {
-//                        throw new RemoteOperationException($"The data download did not completed.  {returnValue.Message}", returnValue.Exception);
-//                    }
-//
-//                }
-                
+               
                 var downloadData = new DownloadData(GetTransformSettings(message.HubVariables), cache, downloadObjects, downloadFormat, zipFiles);
                 var downloadDataTask = new DownloadDataTask(_sharedSettings, message.HubKey, downloadData, downloadUrl, connectionId, reference);
 

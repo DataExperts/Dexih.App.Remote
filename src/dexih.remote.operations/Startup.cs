@@ -177,7 +177,7 @@ namespace dexih.remote.operations
 
                             context.Response.StatusCode = 200;
                             context.Response.Headers.Add("Content-Disposition", "attachment; filename=" + downloadStream.FileName);
-                            await downloadStream.DownloadStream.CopyToAsync(context.Response.Body);
+                            await downloadStream.DownloadStream.CopyToAsync(context.Response.Body, context.RequestAborted);
                             downloadStream.Dispose();
                         }
                     }

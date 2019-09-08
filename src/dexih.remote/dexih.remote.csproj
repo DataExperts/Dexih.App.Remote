@@ -21,6 +21,11 @@
     <TargetFramework>netcoreapp2.2</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Remove="autoStart\**" />
+    <EmbeddedResource Remove="autoStart\**" />
+    <None Remove="autoStart\**" />
+  </ItemGroup>
+  <ItemGroup>
     <Content Include="dexih_start.sh">
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
@@ -70,7 +75,6 @@
     <ProjectReference Include="..\dexih.remote.operations\dexih.remote.operations.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <Folder Include="autoStart" />
     <Folder Include="certificates" />
   </ItemGroup>
 </Project>
