@@ -5,7 +5,7 @@ namespace dexih.remote.operations
 {
     public enum EAutoStartType
     {
-        Datajob,
+        Datajob = 1,
         Api
     }
     

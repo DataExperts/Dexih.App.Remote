@@ -5,15 +5,17 @@ using dexih.functions.Query;
 using dexih.transforms;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
+using ProtoBuf;
 
 namespace dexih.remote.Operations.Services
 {
-    [JsonConverter(typeof(StringEnumConverter))]
-    public enum ApiStatus
+    // [JsonConverter(typeof(StringEnumConverter))]
+    public enum EApiStatus
     {
-        Activated, Deactivated
+        Activated = 1, Deactivated
     }
     
+    [ProtoContract]
     public class ApiData: IDisposable
     {
         public ApiData()
@@ -27,14 +29,25 @@ namespace dexih.remote.Operations.Services
         /// </summary>
         private readonly SemaphoreSlim _semaphoreSlim = new SemaphoreSlim(1, 1);
         
-        public ApiStatus ApiStatus { get; set; }
+        [ProtoMember(1)]
+        public EApiStatus ApiStatus { get; set; }
+
+        [ProtoMember(2)]
         public long HubKey { get; set; }
+
+        [ProtoMember(3)]
         public long ApiKey { get; set; }
-        
+
+        [ProtoMember(4)]
         public SelectQuery SelectQuery { get; set; }
+
+        [ProtoMember(5)]
         public string SecurityKey { get; set; }
+
+        [ProtoMember(6)]
         public long SuccessCount { get; set; }
 
+        [ProtoMember(7)]
         public long ErrorCount { get; set; }
 
 

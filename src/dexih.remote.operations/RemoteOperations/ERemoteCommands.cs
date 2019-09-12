@@ -3,7 +3,7 @@ namespace dexih.remote.operations
 {
     public enum ERemoteOperations
     {
-        Ping,
+        Ping = 1,
         GetRemoteAgentStatus,
         Encrypt,
         Decrypt,

@@ -3,21 +3,21 @@ namespace dexih.remote.operations
 {
     public enum EConnectionResult
     {
-        Connected = 0,
-        Disconnected = 1,
-        InvalidLocation = 2,
-        InvalidCredentials = 3,
-        UnhandledException = 4,
-        Restart = 5,
-        Connecting = 6
+        Connected = 1,
+        Disconnected = 2,
+        InvalidLocation = 3,
+        InvalidCredentials = 4,
+        UnhandledException = 5,
+        Restart = 6,
+        Connecting = 7
     }
 
     public enum EExitCode
     {
-        Success = 0,
-        InvalidSetting = 1,
-        InvalidLogin = 2,
-        Terminated = 3,
+        Success = 1,
+        InvalidSetting = 2,
+        InvalidLogin = 3,
+        Terminated = 4,
         UnknownError = 10,
         Upgrade = 20
     }

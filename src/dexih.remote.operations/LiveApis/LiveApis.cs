@@ -80,7 +80,7 @@ namespace dexih.remote.Operations.Services
             {
                 var apiData = new ApiData()
                 {
-                    ApiStatus = ApiStatus.Activated,
+                    ApiStatus = EApiStatus.Activated,
                     HubKey = hubKey,
                     ApiKey = apiKey,
                     SecurityKey = securityKey,
@@ -119,7 +119,7 @@ namespace dexih.remote.Operations.Services
                     {
                         if (apiKeys.TryRemove(apiKey, out var _))
                         {
-                            apiData.ApiStatus = ApiStatus.Deactivated;
+                            apiData.ApiStatus = EApiStatus.Deactivated;
                             ApiUpdate(apiData);
                         }
                         else
@@ -235,7 +235,7 @@ namespace dexih.remote.Operations.Services
                     selectQuery.Rows = rows;
 
                     var combinedCancel = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, cts.Token).Token;
-                    var result = await apiData.Transform.LookupJson(selectQuery, Transform.EDuplicateStrategy.All, combinedCancel);
+                    var result = await apiData.Transform.LookupJson(selectQuery, EDuplicateStrategy.All, combinedCancel);
                     apiData.IncrementSuccess();
                     timer.Stop();
                     
@@ -371,7 +371,7 @@ namespace dexih.remote.Operations.Services
             }
 
             
-            transform.SetCacheMethod(dbApi.CacheQueries ? Transform.ECacheMethod.LookupCache : Transform.ECacheMethod.NoCache);
+            transform.SetCacheMethod(dbApi.CacheQueries ? ECacheMethod.LookupCache : ECacheMethod.NoCache);
             key = Add(hub.HubKey, autoStart.Key, transform, dbApi.CacheResetInterval, autoStart.SecurityKey, dbApi.SelectQuery);
 
             return (key, dbApi);

@@ -379,21 +379,24 @@ namespace dexih.remote.Operations.Services
                 _logger.LogCritical(4, message);
                 throw new Exception(message);            
             }
-            
-            var serverResponse = await response.Content.ReadAsStringAsync();
+
+
+            // var serverResponse = await response.Content.ReadAsStringAsync();
             try
             {
                 // get the global cache from the server, and return remote libraries which are missing.
-                var returnValue = Json.DeserializeObject<ReturnValue<CacheManager>>(serverResponse, "");
+                // var returnValue = Json.DeserializeObject<ReturnValue<CacheManager>>(serverResponse, "");
 
-                if (!returnValue.Success)
-                {
-                    var message = $"Error getting global cache: {returnValue.Message}";
-                    _logger.LogCritical(4, message);
-                    throw new Exception(returnValue.Message, new Exception(returnValue.ExceptionDetails));
-                }
+                //if (!returnValue.Success)
+                //{
+                //    var message = $"Error getting global cache: {returnValue.Message}";
+                //    _logger.LogCritical(4, message);
+                //    throw new Exception(returnValue.Message, new Exception(returnValue.ExceptionDetails));
+                //}
 
-                var globalCache = returnValue.Value;
+                // var globalCache = returnValue.Value;
+                var responseStream = await response.Content.ReadAsStreamAsync();
+                var globalCache = ProtoBuf.Serializer.Deserialize<CacheManager>(responseStream);
 
                 var globalFunctions = globalCache.DefaultRemoteLibraries.Functions
                     .ToDictionary(c => (c.FunctionAssemblyName, c.FunctionClassName, c.FunctionMethodName));
@@ -426,10 +429,10 @@ namespace dexih.remote.Operations.Services
 
                 return remoteLibraries;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
                 _logger.LogCritical(4,
-                    $"An invalid response was returned connecting with server.  Response was: \"{serverResponse}\".");
+                    $"An invalid response was returned connecting with server.  Response was: \"{ex.Message}\".");
                 throw;
             }
         }

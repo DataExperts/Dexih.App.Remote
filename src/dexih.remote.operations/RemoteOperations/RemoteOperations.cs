@@ -217,7 +217,7 @@ namespace dexih.remote.operations
                     var i = 0;
 
                     var inputs = dbDatalinkTransformItem.DexihFunctionParameters
-                        .Where(c => c.Direction == DexihParameterBase.EParameterDirection.Input).Select(
+                        .Where(c => c.Direction == EParameterDirection.Input).Select(
                             parameter => Dexih.Utils.DataType.Operations.Parse(parameter.DataType, parameter.Rank, testValues[i++])).ToArray<object>();
 
                     var result = createFunction.function.RunFunction(new FunctionVariables(), inputs, out object[] outputs, cancellationToken);
@@ -1385,7 +1385,7 @@ namespace dexih.remote.operations
                 var reader = connection.GetTransformReader(table, true);
                 reader = new TransformQuery(reader, selectQuery) {Name = "Preview Query"};
                 await reader.Open(0, null, cancellationToken);
-                reader.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
+                reader.SetEncryptionMethod(EEncryptionMethod.MaskSecureFields, "");
 
                 _logger.LogInformation("Preview for table: " + dbTable.Name + ".");
 
@@ -1481,8 +1481,8 @@ namespace dexih.remote.operations
                     throw new RemoteOperationException("Failed to open the transform.");
                 }
 
-                transform.SetCacheMethod(Transform.ECacheMethod.DemandCache);
-                transform.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
+                transform.SetCacheMethod(ECacheMethod.DemandCache);
+                transform.SetEncryptionMethod(EEncryptionMethod.MaskSecureFields, "");
 
                 var stream = new StreamJsonCompact(dbDatalink.Name + " " + transform.Name, transform, 1000, transformWriterOptions.SelectQuery.Rows);
                 return await _sharedSettings.StartDataStream(stream, downloadUrl, "json", "preview_transform.json", cancellationToken);
@@ -1537,8 +1537,8 @@ namespace dexih.remote.operations
                     throw new RemoteOperationException("Failed to open the transform.");
                 }
 
-                transform.SetCacheMethod(Transform.ECacheMethod.DemandCache);
-                transform.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
+                transform.SetCacheMethod(ECacheMethod.DemandCache);
+                transform.SetEncryptionMethod(EEncryptionMethod.MaskSecureFields, "");
                 var hasRow = await transform.ReadAsync(cancellationToken);
                 if (!hasRow)
                 {
@@ -1615,8 +1615,8 @@ namespace dexih.remote.operations
                     throw new RemoteOperationException("Failed to open the datalink.");
                 }
 
-                transform.SetCacheMethod(Transform.ECacheMethod.DemandCache);
-                transform.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
+                transform.SetCacheMethod(ECacheMethod.DemandCache);
+                transform.SetEncryptionMethod(EEncryptionMethod.MaskSecureFields, "");
 
                 var stream = new StreamJsonCompact(dbDatalink.Name, transform, 1000, transformWriterOptions.SelectQuery.Rows);
                 return await _sharedSettings.StartDataStream(stream, downloadUrl, "json", "preview_datalink.json", cancellationToken);
@@ -1686,8 +1686,8 @@ namespace dexih.remote.operations
                     throw new RemoteOperationException("Failed to open the transform.");
                 }
 
-                transform.SetCacheMethod(Transform.ECacheMethod.DemandCache);
-                transform.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
+                transform.SetCacheMethod(ECacheMethod.DemandCache);
+                transform.SetEncryptionMethod(EEncryptionMethod.MaskSecureFields, "");
 
                 var stream = new StreamCsv(transform);
                 return await _sharedSettings.StartDataStream(stream, downloadUrl, "csv", "reader_data.csv", cancellationToken);
@@ -1733,7 +1733,7 @@ namespace dexih.remote.operations
                     var reader = connection.GetTransformReader(profileTable);
                     reader = new TransformQuery(reader, query);
                     await reader.Open(0, null, cancellationToken);
-                    reader.SetEncryptionMethod(Transform.EEncryptionMethod.MaskSecureFields, "");
+                    reader.SetEncryptionMethod(EEncryptionMethod.MaskSecureFields, "");
 
                     _logger.LogInformation("Preview for profile results: " + profileTable.Name + ".");
                     var stream = new StreamJsonCompact(profileTable.Name, reader, 1000, query.Rows);
