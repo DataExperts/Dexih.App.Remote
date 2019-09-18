@@ -321,7 +321,7 @@ namespace dexih.remote.operations
             }
         }
 
-        private  Task<ManagedTask> RunDataLink(string connectionId, long hubKey, DatalinkRun datalinkRun, DatajobRun parentDataJobRun, string[] dependencies)
+        private  ManagedTask RunDataLink(string connectionId, long hubKey, DatalinkRun datalinkRun, DatajobRun parentDataJobRun, string[] dependencies)
         {
             try
             {
@@ -664,7 +664,7 @@ namespace dexih.remote.operations
             }
         }
 
-        public async Task RunDatajobs(RemoteMessage message, CancellationToken cancellationToken)
+        public void RunDatajobs(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
             {
@@ -703,7 +703,7 @@ namespace dexih.remote.operations
                         
                         dbDatajob.UpdateParameters(inputParameters);
 
-                        await AddDataJobTask(cache.Hub, GetTransformSettings(message.HubVariables, dbDatajob.Parameters), connectionId, dbDatajob, transformWriterOptions, null, null);
+                        AddDataJobTask(cache.Hub, GetTransformSettings(message.HubVariables, dbDatajob.Parameters), connectionId, dbDatajob, transformWriterOptions, null, null);
                     }
                     catch (Exception ex)
                     {
@@ -727,7 +727,7 @@ namespace dexih.remote.operations
             }
         }
 
-		private Task AddDataJobTask(DexihHub dbHub, TransformSettings transformSettings, string connectionId, DexihDatajob dbHubDatajob, TransformWriterOptions transformWriterOptions, IEnumerable<ManagedTaskSchedule> managedTaskSchedules, IEnumerable<ManagedTaskFileWatcher> fileWatchers)
+		private void AddDataJobTask(DexihHub dbHub, TransformSettings transformSettings, string connectionId, DexihDatajob dbHubDatajob, TransformWriterOptions transformWriterOptions, IEnumerable<ManagedTaskSchedule> managedTaskSchedules, IEnumerable<ManagedTaskFileWatcher> fileWatchers)
 		{
             try
             {
@@ -791,7 +791,7 @@ namespace dexih.remote.operations
                     FileWatchers = fileWatchers
                 };
 
-                return _managedTasks.Add(newManagedTask);
+                _managedTasks.Add(newManagedTask);
             }
             catch (Exception ex)
             {
@@ -799,7 +799,7 @@ namespace dexih.remote.operations
             }
 		}
 
-        public async Task ActivateDatajobs(RemoteMessage message, CancellationToken cancellationToken)
+        public void ActivateDatajobs(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
             {
@@ -824,7 +824,7 @@ namespace dexih.remote.operations
                             EncryptionKey = cache.CacheEncryptionKey
                         };
 
-                        var datajob = await ActivateDatajob(package);
+                        var datajob = ActivateDatajob(package);
                         
                         if (datajob.AutoStart && (datajob.DexihTriggers.Count > 0 || datajob.FileWatch) )
                         {
@@ -860,7 +860,7 @@ namespace dexih.remote.operations
             }
         }
 
-        public async Task<DexihDatajob> ActivateDatajob(AutoStart autoStart, string connectionId = "none")
+        public DexihDatajob ActivateDatajob(AutoStart autoStart, string connectionId = "none")
         {
             try
             {
@@ -934,7 +934,7 @@ namespace dexih.remote.operations
 
                 try
                 {
-                    await AddDataJobTask(autoStart.Hub, GetTransformSettings(autoStart.HubVariables, dbDatajob.Parameters), connectionId,
+                    AddDataJobTask(autoStart.Hub, GetTransformSettings(autoStart.HubVariables, dbDatajob.Parameters), connectionId,
                         dbDatajob, transformWriterOptions, triggers, paths);
                 }
                 catch (Exception ex)
@@ -1390,7 +1390,6 @@ namespace dexih.remote.operations
                 _logger.LogInformation("Preview for table: " + dbTable.Name + ".");
 
                 var stream = new StreamJsonCompact(dbTable.Name, reader, 1000, selectQuery?.Rows ?? 100);
-
                 return await _sharedSettings.StartDataStream(stream, downloadUrl, "json", "preview_table.json", cancellationToken);
 
             }
@@ -1433,7 +1432,7 @@ namespace dexih.remote.operations
                     FileWatchers = null,
                 };
 
-                await _managedTasks.Add(newManagedTask);
+                _managedTasks.Add(newManagedTask);
 
                 return upload;
             }
@@ -1788,8 +1787,8 @@ namespace dexih.remote.operations
                 
                 var stream = new MemoryStream();
                 var writer = new StreamWriter(stream);
-                writer.Write(content);
-                writer.Flush();
+                await writer.WriteAsync(content);
+                await writer.FlushAsync();
                 stream.Position = 0;
 //            var stream = new MemoryStream();
 //                var ser = new DataContractJsonSerializer(typeof(List<TransformWriterResult>));
@@ -2160,7 +2159,7 @@ namespace dexih.remote.operations
             }
         }
 
-        public async Task<ManagedTask> DownloadFiles(RemoteMessage message, CancellationToken cancellationToken)
+        public ManagedTask DownloadFiles(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
             {
@@ -2214,7 +2213,7 @@ namespace dexih.remote.operations
 
                 var downloadFilesTask = new DownloadFilesTask(_sharedSettings, message.HubKey, connectionTable.connection, connectionTable.flatFile, path, files, downloadUrl, connectionId, reference);
 
-                var startDownloadResult = await _managedTasks.Add(reference, connectionId,
+                var startDownloadResult = _managedTasks.Add(reference, connectionId,
                     $"Download file: {files[0]} from {path}.", "Download", connectionTable.hubKey, null, 0, downloadFilesTask, null, null, null);
                 return startDownloadResult;
             }
@@ -2225,7 +2224,7 @@ namespace dexih.remote.operations
             }
         }
 
-        public async Task<ManagedTask> DownloadData(RemoteMessage message, CancellationToken cancellationToken)
+        public ManagedTask DownloadData(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
             {
@@ -2247,7 +2246,7 @@ namespace dexih.remote.operations
                 var downloadData = new DownloadData(GetTransformSettings(message.HubVariables), cache, downloadObjects, downloadFormat, zipFiles);
                 var downloadDataTask = new DownloadDataTask(_sharedSettings, message.HubKey, downloadData, downloadUrl, connectionId, reference);
 
-                var startDownloadResult = await _managedTasks.Add(reference, connectionId, $"Download Data File", "Download", cache.HubKey, null, 0, downloadDataTask, null, null, null);
+                var startDownloadResult = _managedTasks.Add(reference, connectionId, $"Download Data File", "Download", cache.HubKey, null, 0, downloadDataTask, null, null, null);
                 return startDownloadResult;
             }
             catch (Exception ex)

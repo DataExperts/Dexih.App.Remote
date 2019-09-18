@@ -16,6 +16,7 @@ using dexih.transforms.Transforms;
 using Dexih.Utils.Crypto;
 using Dexih.Utils.ManagedTasks;
 using Dexih.Utils.MessageHelpers;
+using MessagePack;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -381,22 +382,20 @@ namespace dexih.remote.Operations.Services
             }
 
 
-            // var serverResponse = await response.Content.ReadAsStringAsync();
             try
             {
                 // get the global cache from the server, and return remote libraries which are missing.
-                // var returnValue = Json.DeserializeObject<ReturnValue<CacheManager>>(serverResponse, "");
+                var serverResponse = await response.Content.ReadAsStringAsync();
+                 var returnValue = Json.DeserializeObject<ReturnValue<CacheManager>>(serverResponse, "");
 
-                //if (!returnValue.Success)
-                //{
-                //    var message = $"Error getting global cache: {returnValue.Message}";
-                //    _logger.LogCritical(4, message);
-                //    throw new Exception(returnValue.Message, new Exception(returnValue.ExceptionDetails));
-                //}
+                if (!returnValue.Success)
+                {
+                    var message = $"Error getting global cache: {returnValue.Message}";
+                    _logger.LogCritical(4, message);
+                    throw new Exception(returnValue.Message, new Exception(returnValue.ExceptionDetails));
+                }
 
-                // var globalCache = returnValue.Value;
-                var responseStream = await response.Content.ReadAsStreamAsync();
-                var globalCache = ProtoBuf.Serializer.Deserialize<CacheManager>(responseStream);
+                var globalCache = returnValue.Value;
 
                 var globalFunctions = globalCache.DefaultRemoteLibraries.Functions
                     .ToDictionary(c => (c.FunctionAssemblyName, c.FunctionClassName, c.FunctionMethodName));
@@ -474,7 +473,7 @@ namespace dexih.remote.Operations.Services
                     FileWatchers = null,
                 };
 
-                await _managedTasks.Add(newManagedTask);
+                _managedTasks.Add(newManagedTask);
 
                 return download;
             }
@@ -524,7 +523,7 @@ namespace dexih.remote.Operations.Services
                     FileWatchers = null,
                 };
 
-                await _managedTasks.Add(newManagedTask);
+                _managedTasks.Add(newManagedTask);
 
                 return download;
             }

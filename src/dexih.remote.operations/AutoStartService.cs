@@ -29,9 +29,12 @@ namespace dexih.remote.operations
             _remoteOperations = remoteOperations;
         }
         
-        public Task StartAsync(CancellationToken cancellationToken)
+        public async Task StartAsync(CancellationToken cancellationToken)
         {
-            if (cancellationToken.IsCancellationRequested) { return Task.CompletedTask; }
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return; 
+            }
 
             var path = _remoteSettings.AutoStartPath();
             
@@ -68,8 +71,6 @@ namespace dexih.remote.operations
                     _logger.LogError(500, ex, "Error auto-starting the file {0}: {1}", file, ex.Message);
                 }
             }
-            
-            return Task.CompletedTask;
         }
 
         public Task StopAsync(CancellationToken cancellationToken)

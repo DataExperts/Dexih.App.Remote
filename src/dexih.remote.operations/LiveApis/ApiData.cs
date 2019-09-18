@@ -5,7 +5,7 @@ using dexih.functions.Query;
 using dexih.transforms;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
-using ProtoBuf;
+using MessagePack;
 
 namespace dexih.remote.Operations.Services
 {
@@ -15,7 +15,7 @@ namespace dexih.remote.Operations.Services
         Activated = 1, Deactivated
     }
     
-    [ProtoContract]
+    [MessagePackObject]
     public class ApiData: IDisposable
     {
         public ApiData()
@@ -29,25 +29,25 @@ namespace dexih.remote.Operations.Services
         /// </summary>
         private readonly SemaphoreSlim _semaphoreSlim = new SemaphoreSlim(1, 1);
         
-        [ProtoMember(1)]
+        [Key(1)]
         public EApiStatus ApiStatus { get; set; }
 
-        [ProtoMember(2)]
+        [Key(2)]
         public long HubKey { get; set; }
 
-        [ProtoMember(3)]
+        [Key(3)]
         public long ApiKey { get; set; }
 
-        [ProtoMember(4)]
+        [Key(4)]
         public SelectQuery SelectQuery { get; set; }
 
-        [ProtoMember(5)]
+        [Key(5)]
         public string SecurityKey { get; set; }
 
-        [ProtoMember(6)]
+        [Key(6)]
         public long SuccessCount { get; set; }
 
-        [ProtoMember(7)]
+        [Key(7)]
         public long ErrorCount { get; set; }
 
 

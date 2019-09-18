@@ -20,6 +20,41 @@ using Newtonsoft.Json.Linq;
 
 namespace dexih.remote.operations
 {
+    public static class HubExtension
+    {
+        /// <summary>
+        /// Registers a handler that will be invoked when the hub method with the specified method name is invoked.
+        /// </summary>
+        /// <typeparam name="T1">The first argument type.</typeparam>
+        /// <param name="hubConnection">The hub connection.</param>
+        /// <param name="methodName">The name of the hub method to define.</param>
+        /// <param name="handler">The handler that will be raised when the hub method is invoked.</param>
+        /// <returns>A subscription that can be disposed to unsubscribe from the hub method.</returns>
+        public static IDisposable On<T1>(
+            this HubConnection hubConnection,
+            string methodName,
+            Func<T1, Task> func)
+        {
+            if (hubConnection == null)
+                throw new ArgumentNullException(nameof (hubConnection));
+            return hubConnection.On(methodName, new Type[1]
+            {
+                typeof (T1)
+            }, (Func<object[], Task>) (args => func((T1) args[0])));
+        }
+
+        public static IDisposable On(
+            this HubConnection hubConnection,
+            string methodName,
+            Func<Task> func)
+        {
+            if (hubConnection == null)
+                throw new ArgumentNullException(nameof (hubConnection));
+            return hubConnection.On(methodName, new Type[0], 
+                 (args => func()));
+        }
+    }
+    
     public class ListenerService : IHostedService
     {
         private readonly ISharedSettings _sharedSettings;
@@ -108,7 +143,7 @@ namespace dexih.remote.operations
                  })
                  .ConfigureLogging(logging => { logging.SetMinimumLevel(_remoteSettings.Logging.LogLevel.Default); })
                  .Build();
-            
+             
              // call the "ProcessMessage" function whenever a signalr message is received.
              con.On<RemoteMessage>("Command", async message =>
              {

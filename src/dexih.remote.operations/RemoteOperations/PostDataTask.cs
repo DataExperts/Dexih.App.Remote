@@ -25,7 +25,7 @@ namespace dexih.remote.operations
         private readonly Stream _stream;
         private readonly string _uploadUrl;
         
-        public override async Task Start(ManagedTaskProgress progress, CancellationToken cancellationToken = default)
+        public override async Task StartAsync(ManagedTaskProgress progress, CancellationToken cancellationToken = default)
         {
             await _httpClient.PostAsync(_uploadUrl, new StreamContent(_stream), cancellationToken);
         }

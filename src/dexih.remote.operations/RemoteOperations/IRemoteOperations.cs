@@ -65,9 +65,9 @@ namespace dexih.remote.operations
         /// <exception cref="AggregateException"></exception>
         bool RunDatalinkTestSnapshots(RemoteMessage message, CancellationToken cancellationToken);
 
-        Task RunDatajobs(RemoteMessage message, CancellationToken cancellationToken);
-        Task ActivateDatajobs(RemoteMessage message, CancellationToken cancellationToken);
-        Task<DexihDatajob> ActivateDatajob(AutoStart autoStart, string connectionId = "none");
+        void RunDatajobs(RemoteMessage message, CancellationToken cancellationToken);
+        void ActivateDatajobs(RemoteMessage message, CancellationToken cancellationToken);
+        DexihDatajob ActivateDatajob(AutoStart autoStart, string connectionId = "none");
         bool DeactivateDatajobs(RemoteMessage message, CancellationToken cancellationToken);
         bool ActivateApis(RemoteMessage message, CancellationToken cancellationToken);
         bool DeactivateApis(RemoteMessage message, CancellationToken cancellationToken);
@@ -91,8 +91,8 @@ namespace dexih.remote.operations
         Task<List<DexihFileProperties>> GetFileList(RemoteMessage message, CancellationToken cancellationToken);
         // Task<bool> SaveFile(RemoteMessage message, CancellationToken cancellationToken);
         Task<string> UploadFile(RemoteMessage message, CancellationToken cancellationToken);
-        Task<ManagedTask> DownloadFiles(RemoteMessage message, CancellationToken cancellationToken);
-        Task<ManagedTask> DownloadData(RemoteMessage message, CancellationToken cancellationToken);
+        ManagedTask DownloadFiles(RemoteMessage message, CancellationToken cancellationToken);
+        ManagedTask DownloadData(RemoteMessage message, CancellationToken cancellationToken);
 
         NamingStandards NamingStandards(RemoteMessage message, CancellationToken cancellationToken);
         

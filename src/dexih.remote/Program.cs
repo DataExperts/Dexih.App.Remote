@@ -63,7 +63,7 @@ namespace dexih.remote
             {"--enableupnp", "Network:EnableUPnP"},
         };
 
-        public static int Main(string[] args)
+        public static async Task<int> Main(string[] args)
         {
             var mutex = new Mutex(true, "dexih.remote", out var createdNew);
 
@@ -73,12 +73,12 @@ namespace dexih.remote
                 return (int) EExitCode.Terminated;
             }
             
-            var returnValue = Start(args).Result;
+            var returnValue = await StartAsync(args);
             
             return returnValue;
         }
         
-        public static async Task<int> Start(string[] args)
+        public static async Task<int> StartAsync(string[] args)
         {
             Welcome();
             WriteVersion();
@@ -103,7 +103,7 @@ namespace dexih.remote
             //check config file first for any settings.
             if (File.Exists(settingsFile))
             {
-                logger.LogInformation($"Reading setting from the {settingsFile}.");
+                logger.LogInformation($"Reading settings from the file {settingsFile}.");
 //                builder.AddJsonFile(settingsFile);
             }
             else

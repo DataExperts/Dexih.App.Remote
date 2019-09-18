@@ -43,7 +43,7 @@ namespace dexih.remote.operations
         private readonly string _reference;
         
         
-        public override async Task Start(ManagedTaskProgress progress, CancellationToken cancellationToken = default)
+        public override async Task StartAsync(ManagedTaskProgress progress, CancellationToken cancellationToken = default)
         {
             progress.Report(50, 1, "Preparing files...");
 
