@@ -8,7 +8,6 @@ using System.Threading.Tasks;
 using System.Web;
 using dexih.functions.Query;
 using dexih.operations;
-using dexih.remote.operations;
 using dexih.repository;
 using dexih.transforms;
 using Dexih.Utils.CopyProperties;
@@ -18,7 +17,7 @@ using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
-namespace dexih.remote.Operations.Services
+namespace dexih.remote.operations
 {
     public class LiveApis: ILiveApis
     {
@@ -403,14 +402,10 @@ namespace dexih.remote.Operations.Services
 
                         var start = new Stopwatch();
                         start.Start();
-                        var response = await _sharedSettings.PostAsync("Remote/UpdateApi", postData, CancellationToken.None);
+                        var result = await _sharedSettings.PostAsync<PostApiStatus, ReturnValue>("Remote/UpdateApi", postData, CancellationToken.None);
                         start.Stop();
                         _logger.LogTrace("Send api results completed in {0}ms.", start.ElapsedMilliseconds);
-
-                        var responseContent = await response.Content.ReadAsStringAsync();
-
-                        var result = Json.DeserializeObject<ReturnValue>(responseContent, _sharedSettings.SessionEncryptionKey);
-
+                        
                         if (result.Success == false)
                         {
                             _logger.LogError(250, result.Exception,
@@ -459,13 +454,9 @@ namespace dexih.remote.Operations.Services
                         
                         var start = new Stopwatch();
                         start.Start();
-                        var response = await _sharedSettings.PostAsync("Remote/ApiQuery", postQuery, CancellationToken.None);
+                        var result = await _sharedSettings.PostAsync<PostApiQuery, ReturnValue>("Remote/ApiQuery", postQuery, CancellationToken.None);
                         start.Stop();
                         _logger.LogTrace("Send api query completed in {0}ms.", start.ElapsedMilliseconds);
-
-                        var responseContent = await response.Content.ReadAsStringAsync();
-
-                        var result = Json.DeserializeObject<ReturnValue>(responseContent, _sharedSettings.SessionEncryptionKey);
 
                         if (result.Success == false)
                         {

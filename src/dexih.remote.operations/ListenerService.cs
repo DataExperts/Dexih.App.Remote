@@ -4,9 +4,7 @@ using System.IO;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
-using dexih.functions;
 using dexih.operations;
-using dexih.remote.Operations.Services;
 using dexih.repository;
 using dexih.transforms;
 using Dexih.Utils.Crypto;
@@ -124,7 +122,8 @@ namespace dexih.remote.operations
                 Version = _remoteSettings.Runtime.Version,
                 LatestVersion = _remoteSettings.Runtime.LatestVersion,
                 LatestDownloadUrl = _remoteSettings.Runtime.LatestDownloadUrl,
-                RemoteAgentKey = _remoteSettings.Runtime.RemoteAgentKey
+                RemoteAgentKey = _remoteSettings.Runtime.RemoteAgentKey,
+                NamingStandards = _remoteSettings.NamingStandards
             };
 
             return activeAgent;
@@ -151,10 +150,10 @@ namespace dexih.remote.operations
              });
              
              //TODO Implement process message without response message.
-//             con.On<RemoteMessage>("Command2", async message =>
-//             {
-//                 await ProcessMessage2(message);
-//             });
+             con.On<RemoteMessage>("Command2", async message =>
+             {
+                 await ProcessMessage2(message);
+             });
 
              con.On<RemoteMessage>("Response",  message =>
              {
@@ -267,7 +266,7 @@ namespace dexih.remote.operations
                 if (method == null)
                 {
                     _logger.LogError(100, "Unknown method : " + remoteMessage.Method);
-                    var error = new ReturnValue<JToken>(false, $"Unknown method: {remoteMessage.Method}.", null);
+                    var error = new ReturnValue<object>(false, $"Unknown method: {remoteMessage.Method}.", null);
                     SendHttpResponseMessage(remoteMessage.MessageId, error);
                     return;
                 }
@@ -293,7 +292,7 @@ namespace dexih.remote.operations
                             }
 
                             SendHttpResponseMessage(remoteMessage.MessageId,
-                                new ReturnValue<JToken>(true, "running", null));
+                                new ReturnValue<object>(true, "running", null));
                         }
 
                         //if the task hasn't finished.  attempt to cancel and wait a small time longer.
@@ -307,19 +306,19 @@ namespace dexih.remote.operations
 
                         if (task.IsFaulted || task.IsCanceled)
                         {
-                            ReturnValue<JToken> error;
+                            ReturnValue<object> error;
                             if (task.Exception == null)
                             {
-                                error = new ReturnValue<JToken>(false, "Unexpected error occurred.");
+                                error = new ReturnValue<object>(false, "Unexpected error occurred.");
                             }
                             else if (task.Exception.InnerExceptions.Count == 1)
                             {
-                                error = new ReturnValue<JToken>(false,
+                                error = new ReturnValue<object>(false,
                                     $"{task.Exception.InnerExceptions[0].Message}", task.Exception);
                             }
                             else
                             {
-                                error = new ReturnValue<JToken>(false, $"{task.Exception?.Message}",
+                                error = new ReturnValue<object>(false, $"{task.Exception?.Message}",
                                     task.Exception);
                             }
 
@@ -330,13 +329,12 @@ namespace dexih.remote.operations
                             try
                             {
                                 var value = returnValue.GetType().GetProperty("Result")?.GetValue(returnValue);
-                                var jToken = Json.JTokenFromObject(value, _sharedSettings.SessionEncryptionKey);
                                 responseMessage = SendHttpResponseMessage(remoteMessage.MessageId,
-                                    new ReturnValue<JToken>(true, jToken));
+                                    new ReturnValue<object>(true, value));
                             }
                             catch (Exception ex)
                             {
-                                var error = new ReturnValue<JToken>(false,
+                                var error = new ReturnValue<object>(false,
                                     $"The {remoteMessage.Method} failed when serializing the response message.  {ex.Message}",
                                     ex);
                                 responseMessage = SendHttpResponseMessage(remoteMessage.MessageId, error);
@@ -345,7 +343,7 @@ namespace dexih.remote.operations
                         else
                         {
                             responseMessage = SendHttpResponseMessage(remoteMessage.MessageId,
-                                new ReturnValue<JToken>(false,
+                                new ReturnValue<object>(false,
                                     "The " + remoteMessage.Method + " failed due to a timeout.", null));
                         }
 
@@ -356,9 +354,8 @@ namespace dexih.remote.operations
                     }
                     else
                     {
-                        var jToken = Json.JTokenFromObject(returnValue, _sharedSettings.SessionEncryptionKey);
                         var responseMessage = SendHttpResponseMessage(remoteMessage.MessageId,
-                            new ReturnValue<JToken>(true, jToken));
+                            new ReturnValue<object>(true, returnValue));
 
                         if (!responseMessage.Success)
                             _logger.LogError(
@@ -371,7 +368,7 @@ namespace dexih.remote.operations
                     var messageString = "The command " + remoteMessage.Method +
                                         " failed due to mismatching security tokens.";
                     SendHttpResponseMessage(remoteMessage.MessageId,
-                        new ReturnValue<JToken>(false, messageString, null));
+                        new ReturnValue<object>(false, messageString, null));
                     _logger.LogWarning(messageString);
                 }
             }
@@ -379,7 +376,7 @@ namespace dexih.remote.operations
             {
                 _logger.LogError(100, ex, "Unknown error processing incoming message: " + ex.Message);
                 var exception = ex.InnerException == null ? ex : ex.InnerException;
-                var error = new ReturnValue<JToken>(false, $"{exception.Message}", ex);
+                var error = new ReturnValue<object>(false, $"{exception.Message}", ex);
                 var responseMessage = SendHttpResponseMessage(remoteMessage.MessageId, error);
                 
                 if (!responseMessage.Success)
@@ -389,7 +386,7 @@ namespace dexih.remote.operations
             catch  (Exception ex)
             {
                 _logger.LogError(100, ex, "Unknown error processing incoming message: " + ex.Message);
-                var error = new ReturnValue<JToken>(false, $"{ex.Message}", ex);
+                var error = new ReturnValue<object>(false, $"{ex.Message}", ex);
                 var responseMessage = SendHttpResponseMessage(remoteMessage.MessageId, error);
                 
                 if (!responseMessage.Success)
@@ -398,86 +395,97 @@ namespace dexih.remote.operations
 
         }
          
-//        /// <summary>
-//        /// Processes a message from the webserver, and redirects to the appropriate method.
-//        /// </summary>
-//        /// <param name="remoteMessage"></param>
-//        /// <returns></returns>
-//        private async Task ProcessMessage2(RemoteMessage remoteMessage)
-//        {
-//            // LoggerMessages.LogTrace("New Message Content: ", message);
-//
-//            try
-//            {
-//                // var remoteMessage = Json.DeserializeObject<RemoteMessage>(message, TemporaryEncryptionKey);
-//
-//                //if the success is false, then it is a dummy message returned through a long polling timeout, so just ignore.
-//                if (!remoteMessage.Success)
-//                    return;
-//
-//                var cancellationTokenSource = new CancellationTokenSource();
-//                var commandCancel = cancellationTokenSource.Token;
-//
-//                _logger.LogDebug("Message received is command: {command}.", remoteMessage.Method);
-//
-//                //JObject values = (JObject)command.Value;
-//                // if (!string.IsNullOrEmpty((string)command.Value))
-//                //     values = JObject.Parse((string)command.Value);
-//
-//                var method = typeof(RemoteOperations).GetMethod(remoteMessage.Method);
-//
-//                if (method == null)
-//                {
-//                    _logger.LogError(100, "Unknown method : " + remoteMessage.Method);
-//                    var error = new ReturnValue<JToken>(false, $"Unknown method: {remoteMessage.Method}.", null);
-//                    AddResponseMessage(remoteMessage.MessageId, error);
-//                    return;
-//                }
-//
-//                if (remoteMessage.SecurityToken == _sharedSettings.SecurityToken)
-//                {
-//                    Stream stream;
-//                    if (method.ReturnType.BaseType == typeof(Task))
-//                    {
-//                        stream = new StreamAsyncAction<object>(async () =>
-//                        {
-//                            var task = (Task) method.Invoke(_remoteOperations,
-//                                new object[] {remoteMessage, commandCancel});
-//                            await task.ConfigureAwait(false);
-//                            var resultProperty = task.GetType().GetProperty("Result");
-//                            return resultProperty.GetValue(task);
-//                        });
-//                    }
-//                    else
-//                    {
-//                        stream = new StreamAction<object>(() =>
-//                            method.Invoke(_remoteOperations, new object[] {remoteMessage, commandCancel}));
-//                    }
-//                    
-//                    _memoryCache.Set(remoteMessage.MessageId, stream, TimeSpan.FromSeconds(5));
-//                }
-//                else
-//                {
-//                    var messageString = "The command " + remoteMessage.Method +
-//                                        " failed due to mismatching security tokens.";
-//                    AddResponseMessage(remoteMessage.MessageId,
-//                        new ReturnValue<JToken>(false, messageString, null));
-//                    _logger.LogWarning(messageString);
-//                }
-//            }
-//            catch  (Exception ex)
-//            {
-//                _logger.LogError(100, ex, "Unknown error processing incoming message: " + ex.Message);
-//                var error = new ReturnValue<JToken>(false, $"{ex.Message}", ex);
-//                var responseMessage = SendHttpResponseMessage(remoteMessage.MessageId, error);
-//                
-//                if (!responseMessage.Success)
-//                    _logger.LogError("Error occurred sending a response to the web server.  Error was: " + responseMessage.Message);
-//            }
-//
-//        }
-//            
-            private ReturnValue SendHttpResponseMessage(string messageId, ReturnValue<JToken> returnMessage)
+        /// <summary>
+        /// Processes a message from the webserver, and redirects to the appropriate method.
+        /// </summary>
+        /// <param name="remoteMessage"></param>
+        /// <returns></returns>
+        private async Task ProcessMessage2(RemoteMessage remoteMessage)
+        {
+            try
+            {
+                // var remoteMessage = Json.DeserializeObject<RemoteMessage>(message, TemporaryEncryptionKey);
+
+                //if the success is false, then it is a dummy message returned through a long polling timeout, so just ignore.
+                if (!remoteMessage.Success)
+                    return;
+
+                var cancellationTokenSource = new CancellationTokenSource();
+                var commandCancel = cancellationTokenSource.Token;
+
+                _logger.LogDebug($"Message received is command: {remoteMessage.Method}, messageId: {remoteMessage.MessageId}.");
+
+                //JObject values = (JObject)command.Value;
+                // if (!string.IsNullOrEmpty((string)command.Value))
+                //     values = JObject.Parse((string)command.Value);
+
+                var method = typeof(RemoteOperations).GetMethod(remoteMessage.Method);
+
+                if (method == null)
+                {
+                    _logger.LogError(100, "Unknown method : " + remoteMessage.Method);
+                    var error = new ReturnValue<JToken>(false, $"Unknown method: {remoteMessage.Method}.", null);
+                    AddResponseMessage(remoteMessage.MessageId, error);
+                    return;
+                }
+
+                if (remoteMessage.SecurityToken == _sharedSettings.SecurityToken)
+                {
+                    Stream stream;
+                    if (method.ReturnType.BaseType == typeof(Task))
+                    {
+                        var args = method.ReturnType.GetGenericArguments();
+                        if (args.Length > 0 && args[0].IsAssignableFrom(typeof(Stream)))
+                        {
+                            var task = (Task) method.Invoke(_remoteOperations, new object[] {remoteMessage, commandCancel});
+                            await task.ConfigureAwait(false);
+                            var resultProperty = task.GetType().GetProperty("Result");
+                            stream = (Stream) resultProperty.GetValue(task);
+                        }
+                        else
+                        {
+                            stream = new StreamAsyncAction<object>(async () =>
+                            {
+                                var task = (Task) method.Invoke(_remoteOperations, new object[] {remoteMessage, commandCancel});
+                                await task.ConfigureAwait(false);
+                                var property = task.GetType().GetProperty("Result");
+                                return property.GetValue(task);
+
+                            });
+                        }
+
+                    } else if (method.ReturnType.IsAssignableFrom(typeof(Stream)))
+                    {
+                        stream = (Stream) method.Invoke(_remoteOperations, new object[] {remoteMessage, commandCancel});
+                    }
+                    else
+                    {
+                        stream = new StreamAction<object>(() =>
+                            method.Invoke(_remoteOperations, new object[] {remoteMessage, commandCancel}));
+                    }
+                    
+                    // var downloadUrl = remoteMessage.Value["downloadUrl"].ToObject<DownloadUrl>();
+                    await _sharedSettings.StartDataStream(remoteMessage.MessageId, stream, false, "json", "", commandCancel);
+                }
+                else
+                {
+                    var messageString = $"The command {remoteMessage.Method} failed due to mismatching security tokens.";
+                    var stream = new StreamAction<ReturnValue>(() =>  new ReturnValue(false, messageString, null));
+                    _memoryCache.Set(remoteMessage.MessageId, stream, TimeSpan.FromSeconds(60));
+                    _logger.LogWarning(messageString);
+                }
+            }
+            catch  (Exception ex)
+            {
+                _logger.LogError(100, ex, "Unknown error processing incoming message: " + ex.Message);
+                var error = new ReturnValue<JToken>(false, $"{ex.Message}", ex);
+
+                var stream = new StreamAction<ReturnValue>(() =>  error);
+                _memoryCache.Set(remoteMessage.MessageId, stream, TimeSpan.FromSeconds(5));
+            }
+        }
+            
+            private ReturnValue SendHttpResponseMessage(string messageId, ReturnValue<object> returnMessage)
             {
                 try
                 {

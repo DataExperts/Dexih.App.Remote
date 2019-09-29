@@ -1,6 +1,6 @@
 using System;
 
-namespace dexih.remote.Operations.Services
+namespace dexih.remote.operations
 {
     public class LiveDataException : Exception
     {

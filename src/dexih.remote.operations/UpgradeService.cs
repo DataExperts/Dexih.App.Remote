@@ -6,7 +6,6 @@ using System.Net;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
-using dexih.remote.Operations.Services;
 using dexih.repository;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;

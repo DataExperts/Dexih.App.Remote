@@ -4,7 +4,6 @@ using System.Net;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
-using dexih.remote.Operations.Services;
 using dexih.repository;
 using Dexih.Utils.MessageHelpers;
 using Microsoft.AspNetCore.Hosting;
@@ -15,22 +14,20 @@ using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Open.Nat;
 
-namespace dexih.remote.operations.Services
+namespace dexih.remote.operations
 {
     public class HttpService : BackgroundService
     {
         private readonly ISharedSettings _sharedSettings;
-        private readonly IStreams _streams;
         private readonly ILiveApis _liveApis;
         private readonly IMemoryCache _memoryCache;
         
         private readonly RemoteSettings _remoteSettings;
         private readonly ILogger<HttpService> _logger;
         
-        public HttpService(ISharedSettings sharedSettings, ILogger<HttpService> logger, IStreams streams, ILiveApis liveApis, IMemoryCache memoryCache)
+        public HttpService(ISharedSettings sharedSettings, ILogger<HttpService> logger, ILiveApis liveApis, IMemoryCache memoryCache)
         {
             _sharedSettings = sharedSettings;
-            _streams = streams;
             _liveApis = liveApis;
             _remoteSettings = _sharedSettings.RemoteSettings;
             _logger = logger;
@@ -171,9 +168,10 @@ namespace dexih.remote.operations.Services
                                 .UseStartup<Startup>()
                                 .ConfigureServices(s =>
                                 {
-                                    s.AddSingleton(_streams);
+                                    s.AddSingleton(_sharedSettings);
                                     s.AddSingleton(_liveApis);
                                     s.AddSingleton(_memoryCache);
+                                    s.AddSingleton(_logger);
                                 })
                                 .UseKestrel(options =>
                                 {
@@ -213,7 +211,7 @@ namespace dexih.remote.operations.Services
         {
             try
             {
-                var details = new
+                var details = new RenewSslCertificateModel()
                 {
                     Domain = _remoteSettings.Network.DynamicDomain,
                     Password = _remoteSettings.Network.CertificatePassword
@@ -224,7 +222,7 @@ namespace dexih.remote.operations.Services
                 var response =
                     await _sharedSettings.PostAsync("Remote/GenerateCertificate", details, cancellationToken);
 
-                if (response.IsSuccessStatusCode)
+                if (response != null)
                 {
                     if (response.Content.Headers.ContentType.MediaType == "application/json")
                     {

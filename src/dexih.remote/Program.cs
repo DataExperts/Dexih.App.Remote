@@ -1,17 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
-using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using dexih.remote.config;
 using dexih.remote.operations;
-using dexih.remote.operations.Services;
-using dexih.remote.Operations.Services;
 using dexih.repository;
 using Dexih.Utils.ManagedTasks;
 using Microsoft.Extensions.Configuration;
@@ -138,6 +134,8 @@ namespace dexih.remote
                     configApp.AddCommandLine(args, commandlineMappings);
 
                     var remoteSettings = configApp.Build().Get<RemoteSettings>() ?? new RemoteSettings();
+                    remoteSettings.NamingStandards.LoadDefault();
+                    
                     if (remoteSettings.AppSettings.AutoUpgrade && remoteSettings.CheckUpgrade().Result)
                     {
                         otherSettings.Add("Runtime:DoUpgrade", "true");
@@ -155,7 +153,6 @@ namespace dexih.remote
                     services.AddSingleton<ISharedSettings, SharedSettings>();
                     services.AddHostedService<UpgradeService>();
                     services.AddSingleton<IManagedTasks, ManagedTasks>();
-                    services.AddSingleton<IStreams, Streams>();
 
                     // don't load there other services if an upgrade is pending.
                     var doUpgrade = hostContext.Configuration.GetValue<bool>("Runtime:DoUpgrade");

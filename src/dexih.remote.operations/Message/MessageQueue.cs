@@ -4,7 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using dexih.operations;
 
-namespace dexih.remote.Operations.Services
+namespace dexih.remote.operations
 {
     public interface IMessageQueue: IDisposable
     {

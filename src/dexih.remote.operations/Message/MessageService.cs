@@ -5,13 +5,12 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using dexih.operations;
-using Dexih.Utils.Crypto;
 using Dexih.Utils.ManagedTasks;
 using Dexih.Utils.MessageHelpers;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-namespace dexih.remote.Operations.Services
+namespace dexih.remote.operations
 {
     public class MessageService : BackgroundService
     {
@@ -56,17 +55,9 @@ namespace dexih.remote.Operations.Services
                             messages.Add(message);
                         }
 
-                        var response =
-                            await _sharedSettings.PostAsync("Remote/UpdateResponseMessage", messages,
-                                cancellationToken);
-                        if (cancellationToken.IsCancellationRequested)
-                        {
-                            break;
-                        }
-
                         var returnValue =
-                            Json.DeserializeObject<ReturnValue>(await response.Content.ReadAsStringAsync(),
-                                _sharedSettings.SessionEncryptionKey);
+                            await _sharedSettings.PostAsync<List<ResponseMessage>, ReturnValue>("Remote/UpdateResponseMessage", messages,
+                                cancellationToken);
 
                         if (!returnValue.Success)
                         {
@@ -131,14 +122,10 @@ namespace dexih.remote.Operations.Services
                         };
 
                         var start = Stopwatch.StartNew();
-                        var response = await _sharedSettings.PostAsync("Remote/UpdateTasks", postData, CancellationToken.None);
+                        var result = await _sharedSettings.PostAsync<DatalinkProgress, ReturnValue>("Remote/UpdateTasks", postData, CancellationToken.None);
                         start.Stop();
 
                         _logger.LogTrace("Send task results completed in {0}ms.", start.ElapsedMilliseconds);
-
-                        var responseContent = await response.Content.ReadAsStringAsync();
-
-                        var result = Json.DeserializeObject<ReturnValue>(responseContent, _sharedSettings.SessionEncryptionKey);
 
                         if (result.Success == false)
                         {
@@ -156,7 +143,7 @@ namespace dexih.remote.Operations.Services
             catch (Exception ex)
             {
                 _logger.LogError(250, ex,
-                    "Send datalink progress failed with error.  Error was: {0}." + ex.Message);
+                    "Send datalink progress failed with error.  Error was: {0}.", ex.Message);
                 _sendDatalinkProgressBusy = false;
             }
         }

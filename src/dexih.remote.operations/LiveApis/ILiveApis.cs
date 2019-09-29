@@ -3,13 +3,12 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using dexih.functions.Query;
-using dexih.remote.operations;
 using dexih.repository;
 using dexih.transforms;
 using Dexih.Utils.MessageHelpers;
 using Newtonsoft.Json.Linq;
 
-namespace dexih.remote.Operations.Services
+namespace dexih.remote.operations
 {
     public interface ILiveApis
     {

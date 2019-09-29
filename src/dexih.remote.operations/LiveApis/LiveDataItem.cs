@@ -1,6 +1,6 @@
 using dexih.transforms;
 
-namespace dexih.remote.Operations.Services
+namespace dexih.remote.operations
 {
     public class LiveDataItem
     {

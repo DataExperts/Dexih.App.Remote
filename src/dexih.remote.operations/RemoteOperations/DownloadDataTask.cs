@@ -1,10 +1,6 @@
 using System.Threading;
 using System.Threading.Tasks;
-using dexih.functions;
 using dexih.operations;
-using dexih.remote.Operations.Services;
-using dexih.transforms;
-using Dexih.Utils.Crypto;
 using Dexih.Utils.ManagedTasks;
 using Dexih.Utils.MessageHelpers;
 
@@ -18,21 +14,22 @@ namespace dexih.remote.operations
     /// </summary>
     public class DownloadDataTask: ManagedObject
     {
-        public DownloadDataTask(ISharedSettings sharedSettings, long hubKey, DownloadData downloadData, DownloadUrl downloadUrl, string connectionId, string refeerence)
+        public DownloadDataTask(ISharedSettings sharedSettings, string messageId, long hubKey, DownloadData downloadData, bool useProxy, string connectionId, string reference)
         {
+            _messageId = messageId;
             _sharedSettings = sharedSettings;
             _hubKey = hubKey;
             _downloadData = downloadData;
-            _downloadUrl = downloadUrl;
+            _useProxy = useProxy;
             _connectionId = connectionId;
-            _reference = refeerence;
+            _reference = reference;
         }
-        
-        
+
+        private string _messageId;
         private readonly ISharedSettings _sharedSettings;
         private readonly long _hubKey;
         private readonly DownloadData _downloadData;
-        private readonly DownloadUrl _downloadUrl;
+        private readonly bool _useProxy;
         private readonly string _connectionId;
         private readonly string _reference;
         
@@ -46,24 +43,21 @@ namespace dexih.remote.operations
 
             progress.Report(100, 2, "Download ready...");
 
-            var result = await _sharedSettings.StartDataStream(stream, _downloadUrl, "file", filename, cancellationToken);
+            await _sharedSettings.StartDataStream(_messageId, stream, _useProxy, "file", filename, cancellationToken);
+            var url = $"{_sharedSettings.RemoteSettings.Network.ProxyUrl}/download/{_messageId}";
                     
-            var downloadMessage = new
+            var downloadMessage = new DownloadReadyMessage()
             {
-                _sharedSettings.InstanceId,
+                InstanceId =_sharedSettings.InstanceId,
                 SecurityToken = _sharedSettings.SecurityToken,
                 ConnectionId = _connectionId,
                 Reference = _reference,
                 HubKey = _hubKey,
-                Url = result
+                Url = url
             };
 
-            var response = await _sharedSettings.PostAsync("Remote/DownloadReady", downloadMessage, cancellationToken);
-            if (!response.IsSuccessStatusCode)
-            {
-                throw new RemoteOperationException($"The data download did not complete as the http server returned the response {response.ReasonPhrase}.");
-            }
-            var returnValue = Json.DeserializeObject<ReturnValue>(await response.Content.ReadAsStringAsync(), _sharedSettings.SessionEncryptionKey);
+            var returnValue = await _sharedSettings.PostAsync<DownloadReadyMessage, ReturnValue>("Remote/DownloadReady", downloadMessage, cancellationToken);
+
             if (!returnValue.Success)
             {
                 throw new RemoteOperationException($"The data download did not completed.  {returnValue.Message}", returnValue.Exception);
@@ -72,4 +66,6 @@ namespace dexih.remote.operations
 
         public override object Data { get; set; }
     }
+
+
 }

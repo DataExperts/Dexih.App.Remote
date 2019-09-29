@@ -4,10 +4,9 @@ using System.Threading.Tasks;
 using dexih.functions.Query;
 using dexih.transforms;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Converters;
 using MessagePack;
 
-namespace dexih.remote.Operations.Services
+namespace dexih.remote.operations
 {
     // [JsonConverter(typeof(StringEnumConverter))]
     public enum EApiStatus
@@ -51,7 +50,7 @@ namespace dexih.remote.Operations.Services
         public long ErrorCount { get; set; }
 
 
-        [JsonIgnore]
+        [JsonIgnore, IgnoreMember]
         public Transform Transform { get; set; }
 
         public void IncrementSuccess()

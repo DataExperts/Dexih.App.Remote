@@ -1,9 +1,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 using dexih.functions;
-using dexih.remote.Operations.Services;
 using dexih.transforms;
-using Dexih.Utils.Crypto;
 using Dexih.Utils.ManagedTasks;
 using Dexih.Utils.MessageHelpers;
 
@@ -17,28 +15,30 @@ namespace dexih.remote.operations
     /// </summary>
     public class DownloadFilesTask: ManagedObject
     {
-        public DownloadFilesTask(ISharedSettings sharedSettings, long hubKey, ConnectionFlatFile connectionFlatFile,
-            FlatFile flatFile, EFlatFilePath path, string[] files, DownloadUrl downloadUrl, string connectionId, string refeerence)
+        public DownloadFilesTask(ISharedSettings sharedSettings, string messageId, long hubKey, ConnectionFlatFile connectionFlatFile,
+            FlatFile flatFile, EFlatFilePath path, string[] files, bool useProxy, string connectionId, string reference)
         {
             _sharedSettings = sharedSettings;
+            _messageId = messageId;
             _hubKey = hubKey;
             _connectionFlatFile = connectionFlatFile;
             _flatFile = flatFile;
             _path = path;
             _files = files;
-            _downloadUrl = downloadUrl;
+            _useProxy = useProxy;
             _connectionId = connectionId;
-            _reference = refeerence;
+            _reference = reference;
         }
         
         
         private readonly ISharedSettings _sharedSettings;
         private readonly long _hubKey;
+        private readonly string _messageId;
         private readonly ConnectionFlatFile _connectionFlatFile;
         private readonly FlatFile _flatFile;
         private readonly EFlatFilePath _path;
         private readonly string[] _files;
-        private readonly DownloadUrl _downloadUrl;
+        private readonly bool _useProxy;
         private readonly string _connectionId;
         private readonly string _reference;
         
@@ -52,25 +52,21 @@ namespace dexih.remote.operations
 
             progress.Report(100, 2, "Files ready for download...");
 
-            var result = await _sharedSettings.StartDataStream(downloadStream, _downloadUrl, "file", filename, cancellationToken);
+            await _sharedSettings.StartDataStream(_messageId, downloadStream, _useProxy, "file", filename, cancellationToken);
 
-            var downloadMessage = new
+            var url = $"{_sharedSettings.RemoteSettings.Network.ProxyUrl}/download/{_messageId}";
+            
+            var downloadMessage = new DownloadReadyMessage()
             {
-                _sharedSettings.InstanceId,
-                _sharedSettings.SecurityToken,
+                InstanceId = _sharedSettings.InstanceId,
+                SecurityToken = _sharedSettings.SecurityToken,
                 ConnectionId = _connectionId,
                 Reference = _reference,
-                _hubKey,
-                Url = result
+                HubKey = _hubKey,
+                Url = url
             };
                     
-            var response = await _sharedSettings.PostAsync("Remote/DownloadReady", downloadMessage, cancellationToken);
-            if (!response.IsSuccessStatusCode)
-            {
-                throw new RemoteOperationException($"The file download did not complete as the http server returned the response {response.ReasonPhrase}.");
-            }
-
-            var returnValue = Json.DeserializeObject<ReturnValue>(await response.Content.ReadAsStringAsync(), _sharedSettings.SessionEncryptionKey);
+            var returnValue = await _sharedSettings.PostAsync<DownloadReadyMessage, ReturnValue>("Remote/DownloadReady", downloadMessage, cancellationToken);
             if (!returnValue.Success)
             {
                 throw new RemoteOperationException($"The file download did not completed.  {returnValue.Message}", returnValue.Exception);

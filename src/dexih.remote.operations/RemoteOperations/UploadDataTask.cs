@@ -10,18 +10,16 @@ namespace dexih.remote.operations
     public class UploadDataTask: ManagedObject
     {
 
-        public UploadDataTask(HttpClient httpClient, Func<Stream, Task> uploadAction, string uploadUrl, string downloadUrl)
+        public UploadDataTask(HttpClient httpClient, Func<Stream, Task> uploadAction, string uploadUrl)
         {
             _httpClient = httpClient;
             _uploadAction = uploadAction;
             _uploadUrl = uploadUrl;
-            _downloadUrl = downloadUrl;
         }
 
         private readonly HttpClient _httpClient;
         private readonly Func<Stream, Task> _uploadAction;
         private readonly string _uploadUrl;
-        private readonly string _downloadUrl;
         
         public override async Task StartAsync(ManagedTaskProgress progress, CancellationToken cancellationToken = default)
         {
