@@ -3,9 +3,11 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
+using dexih.functions;
 using dexih.functions.Query;
 using dexih.operations;
 using dexih.repository;
@@ -14,8 +16,7 @@ using Dexih.Utils.CopyProperties;
 using Dexih.Utils.Crypto;
 using Dexih.Utils.MessageHelpers;
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+
 
 namespace dexih.remote.operations
 {
@@ -94,7 +95,7 @@ namespace dexih.remote.operations
                 
                 if (_liveApis.TryAdd(securityKey, apiData))
                 {
-                    ApiUpdate(new ApiData() {ApiKey = apiKey, HubKey = hubKey, SecurityKey = securityKey});
+                    ApiUpdate(new ApiData() {ApiStatus = EApiStatus.Activated, ApiKey = apiKey, HubKey = hubKey, SecurityKey = securityKey});
                     return securityKey;
                 }
                 else
@@ -161,23 +162,23 @@ namespace dexih.remote.operations
             return false;
         }
 
-        public async Task<JObject> Query(string securityKey, string action, string queryString, string ipAddress, CancellationToken cancellationToken = default)
+        public async Task<string> Query(string securityKey, string action, string queryString, string ipAddress, CancellationToken cancellationToken = default)
         {
             if (_liveApis.TryGetValue(securityKey, out var apiData))
             {
                 var timer = Stopwatch.StartNew();
                 await apiData.WaitForTask(cancellationToken);
 
-                JObject inputColumns = null;
-                JObject query = null;
-                JObject inputParameters = null;
+                JsonDocument inputColumns = null;
+                JsonDocument query = null;
+                JsonDocument inputParameters = null;
 
                 try
                 {
                     var parameters = HttpUtility.ParseQueryString(queryString);
 
                     
-                    if (action.ToLower() == "info")
+                    if (action?.ToLower() == "info")
                     {
                         var columns = apiData.Transform.CacheTable.Columns;
                         var inputColumns2 = apiData.Transform.GetSourceReader().CacheTable.Columns.Where(c => c.IsInput);
@@ -189,18 +190,18 @@ namespace dexih.remote.operations
                             InputColumns = inputColumns2
                         };
 
-                        return JObject.FromObject(infoQuery, new JsonSerializer { NullValueHandling = NullValueHandling.Ignore } );
+                        return JsonExtensions.Serialize(infoQuery);
                     }
 
                     // check for a query
                     var q = parameters["q"];
-                    query = q == null ? null : JObject.Parse(q); 
+                    query = q == null ? null : JsonDocument.Parse(q); 
 
                     var i = parameters["i"];
-                    inputColumns = i == null ? null : JObject.Parse(i);
+                    inputColumns = i == null ? null : JsonDocument.Parse(i);
 
                     var p = parameters["p"];
-                    inputParameters = p == null ? null : JObject.Parse(p);
+                    inputParameters = p == null ? null : JsonDocument.Parse(p);
 
                     var cts = new CancellationTokenSource();
                     var t = parameters["t"];
@@ -227,7 +228,7 @@ namespace dexih.remote.operations
                     }
 
                     // TODO add EDownloadFormat to api options.
-                    var selectQuery = apiData.SelectQuery.CloneProperties<SelectQuery>();
+                    var selectQuery = apiData.SelectQuery == null ? new SelectQuery() : apiData.SelectQuery.CloneProperties<SelectQuery>();
                     selectQuery.LoadJsonFilters(apiData.Transform.CacheTable, query);
                     selectQuery.LoadJsonInputColumns(inputColumns);
                     selectQuery.LoadJsonParameters(inputParameters);
@@ -269,8 +270,7 @@ namespace dexih.remote.operations
 
                     ApiQuery(queryApi);
                     
-                    var result = JToken.FromObject(new ReturnValue(false, ex.Message, ex));
-                    return JObject.FromObject(result);
+                    return JsonExtensions.Serialize(new ReturnValue(false, ex.Message, ex));
                 }
                 finally
                 {

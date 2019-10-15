@@ -1,9 +1,10 @@
 using System;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using dexih.functions.Query;
 using dexih.transforms;
-using Newtonsoft.Json;
+
 using MessagePack;
 
 namespace dexih.remote.operations
@@ -27,9 +28,8 @@ namespace dexih.remote.operations
         /// SemaphoreSlim is used to ensure the Api is only run one at a time.
         /// </summary>
         private readonly SemaphoreSlim _semaphoreSlim = new SemaphoreSlim(1, 1);
-        
-        [Key(1)]
-        public EApiStatus ApiStatus { get; set; }
+
+        [Key(1)] public EApiStatus ApiStatus { get; set; }
 
         [Key(2)]
         public long HubKey { get; set; }

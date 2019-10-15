@@ -1,4 +1,7 @@
+using System.Collections.Generic;
+using dexih.operations;
 using dexih.repository;
+using Dexih.Utils.ManagedTasks;
 using MessagePack;
 
 namespace dexih.remote.operations
@@ -46,5 +49,20 @@ namespace dexih.remote.operations
         public string Password { get; set; }
     }
 
+    [MessagePackObject]
+    public class DatalinkProgress
+    {
+        [Key(0)]
+        public string InstanceId { get; set; }
+
+        [Key(2)]
+        public string SecurityToken { get; set; }
+        
+        [Key(3)]
+        public EMessageCommand Command { get; set; }
+        
+        [Key(4)]
+        public List<ManagedTask> Results { get; set; } 
+    }
    
 }

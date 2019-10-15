@@ -1,8 +1,11 @@
+using System;
 using System.IO;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+using dexih.functions;
 using Dexih.Utils.ManagedTasks;
+using Dexih.Utils.MessageHelpers;
 
 namespace dexih.remote.operations
 {
@@ -13,20 +16,30 @@ namespace dexih.remote.operations
     /// </summary>
     public class PostDataTask: ManagedObject
     {
-        public PostDataTask(HttpClient httpClient, Stream stream, string uploadUrl)
+        public PostDataTask(HttpClient httpClient, Stream stream, string uploadUrl, string errorUrl)
         {
             _httpClient = httpClient;
             _stream = stream;
             _uploadUrl = uploadUrl;
+            _errorUrl = errorUrl;
         }
 
         private readonly HttpClient _httpClient;
         private readonly Stream _stream;
         private readonly string _uploadUrl;
+        private readonly string _errorUrl;
         
         public override async Task StartAsync(ManagedTaskProgress progress, CancellationToken cancellationToken = default)
         {
-            await _httpClient.PostAsync(_uploadUrl, new StreamContent(_stream), cancellationToken);
+            try
+            {
+                await _httpClient.PostAsync(_uploadUrl, new StreamContent(_stream), cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                var returnValue = new ReturnValue(false, "Error: " + ex.Message, ex);
+                await _httpClient.PostAsync(_errorUrl, new StringContent(returnValue.Serialize()), cancellationToken);
+            }
         }
 
         public override object Data { get; set; }

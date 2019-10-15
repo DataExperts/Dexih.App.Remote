@@ -4,6 +4,7 @@ using System.Net;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
+using dexih.functions;
 using dexih.repository;
 using Dexih.Utils.MessageHelpers;
 using Microsoft.AspNetCore.Hosting;
@@ -11,7 +12,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
+
 using Open.Nat;
 
 namespace dexih.remote.operations
@@ -227,7 +228,7 @@ namespace dexih.remote.operations
                     if (response.Content.Headers.ContentType.MediaType == "application/json")
                     {
                         var jsonContent = await response.Content.ReadAsStringAsync();
-                        var message = JsonConvert.DeserializeObject<ReturnValue>(jsonContent);
+                        var message = JsonExtensions.Deserialize<ReturnValue>(jsonContent);
                         _logger.LogError("Ssl request generated the following error: " + message.ExceptionDetails);
                         throw new RemoteSecurityException(message.Message, message.Exception);
                     }

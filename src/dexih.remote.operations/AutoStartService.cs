@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using dexih.functions;
 using dexih.repository;
 using Dexih.Utils.Crypto;
 using Microsoft.Extensions.Hosting;
@@ -44,7 +45,8 @@ namespace dexih.remote.operations
                 try
                 {
                     var fileData = File.ReadAllText(file);
-                    var autoStart = Json.JTokenToObject<AutoStart>(fileData, _remoteSettings.AppSettings.EncryptionKey);
+                    var autoStart = JsonExtensions.Deserialize<AutoStart>(fileData);
+                    autoStart.Decrypt(_remoteSettings.AppSettings.EncryptionKey);
                     _logger.LogInformation($"Auto-starting the apn in file {file}");
                     _liveApis.ActivateApi(autoStart);
                 }
@@ -61,7 +63,8 @@ namespace dexih.remote.operations
                 try
                 {
                     var fileData = File.ReadAllText(file);
-                    var autoStart = Json.JTokenToObject<AutoStart>(fileData, _remoteSettings.AppSettings.EncryptionKey);
+                    var autoStart = JsonExtensions.Deserialize<AutoStart>(fileData);
+                    autoStart.Decrypt(_remoteSettings.AppSettings.EncryptionKey);
                     _logger.LogInformation($"Auto-starting the datajob in file {file}");
                     _remoteOperations.ActivateDatajob(autoStart);
                 }

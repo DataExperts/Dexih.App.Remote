@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using dexih.functions;
@@ -19,8 +20,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+
+
 
 
 namespace dexih.remote.operations
@@ -29,8 +30,12 @@ namespace dexih.remote.operations
     {
         Task<HttpResponseMessage> PostAsync<In>(string uri, In data, CancellationToken cancellationToken);
         Task<Out> PostAsync<In, Out>(string uri, In data, CancellationToken cancellationToken);
-        Task<HttpResponseMessage> PostAsync(string uri, HttpContent content, CancellationToken cancellationToken);
 
+        Task<T> GetAsync<T>(string url, CancellationToken cancellationToken);
+        // Task<HttpResponseMessage> PostAsync(string uri, HttpContent content, CancellationToken cancellationToken);
+
+        Task PostDirect(string url, string data, CancellationToken cancellationToken);
+        
         string SessionEncryptionKey { get; }
         
         string InstanceId { get; set; }
@@ -49,11 +54,12 @@ namespace dexih.remote.operations
         bool CompleteUpgrade { get; set; }
         void ResetConnection();
 
-        Task StartDataStream(string key, Stream stream, bool useProxy, string format, string fileName,
+        Task StartDataStream(string key, Stream stream, string responseUrl, string format, string fileName,
             CancellationToken cancellationToken);
 
         void SetStream(DownloadStream downloadObject, string key);
-        Task<DownloadStream> GetStream(string key);
+        Task<T> GetCacheItem<T>(string key);
+        void SetCacheItem<T>(string key, T value);
     }
 
     public class SharedSettings : ISharedSettings, IDisposable
@@ -125,12 +131,16 @@ namespace dexih.remote.operations
         {
             try
             {
-                var bytes = MessagePackSerializer.Serialize(data);
-                var byteContent = new ByteArrayContent(bytes);
-                byteContent.Headers.Remove("Content-Type");
-                byteContent.Headers.Add("Content-Type", "application/x-msgpack");
+//                var bytes = MessagePackSerializer.Serialize(data);
+//                var byteContent = new ByteArrayContent(bytes);
+//                byteContent.Headers.Remove("Content-Type");
+//                byteContent.Headers.Add("Content-Type", "application/x-msgpack");
+//                var response = await _httpClient.PostAsync(_apiUri + uri, byteContent, cancellationToken);
 
-                var response = await _httpClient.PostAsync(_apiUri + uri, byteContent, cancellationToken);
+                var json = data.Serialize();
+                var jsonContent = new StringContent(json, Encoding.UTF8, "application/json");
+                var response = await _httpClient.PostAsync(_apiUri + uri, jsonContent, cancellationToken);
+
                 return response;
             }
             catch (Exception ex)
@@ -142,46 +152,65 @@ namespace dexih.remote.operations
         
         public async Task<Out> PostAsync<In, Out>(string uri, In data, CancellationToken cancellationToken)
         {
-            try
-            {
                 var response = await PostAsync<In>(uri, data, cancellationToken);
-
-                if (response.IsSuccessStatusCode)
-                {
-                    switch (response.Content.Headers.ContentType.MediaType)
-                    {
-                        case "application/json":
-                            var jsonContent = await response.Content.ReadAsStringAsync();
-                            var message = JsonConvert.DeserializeObject<Out>(jsonContent);
-                            return message;
-                        case "application/x-msgpack":
-                            var result = await MessagePackSerializer.DeserializeAsync<Out>(await response.Content.ReadAsStreamAsync());
-                            return result;
-                        default:
-                            _logger.LogError($"Post to {uri} failed.  Unknown response type {response.Content.Headers.ContentType.MediaType}.");
-                            return default;
-                    }
-                }
-                else
-                {
-                    _logger.LogError($"Post to {uri} failed.  Response: {response.ReasonPhrase}");
-                }
-
-                return default;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, $"Post to {uri} failed.");
-                return default;
-            }
+                return await ProcessHttpResponse<Out>(uri, response);
         }
 
-        public Task<HttpResponseMessage> PostAsync(string uri, HttpContent content, CancellationToken cancellationToken)
-        {
-            var messagesString = Json.SerializeObject(content, SessionEncryptionKey);
-            var jsonContent = new StringContent(messagesString, Encoding.UTF8, "application/json");
+//        public Task<HttpResponseMessage> PostAsync(string uri, HttpContent content, CancellationToken cancellationToken)
+//        {
+//            var messagesString = content.Serialize();
+//            var jsonContent = new StringContent(messagesString, Encoding.UTF8, "application/json");
+//
+//            return _httpClient.PostAsync(_apiUri + uri, jsonContent, cancellationToken);
+//        }
 
-            return _httpClient.PostAsync(_apiUri + uri, jsonContent, cancellationToken);
+        public async Task PostDirect(string url, string data, CancellationToken cancellationToken)
+        {
+            await _httpClient.PostAsync(url, new StringContent(data), cancellationToken);
+        }
+
+        public async Task<T> GetAsync<T>(string url, CancellationToken cancellationToken)
+        {
+            var response = await _httpClient.GetAsync(url, cancellationToken);
+            return await ProcessHttpResponse<T>(url, response);
+        }
+        
+        private async Task<T> ProcessHttpResponse<T>(string uri, HttpResponseMessage response)
+        {
+            if (response.IsSuccessStatusCode)
+            {
+                switch (response.Content.Headers.ContentType.MediaType)
+                {
+                    case "application/json":
+                        var jsonContent = await response.Content.ReadAsStringAsync();
+                        var message = jsonContent.Deserialize<T>();
+                        return message;
+                    
+                    case "application/x-msgpack":
+                        var result = await MessagePackSerializer.DeserializeAsync<T>(await response.Content.ReadAsStreamAsync());
+                        return result;
+
+                    case "text/plain":
+                        if (typeof(T) == typeof(string))
+                        {
+                            return (T)(object) await response.Content.ReadAsStringAsync();    
+                        }
+                        throw new RemoteOperationException($"Http call returned plain/text however requested type was {typeof(T)}.");
+                        
+                    default:
+                        var message2 =
+                            $"Post to {uri} failed.  Unknown response type {response.Content.Headers.ContentType.MediaType}.";
+                        _logger.LogError(message2);
+                        throw new RemoteOperationException(message2);
+                    
+                }
+            }
+            else
+            {
+                var message3 = $"Post to {uri} failed.  Response: {response.ReasonPhrase}";
+                _logger.LogError(message3);
+                throw new RemoteOperationException(message3);
+            }
         }
         
 
@@ -268,9 +297,6 @@ namespace dexih.remote.operations
                     _logger.LogInformation($"This remote agent is named: \"{RemoteSettings.AppSettings.Name}\"");
                 }
 
-                var messagesString = Json.SerializeObject(RemoteSettings, SessionEncryptionKey);
-                var content = new StringContent(messagesString, Encoding.UTF8, "application/json");
-
                 // if no remoteAgentId specified, then create one before attempting login.
                 if(string.IsNullOrEmpty(RemoteSettings.AppSettings.RemoteAgentId))
                 {
@@ -297,12 +323,18 @@ namespace dexih.remote.operations
                             "/Remote/Login");
                     return EConnectionResult.InvalidLocation;
                 }
-
-                if (!response.IsSuccessStatusCode)
+                
+                if(response == null || !response.IsSuccessStatusCode)
                 {
+                    var errorResponse = await response.Content.ReadAsStringAsync();
+                    if (!string.IsNullOrEmpty(errorResponse))
+                    {
+                        _logger.LogError(errorResponse);
+                    }
+
                     if (!retryStarted)
                         _logger.LogCritical(4,
-                            $"Could not connect with server.  Status = {response.StatusCode.ToString()}, {response.ReasonPhrase}");
+                            $"Could not connect with server.  Status = {response?.StatusCode.ToString() ?? "Unknown"}, {response?.ReasonPhrase}");
                     return EConnectionResult.InvalidLocation;
                 }
 
@@ -315,10 +347,10 @@ namespace dexih.remote.operations
                     return EConnectionResult.InvalidLocation;
                 }
 
-                JObject parsedServerResponse;
+                JsonElement parsedServerResponse;
                 try
                 {
-                    parsedServerResponse = JObject.Parse(serverResponse);
+                    parsedServerResponse = JsonDocument.Parse(serverResponse).RootElement;
                 }
                 catch (JsonException)
                 {
@@ -328,15 +360,15 @@ namespace dexih.remote.operations
                     return EConnectionResult.InvalidLocation;
                 }
 
-                if ((bool) parsedServerResponse["success"])
+                if (parsedServerResponse.GetProperty("success").GetBoolean())
                 {
-                    var instanceId = (string) parsedServerResponse["instanceId"];
-                    var securityToken = (string) parsedServerResponse["securityToken"];
-                    var userToken = (string) parsedServerResponse["userToken"];
-                    var ipAddress = (string) parsedServerResponse["ipAddress"];
-                    var defaultProxyUrl = (string) parsedServerResponse["defaultProxyUrl"];
-                    var remoteAgentKey = (long) parsedServerResponse["remoteAgentKey"];
-                    var userHash = (string) parsedServerResponse["userHash"];
+                    var instanceId = parsedServerResponse.GetProperty("instanceId").GetString();
+                    var securityToken = parsedServerResponse.GetProperty("securityToken").GetString();
+                    var userToken = parsedServerResponse.GetProperty("userToken").GetString();
+                    var ipAddress = parsedServerResponse.GetProperty("ipAddress").GetString();
+                    var defaultProxyUrl = parsedServerResponse.GetProperty("defaultProxyUrl").GetString();
+                    var remoteAgentKey = parsedServerResponse.GetProperty("remoteAgentKey").GetInt64();
+                    var userHash = parsedServerResponse.GetProperty("userHash").GetString();
 
                     RemoteSettings.Runtime.ExternalIpAddress = ipAddress;
                     RemoteSettings.Runtime.DefaultProxyUrl = defaultProxyUrl;
@@ -367,7 +399,7 @@ namespace dexih.remote.operations
                         };
 
                         File.WriteAllText(RemoteSettings.Runtime.AppSettingsPath,
-                            JsonConvert.SerializeObject(tmpSettings, Formatting.Indented));
+                            JsonSerializer.Serialize(tmpSettings, new JsonSerializerOptions() { WriteIndented = true}));
                         _logger.LogInformation(
                             "The appsettings.json file has been updated with the current settings.");
 
@@ -384,7 +416,7 @@ namespace dexih.remote.operations
 
                 _logger.LogCritical(3,
                     "User authentication failed.  Run with the -reset flag to update the settings.  The authentication message from the server was: {0}.",
-                    parsedServerResponse["message"].ToString());
+                    parsedServerResponse.GetProperty("message").GetString());
                 return EConnectionResult.InvalidCredentials;
             }
             catch (Exception ex)
@@ -432,7 +464,7 @@ namespace dexih.remote.operations
             {
                 // get the global cache from the server, and return remote libraries which are missing.
                 var serverResponse = await response.Content.ReadAsStringAsync();
-                var globalCache = Json.DeserializeObject<CacheManager>(serverResponse, "");
+                var globalCache = JsonExtensions.Deserialize<CacheManager>(serverResponse);
                  
                 var globalFunctions = globalCache.DefaultRemoteLibraries.Functions
                     .ToDictionary(c => (c.FunctionAssemblyName, c.FunctionClassName, c.FunctionMethodName));
@@ -478,11 +510,11 @@ namespace dexih.remote.operations
             _memoryCache.Set(key, downloadObject, TimeSpan.FromSeconds(300));
         }
 
-        public async Task<DownloadStream> GetStream(string key)
+        public async Task<T> GetCacheItem<T>(string key)
         {
             for (var i = 0; i < 10; i++)
             {
-                var downloadObject = _memoryCache.Get<DownloadStream>(key);
+                var downloadObject = _memoryCache.Get<T>(key);
                 if (downloadObject != null)
                 {
                     return downloadObject;
@@ -491,20 +523,22 @@ namespace dexih.remote.operations
                 await Task.Delay(100);
             }
 
-            return null;
+            return default;
         }
-        
-        public async Task StartDataStream(string key, Stream stream, bool useProxy, string format, string fileName, CancellationToken cancellationToken)
+
+        public void SetCacheItem<T>(string key, T value)
         {
-            if (useProxy)
+            _memoryCache.Set<T>(key, value);
+        }
+
+        
+        public async Task StartDataStream(string key, Stream stream, string responseUrl, string format, string fileName, CancellationToken cancellationToken)
+        {
+            if (!string.IsNullOrEmpty(responseUrl))
             {
-                var proxy = RemoteSettings.Network.ProxyUrl;
-                if (string.IsNullOrEmpty(proxy))
-                {
-                    throw new RemoteException("There is no proxy server specified in appsettings.");
-                }
-                var uploadUrl = $"{proxy}/upload/{key}{format}/{fileName}";
-                var downloadDataTask = new PostDataTask(_httpClient, stream, uploadUrl);
+                var uploadUrl = $"{responseUrl}/upload/{key}/{format}/{fileName}";
+                var errorUrl = $"{responseUrl}/error/{key}";
+                var downloadDataTask = new PostDataTask(_httpClient, stream, uploadUrl, errorUrl);
             
                 var newManagedTask = new ManagedTask
                 {
@@ -529,59 +563,53 @@ namespace dexih.remote.operations
             }
         }
         
-        public async Task StartDataStream(Stream stream, bool useProxy, string messageId, string format, string fileName, CancellationToken cancellationToken)
-        {
-            if (useProxy)
-            {
-                var proxy = RemoteSettings.Network.ProxyUrl;
-                if (string.IsNullOrEmpty(proxy))
-                {
-                    throw new RemoteException("There is no proxy server specified in appsettings.");
-                }
-                
-                // if downloading through a proxy, start a process to upload to the proxy.
-                var startResult = await _httpClient.GetAsync($"{proxy}/start/{format}/{fileName}", cancellationToken);
-
-                if (!startResult.IsSuccessStatusCode)
-                {
-                    throw new RemoteOperationException($"Failed to connect to the proxy server.  Message: {startResult.ReasonPhrase}");
-                }
-
-                var jsonResult = JObject.Parse(await startResult.Content.ReadAsStringAsync());
-
-                var upload = jsonResult["UploadUrl"].ToString();
-                var download = jsonResult["DownloadUrl"].ToString();
-            
-//                async Task UploadDataTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken ct)
+//        public async Task StartDataStream(Stream stream, string responseUrl, string messageId, string format, string fileName, CancellationToken cancellationToken)
+//        {
+//            if (!string.IsNullOrEmpty(responseUrl))
+//            {
+//                // if downloading through a proxy, start a process to upload to the proxy.
+//                var startResult = await _httpClient.GetAsync($"{responseUrl}/upload/{messageId}/{format}/{fileName}", cancellationToken);
+//
+//                if (!startResult.IsSuccessStatusCode)
 //                {
-//                    await _httpClient.PostAsync(upload, new StreamContent(stream), ct);
+//                    throw new RemoteOperationException($"Failed to connect to the proxy server.  Message: {startResult.ReasonPhrase}");
 //                }
-
-                var downloadDataTask = new PostDataTask(_httpClient, stream, upload);
-            
-                var newManagedTask = new ManagedTask
-                {
-                    Reference = Guid.NewGuid().ToString(),
-                    OriginatorId = "none",
-                    Name = $"Remote Data",
-                    Category = "ProxyDownload",
-                    CategoryKey = 0,
-                    ReferenceKey = 0,
-                    ManagedObject = downloadDataTask,
-                    Triggers = null,
-                    FileWatchers = null,
-                };
-
-                _managedTasks.Add(newManagedTask);
-            }
-            else
-            {
-//                SetStream();
-//                // if downloading directly, then just get the stream ready for when the client connects.
-//                var keys = _streams.SetDownloadStream(fileName, stream);
-//                var url = $"{downloadUrl.Url}/{format}/{HttpUtility.UrlEncode(keys.Key)}/{HttpUtility.UrlEncode(keys.SecurityKey)}";
-//                return url;
-            }
-        }
+//
+//                var jsonResult = JsonDocument.Parse(await startResult.Content.ReadAsStringAsync()).RootElement;
+//
+//                var upload = jsonResult.GetProperty("UploadUrl").GetString();
+//                var download = jsonResult.GetProperty("DownloadUrl").GetString();
+//            
+////                async Task UploadDataTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken ct)
+////                {
+////                    await _httpClient.PostAsync(upload, new StreamContent(stream), ct);
+////                }
+//
+//                var downloadDataTask = new PostDataTask(_httpClient, stream, upload);
+//            
+//                var newManagedTask = new ManagedTask
+//                {
+//                    Reference = Guid.NewGuid().ToString(),
+//                    OriginatorId = "none",
+//                    Name = $"Remote Data",
+//                    Category = "ProxyDownload",
+//                    CategoryKey = 0,
+//                    ReferenceKey = 0,
+//                    ManagedObject = downloadDataTask,
+//                    Triggers = null,
+//                    FileWatchers = null,
+//                };
+//
+//                _managedTasks.Add(newManagedTask);
+//            }
+//            else
+//            {
+////                SetStream();
+////                // if downloading directly, then just get the stream ready for when the client connects.
+////                var keys = _streams.SetDownloadStream(fileName, stream);
+////                var url = $"{downloadUrl.Url}/{format}/{HttpUtility.UrlEncode(keys.Key)}/{HttpUtility.UrlEncode(keys.SecurityKey)}";
+////                return url;
+//            }
+//        }
     }
 }

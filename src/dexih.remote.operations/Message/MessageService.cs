@@ -117,7 +117,7 @@ namespace dexih.remote.operations
                         {
                             InstanceId = _sharedSettings.InstanceId,
                             SecurityToken = _sharedSettings.SecurityToken,
-                            Command = "task",
+                            Command = EMessageCommand.Task,
                             Results = managedTaskChanges.ToList()
                         };
 
@@ -127,10 +127,10 @@ namespace dexih.remote.operations
 
                         _logger.LogTrace("Send task results completed in {0}ms.", start.ElapsedMilliseconds);
 
-                        if (result.Success == false)
+                        if (result == null || result.Success == false)
                         {
                             _logger.LogError(result.Exception,
-                                "Update task results failed.  Return message was: " + result.Message);
+                                "Update task results failed.  Return message was: " + result?.Message);
                         }
 
                         // wait a little while for more tasks results to arrive.
@@ -147,13 +147,5 @@ namespace dexih.remote.operations
                 _sendDatalinkProgressBusy = false;
             }
         }
-    }
-
-    internal class DatalinkProgress
-    {
-        public string InstanceId { get; set; }
-        public string SecurityToken { get; set; }
-        public string Command { get; set; }
-        public IEnumerable<ManagedTask> Results { get; set; } 
     }
 }

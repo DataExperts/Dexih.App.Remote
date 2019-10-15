@@ -14,13 +14,13 @@ namespace dexih.remote.operations
     /// </summary>
     public class DownloadDataTask: ManagedObject
     {
-        public DownloadDataTask(ISharedSettings sharedSettings, string messageId, long hubKey, DownloadData downloadData, bool useProxy, string connectionId, string reference)
+        public DownloadDataTask(ISharedSettings sharedSettings, string messageId, long hubKey, DownloadData downloadData, string responseUrl, string connectionId, string reference)
         {
             _messageId = messageId;
             _sharedSettings = sharedSettings;
             _hubKey = hubKey;
             _downloadData = downloadData;
-            _useProxy = useProxy;
+            _responseUrl = responseUrl;
             _connectionId = connectionId;
             _reference = reference;
         }
@@ -29,7 +29,7 @@ namespace dexih.remote.operations
         private readonly ISharedSettings _sharedSettings;
         private readonly long _hubKey;
         private readonly DownloadData _downloadData;
-        private readonly bool _useProxy;
+        private readonly string _responseUrl;
         private readonly string _connectionId;
         private readonly string _reference;
         
@@ -43,8 +43,8 @@ namespace dexih.remote.operations
 
             progress.Report(100, 2, "Download ready...");
 
-            await _sharedSettings.StartDataStream(_messageId, stream, _useProxy, "file", filename, cancellationToken);
-            var url = $"{_sharedSettings.RemoteSettings.Network.ProxyUrl}/download/{_messageId}";
+            await _sharedSettings.StartDataStream(_reference, stream, _responseUrl, "file", filename, cancellationToken);
+            var url = $"{_sharedSettings.RemoteSettings.Network.ProxyUrl}/download/{_reference}";
                     
             var downloadMessage = new DownloadReadyMessage()
             {

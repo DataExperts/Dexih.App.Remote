@@ -2,6 +2,7 @@
 using System.IO;
 using System.Threading.Tasks;
 using System.Web;
+using dexih.functions;
 using Dexih.Utils.Crypto;
 using Dexih.Utils.MessageHelpers;
 using Microsoft.AspNetCore.Builder;
@@ -45,7 +46,7 @@ namespace dexih.remote.operations
                 // .WithOrigins();
             });
 
-            var rand = EncryptString.GenerateRandomKey();
+            // var rand = EncryptString.GenerateRandomKey();
 
             app.Run(async (context) =>
             {
@@ -57,8 +58,7 @@ namespace dexih.remote.operations
 
                     using (var writer = new StreamWriter(context.Response.Body))
                     {
-                        var result = Json.SerializeObject(returnValue, rand);
-                        await writer.WriteAsync(result);
+                        await writer.WriteAsync(returnValue.Serialize());
                         await writer.FlushAsync().ConfigureAwait(false);
                     }
                 }
@@ -76,6 +76,20 @@ namespace dexih.remote.operations
                         await context.Response.WriteAsync("{ \"Status\": \"Alive\"}");
                         break;
                     
+                    case "setRaw":
+                        try
+                        {
+                            var key = segments[2];
+                            var value = segments[3];
+                            sharedSettings.SetCacheItem<string>(key + "-raw", value);
+                        }
+                        catch (Exception e)
+                        {
+                            var returnValue = new ReturnValue(false, "Set raw call failed: " + e.Message, e);
+                            SendFailedResponse(returnValue);
+                        }
+
+                        break;
                     case "api":
                         try
                         {
@@ -86,8 +100,7 @@ namespace dexih.remote.operations
                                 var ping = liveApis.Ping(key1);
                                 using (var writer = new StreamWriter(context.Response.Body))
                                 {
-                                    var result = Json.SerializeObject(ping, rand);
-                                    await writer.WriteAsync(result);
+                                    await writer.WriteAsync(ping.Serialize());
                                     await writer.FlushAsync().ConfigureAwait(false);
                                 }
 
@@ -108,7 +121,7 @@ namespace dexih.remote.operations
                             context.Response.ContentType = "application/json";
                             using (var writer = new StreamWriter(context.Response.Body))
                             {
-                                await writer.WriteAsync(data.ToString());
+                                await writer.WriteAsync(data);
                                 await writer.FlushAsync().ConfigureAwait(false);
                             }
                         }
@@ -124,34 +137,39 @@ namespace dexih.remote.operations
                         try
                         {
                             var key = segments[2];
-                            var downloadStream = await sharedSettings.GetStream(key);
-
-                            if (downloadStream == null)
+                            using (var downloadStream = await sharedSettings.GetCacheItem<DownloadStream>(key))
                             {
-                                throw new RemoteException("Remote agent call failed, the response key was not found.");
-                            }
 
-                            switch (downloadStream.Type)
-                            {
-                                case "file":
-                                    context.Response.ContentType = "application/octet-stream";
-                                    break;
-                                case "csv":
-                                    context.Response.ContentType = "text/csv";
-                                    break;
-                                case "json":
-                                    context.Response.ContentType = "application/json";
-                                    break;
-                                default:
-                                    throw new ArgumentOutOfRangeException(
-                                        $"The type {downloadStream.Type} was not recognized.");
-                            }
+                                if (downloadStream == null)
+                                {
+                                    throw new RemoteException(
+                                        "Remote agent call failed, the response key was not found.");
+                                }
 
-                            context.Response.StatusCode = 200;
-                            context.Response.Headers.Add("Content-Disposition",
-                                "attachment; filename=" + downloadStream.FileName);
-                            await downloadStream.Stream.CopyToAsync(context.Response.Body, context.RequestAborted);
-                            downloadStream.Dispose();
+                                switch (downloadStream.Type)
+                                {
+                                    case "file":
+                                        context.Response.ContentType = "application/octet-stream";
+                                        break;
+                                    case "csv":
+                                        context.Response.ContentType = "text/csv";
+                                        break;
+                                    case "json":
+                                        context.Response.ContentType = "application/json";
+                                        break;
+                                    default:
+                                        throw new ArgumentOutOfRangeException(
+                                            $"The type {downloadStream.Type} was not recognized.");
+                                }
+
+                                context.Response.StatusCode = 200;
+                                if (!string.IsNullOrEmpty(downloadStream.FileName))
+                                {
+                                    context.Response.Headers.Add("Content-Disposition",
+                                        "attachment; filename=" + downloadStream.FileName);
+                                }
+                                await downloadStream.Stream.CopyToAsync(context.Response.Body, context.RequestAborted);
+                            }
                         }
                         catch (Exception e)
                         {
@@ -159,7 +177,7 @@ namespace dexih.remote.operations
                             SendFailedResponse(returnValue);
                         }
                         break;
-                    
+
                     case "upload":
                         try
                         {
@@ -167,7 +185,7 @@ namespace dexih.remote.operations
                             if (files.Count >= 1)
                             {
                                 var key2 = segments[2];
-                                var uploadStream = await sharedSettings.GetStream(key2);
+                                var uploadStream = await sharedSettings.GetCacheItem<DownloadStream>(key2);
                                 await files[0].CopyToAsync(uploadStream.Stream);
                                 uploadStream.Stream.Position = 0;
                             }

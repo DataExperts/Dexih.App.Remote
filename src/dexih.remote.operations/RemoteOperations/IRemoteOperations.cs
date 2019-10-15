@@ -38,7 +38,7 @@ namespace dexih.remote.operations
         /// <param name="message"></param>
         /// <param name="cancellationToken"></param>
         /// <returns></returns>
-        string Encrypt(RemoteMessage message, CancellationToken cancellationToken);
+        Task<string> Encrypt(RemoteMessage message, CancellationToken cancellationToken);
 
         /// <summary>
         /// This decrypts a string using the remoteservers encryption key.  This is used for passwords and connection strings
@@ -85,7 +85,7 @@ namespace dexih.remote.operations
         Task<Stream> PreviewDatalink(RemoteMessage message, CancellationToken cancellationToken);
         Task<Stream> GetReaderData(RemoteMessage message, CancellationToken cancellationToken);
         Task<Stream> PreviewProfile(RemoteMessage message, CancellationToken cancellationToken);
-        Task<Stream> GetAuditResults(RemoteMessage message, CancellationToken cancellationToken);
+        Task<List<TransformWriterResult>> GetAuditResults(RemoteMessage message, CancellationToken cancellationToken);
         Task<bool> CreateFilePaths(RemoteMessage message, CancellationToken cancellationToken);
         Task<bool> MoveFiles(RemoteMessage message, CancellationToken cancellationToken);
         Task<bool> DeleteFiles(RemoteMessage message, CancellationToken cancellationToken);

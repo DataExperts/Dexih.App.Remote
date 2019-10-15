@@ -6,7 +6,7 @@ using dexih.functions.Query;
 using dexih.repository;
 using dexih.transforms;
 using Dexih.Utils.MessageHelpers;
-using Newtonsoft.Json.Linq;
+
 
 namespace dexih.remote.operations
 {
@@ -37,7 +37,7 @@ namespace dexih.remote.operations
         
         IEnumerable<ApiData> ActiveApis();
 
-        Task<JObject> Query(string securityKey, string action, string queryString, string ipAddress, CancellationToken cancellationToken = default);
+        Task<string> Query(string securityKey, string action, string queryString, string ipAddress, CancellationToken cancellationToken = default);
 
         ReturnValue Ping(string securityKey);
 
