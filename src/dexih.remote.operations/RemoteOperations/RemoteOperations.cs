@@ -1684,7 +1684,7 @@ namespace dexih.remote.operations
                 {
                     var query = profileTable.DefaultSelectQuery();
 
-                    query.Filters.Add(new Filter(profileTable.GetColumn(TableColumn.EDeltaType.CreateAuditKey), ECompare.IsEqual, auditKey));
+                    query.Filters.Add(new Filter(profileTable.GetColumn(EDeltaType.CreateAuditKey), ECompare.IsEqual, auditKey));
                     if (summaryOnly)
                         query.Filters.Add(new Filter(profileTable["IsSummary"], ECompare.IsEqual, true));
 
