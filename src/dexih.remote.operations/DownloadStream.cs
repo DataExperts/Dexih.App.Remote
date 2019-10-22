@@ -6,17 +6,20 @@ namespace dexih.remote.operations
 {
     public class DownloadStream : IDisposable
     {
-        public DownloadStream(string fileName, string type, Stream stream)
+        public DownloadStream(string fileName, string type, Stream stream, bool isError)
         {
             AddedDateTime = DateTime.Now;
             FileName = fileName;
             Type = type;
             Stream = new BufferedStream(stream);
+            IsError = isError;
         }
         public Stream Stream { get; set; }
         public string FileName { get; private set; }
         public string Type { get; set; }
         public DateTime AddedDateTime { get; private set; }
+        
+        public bool IsError { get; set; }
 
         /// <summary>
         /// Copy the uploaded stream for download.

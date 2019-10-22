@@ -162,7 +162,15 @@ namespace dexih.remote.operations
                                             $"The type {downloadStream.Type} was not recognized.");
                                 }
 
-                                context.Response.StatusCode = 200;
+                                if (downloadStream.IsError)
+                                {
+                                    context.Response.StatusCode = 400;
+                                }
+                                else
+                                {
+                                    context.Response.StatusCode = 200;
+                                }
+
                                 if (!string.IsNullOrEmpty(downloadStream.FileName))
                                 {
                                     context.Response.Headers.Add("Content-Disposition",

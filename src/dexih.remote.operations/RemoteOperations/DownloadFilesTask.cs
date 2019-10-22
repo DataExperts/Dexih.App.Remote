@@ -52,7 +52,7 @@ namespace dexih.remote.operations
 
             progress.Report(100, 2, "Files ready for download...");
 
-            await _sharedSettings.StartDataStream(_messageId, downloadStream, _responseUrl, "file", filename, cancellationToken);
+            await _sharedSettings.StartDataStream(_messageId, downloadStream, _responseUrl, "file", filename, false, cancellationToken);
 
             var url = $"{_sharedSettings.RemoteSettings.Network.ProxyUrl}/download/{_messageId}";
             

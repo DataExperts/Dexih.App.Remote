@@ -16,24 +16,26 @@ namespace dexih.remote.operations
     /// </summary>
     public class PostDataTask: ManagedObject
     {
-        public PostDataTask(HttpClient httpClient, Stream stream, string uploadUrl, string errorUrl)
+        public PostDataTask(HttpClient httpClient, Stream stream, string uploadUrl, string errorUrl, bool isError)
         {
             _httpClient = httpClient;
             _stream = stream;
             _uploadUrl = uploadUrl;
             _errorUrl = errorUrl;
+            _isError = isError;
         }
 
         private readonly HttpClient _httpClient;
         private readonly Stream _stream;
         private readonly string _uploadUrl;
         private readonly string _errorUrl;
+        private readonly bool _isError;
         
         public override async Task StartAsync(ManagedTaskProgress progress, CancellationToken cancellationToken = default)
         {
             try
             {
-                await _httpClient.PostAsync(_uploadUrl, new StreamContent(_stream), cancellationToken);
+                await _httpClient.PostAsync(_isError ? _errorUrl : _uploadUrl, new StreamContent(_stream), cancellationToken);
             }
             catch (Exception ex)
             {

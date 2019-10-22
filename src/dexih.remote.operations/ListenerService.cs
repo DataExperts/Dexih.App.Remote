@@ -145,6 +145,7 @@ namespace dexih.remote.operations
                  .AddJsonProtocol(options =>
                  {
                      options.PayloadSerializerOptions.Converters.Add(new JsonObjectConverter());
+                     options.PayloadSerializerOptions.Converters.Add(new JsonTimeSpanConverter());
                  })
                  .ConfigureLogging(logging => { logging.SetMinimumLevel(_remoteSettings.Logging.LogLevel.Default); })
                  .Build();
@@ -444,6 +445,10 @@ namespace dexih.remote.operations
                         if (args.Length > 0 && args[0].IsAssignableFrom(typeof(Stream)))
                         {
                             var task = (Task) method.Invoke(_remoteOperations, new object[] {remoteMessage, commandCancel});
+                            if (task.IsFaulted)
+                            {
+                                throw task.Exception;
+                            }
                             await task.ConfigureAwait(false);
                             var resultProperty = task.GetType().GetProperty("Result");
                             stream = (Stream) resultProperty.GetValue(task);
@@ -453,6 +458,10 @@ namespace dexih.remote.operations
                             stream = new StreamAsyncAction<object>(async () =>
                             {
                                 var task = (Task) method.Invoke(_remoteOperations, new object[] {remoteMessage, commandCancel});
+                                if (task.IsFaulted)
+                                {
+                                    throw task.Exception;
+                                }
                                 await task.ConfigureAwait(false);
                                 var property = task.GetType().GetProperty("Result");
                                 return property.GetValue(task);
@@ -470,7 +479,7 @@ namespace dexih.remote.operations
                             method.Invoke(_remoteOperations, new object[] {remoteMessage, commandCancel}));
                     }
                     
-                    await _sharedSettings.StartDataStream(remoteMessage.MessageId, stream, remoteMessage.ResponseUrl, "json", "", commandCancel);
+                    await _sharedSettings.StartDataStream(remoteMessage.MessageId, stream, remoteMessage.ResponseUrl, "json", "", false, commandCancel);
                 }
                 else
                 {
@@ -486,7 +495,9 @@ namespace dexih.remote.operations
                 if (string.IsNullOrEmpty(remoteMessage.ResponseUrl))
                 {
                     var stream = new StreamAction<ReturnValue>(() =>  error);
-                    _memoryCache.Set(remoteMessage.MessageId, stream, TimeSpan.FromSeconds(5));
+                    await _sharedSettings.StartDataStream(remoteMessage.MessageId, stream, remoteMessage.ResponseUrl, "json", "", true, commandCancel);
+//
+//                    _memoryCache.Set(remoteMessage.MessageId, stream, TimeSpan.FromSeconds(5));
                 }
                 else
                 {
