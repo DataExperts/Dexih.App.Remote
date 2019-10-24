@@ -1949,7 +1949,7 @@ namespace dexih.remote.operations
                 AutoManageFiles = true,
                 BaseTableName = name,
                 Description = $"File information for {name}.",
-                FileRootPath = fileName,
+                FileRootPath = name,
                 FormatType = formatType,
                 FileConfiguration = fileConfiguration
             };

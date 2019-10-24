@@ -81,7 +81,7 @@ namespace dexih.remote.operations
                         {
                             var key = segments[2];
                             var value = segments[3];
-                            sharedSettings.SetCacheItem<string>(key + "-raw", value);
+                            sharedSettings.SetCacheItem(key + "-raw", value);
                         }
                         catch (Exception e)
                         {
@@ -193,9 +193,8 @@ namespace dexih.remote.operations
                             if (files.Count >= 1)
                             {
                                 var key2 = segments[2];
-                                var uploadStream = await sharedSettings.GetCacheItem<DownloadStream>(key2);
-                                await files[0].CopyToAsync(uploadStream.Stream);
-                                uploadStream.Stream.Position = 0;
+                                var uploadStream = await sharedSettings.GetCacheItem<Func<Stream, Task>>(key2);
+                                await uploadStream.Invoke(files[0].OpenReadStream());
                             }
                             else
                             {

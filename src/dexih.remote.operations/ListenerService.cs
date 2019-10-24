@@ -439,7 +439,17 @@ namespace dexih.remote.operations
                 if (remoteMessage.SecurityToken == _sharedSettings.SecurityToken)
                 {
                     Stream stream;
-                    if (method.ReturnType.BaseType == typeof(Task))
+                    if (method.ReturnType == typeof(Task))
+                    {
+                        var task = (Task)method.Invoke(_remoteOperations, new object[] {remoteMessage, commandCancel});
+                        if (task.IsFaulted)
+                        {
+                            throw task.Exception;
+                        }
+                        await task.ConfigureAwait(false);
+                        return;
+                    }
+                    else if (method.ReturnType.BaseType == typeof(Task))
                     {
                         var args = method.ReturnType.GetGenericArguments();
                         if (args.Length > 0 && args[0].IsAssignableFrom(typeof(Stream)))
