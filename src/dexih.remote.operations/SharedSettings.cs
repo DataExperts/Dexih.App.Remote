@@ -51,7 +51,6 @@ namespace dexih.remote.operations
         
         string BaseUrl { get; }
 
-        bool CompleteUpgrade { get; set; }
         void ResetConnection();
 
         Task StartDataStream(string key, Stream stream, string responseUrl, string format, string fileName, bool isError, CancellationToken cancellationToken);

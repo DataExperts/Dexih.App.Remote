@@ -14,10 +14,10 @@ namespace dexih.remote.operations
 
     public enum EExitCode
     {
-        Success = 1,
-        InvalidSetting = 2,
-        InvalidLogin = 3,
-        Terminated = 4,
+        Success = 0,
+        InvalidSetting = 1,
+        InvalidLogin = 2,
+        Terminated = 3,
         UnknownError = 10,
         Upgrade = 20
     }

@@ -27,13 +27,15 @@ namespace dexih.remote.operations
         private readonly ISharedSettings _sharedSettings;
         private readonly RemoteSettings _remoteSettings;
         private readonly IApplicationLifetime _applicationLifetime;
+        private readonly ProgramExit _programExit;
 
-        public UpgradeService(ISharedSettings sharedSettings, ILogger<UpgradeService> logger, IApplicationLifetime applicationLifetime)
+        public UpgradeService(ISharedSettings sharedSettings, ILogger<UpgradeService> logger, IApplicationLifetime applicationLifetime, ProgramExit programExit)
         {
             _sharedSettings = sharedSettings;
             _remoteSettings = sharedSettings.RemoteSettings;
             _logger = logger;
             _applicationLifetime = applicationLifetime;
+            _programExit = programExit;
         }
         
         public Task StartAsync(CancellationToken cancellationToken)
@@ -142,7 +144,7 @@ namespace dexih.remote.operations
                     
                     File.Delete(remoteBinary);
 
-                    _sharedSettings.CompleteUpgrade = true;
+                    _programExit.CompleteUpgrade = true;
 
                     _logger?.LogWarning(
                         $"The new version has been downloaded to {Path.GetFullPath(updateDirectory)}.");

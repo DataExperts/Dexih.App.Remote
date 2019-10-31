@@ -193,7 +193,7 @@ namespace dexih.remote.operations
 			}
 		}
 
-        public bool ReStart(RemoteMessage message, CancellationToken cancellation)
+        public void ReStart(RemoteMessage message, CancellationToken cancellation)
         {
             var force = message?.Value["force"].ToObject<bool>() ?? true;
 
@@ -201,10 +201,11 @@ namespace dexih.remote.operations
             {
                 var applicationLifetime = _host.Services.GetService<IApplicationLifetime>();
                 applicationLifetime.StopApplication();
-                return true;
+                return;
             }
 
-            return false;
+            throw new Exception(
+                $"The remote agent {_remoteSettings.AppSettings.Name} cannot be started as there are {_managedTasks.RunningCount} running tasks.");
         }
 
         public IEnumerable<object> TestCustomFunction(RemoteMessage message, CancellationToken cancellationToken)
@@ -494,7 +495,7 @@ namespace dexih.remote.operations
             }
         }
         
-        public bool CancelTasks(RemoteMessage message, CancellationToken cancellationToken)
+        public void CancelTasks(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
             {
@@ -509,8 +510,6 @@ namespace dexih.remote.operations
                         managedTask.Cancel();
                     }
                 }
-
-                return true;
             }
             catch (Exception ex)
             {

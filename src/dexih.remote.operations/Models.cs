@@ -64,5 +64,12 @@ namespace dexih.remote.operations
         [Key(4)]
         public List<ManagedTask> Results { get; set; } 
     }
+
+    
+    // class contains data required when program exits
+    public class ProgramExit
+    {
+        public bool CompleteUpgrade { get; set; } = false;
+    }
    
 }

@@ -47,13 +47,13 @@ namespace dexih.remote.operations
         /// <returns></returns>
         string Decrypt(RemoteMessage message, CancellationToken cancellationToken);
 
-        bool ReStart(RemoteMessage message, CancellationToken cancellation);
+        void ReStart(RemoteMessage message, CancellationToken cancellation);
         IEnumerable<object> TestCustomFunction(RemoteMessage message, CancellationToken cancellationToken);
         Task<RemoteOperations.TestColumnValidationResult> TestColumnValidation(RemoteMessage message, CancellationToken cancellationToken);
         bool RunDatalinks(RemoteMessage message, CancellationToken cancellationToken);
         bool CancelDatalinks(RemoteMessage message, CancellationToken cancellationToken);
         bool CancelDatalinkTests(RemoteMessage message, CancellationToken cancellationToken);
-        bool CancelTasks(RemoteMessage message, CancellationToken cancellationToken);
+        void CancelTasks(RemoteMessage message, CancellationToken cancellationToken);
         bool RunDatalinkTests(RemoteMessage message, CancellationToken cancellationToken);
 
         /// <summary>

@@ -105,7 +105,6 @@ namespace dexih.remote
             if (File.Exists(settingsFile))
             {
                 logger.LogInformation($"Reading settings from the file {settingsFile}.");
-//                builder.AddJsonFile(settingsFile);
             }
             else
             {
@@ -119,13 +118,13 @@ namespace dexih.remote
                 {"Runtime:LocalIpAddress", LocalIpAddress(logger)},
                 {"Runtime:Version", Assembly.GetEntryAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>().InformationalVersion},
             };
-
-
+            
+            var programExit = new ProgramExit();
+            
             var hostBuilder = new HostBuilder()
                 .ConfigureLogging((hostContext, configLogging) =>
                 {
                     configLogging.AddConfiguration(hostContext.Configuration.GetSection("Logging"));
-                    //configLogging.AddDexihConsole();
                     configLogging.AddConsole();
                     configLogging.AddDebug();
                 })
@@ -175,6 +174,7 @@ namespace dexih.remote
                         return;
                     }
 
+                    services.AddSingleton(programExit);
                     services.AddSingleton<IMessageQueue, MessageQueue>();
                     services.AddSingleton<ILiveApis, LiveApis>();
                     services.AddSingleton<IRemoteOperations, RemoteOperations>();
@@ -196,13 +196,13 @@ namespace dexih.remote
                 
             }
             
-            var sharedSettings = host.Services.GetService<ISharedSettings>();
+            host.Dispose();
             
-            if (sharedSettings.CompleteUpgrade)
+            if (programExit.CompleteUpgrade)
             {
                 return (int)EExitCode.Upgrade;
             }
-            return 0;
+            return (int)EExitCode.Success;;
         }
 
         private static void Welcome()
