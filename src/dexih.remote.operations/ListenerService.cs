@@ -347,7 +347,7 @@ namespace dexih.remote.operations
                             method.Invoke(_remoteOperations, new object[] {remoteMessage, commandCancel}));
                     }
                     
-                    await _sharedSettings.StartDataStream(remoteMessage.MessageId, stream, remoteMessage.ResponseUrl, "json", "", false, commandCancel);
+                    await _sharedSettings.StartDataStream(remoteMessage.MessageId, stream, remoteMessage.DownloadUrl, "json", "", false, commandCancel);
                 }
                 else
                 {
@@ -360,17 +360,17 @@ namespace dexih.remote.operations
                 var error = new ReturnValue<object>(false, $"{ex.Message}", ex);
 
                 // when error occurs, set local cache or send to proxy so message gets to client.
-                if (string.IsNullOrEmpty(remoteMessage.ResponseUrl))
+                if (remoteMessage.DownloadUrl.DownloadUrlType != EDownloadUrlType.Proxy)
                 {
                     var stream = new StreamAction<ReturnValue>(() =>  error);
-                    await _sharedSettings.StartDataStream(remoteMessage.MessageId, stream, remoteMessage.ResponseUrl, "json", "", true, commandCancel);
+                    await _sharedSettings.StartDataStream(remoteMessage.MessageId, stream, remoteMessage.DownloadUrl, "json", "", true, commandCancel);
 //
 //                    _memoryCache.Set(remoteMessage.MessageId, stream, TimeSpan.FromSeconds(5));
                 }
                 else
                 {
                     var result = new ReturnValue(false, ex.Message, ex);
-                    _sharedSettings.PostDirect($"{remoteMessage.ResponseUrl}/error/{remoteMessage.MessageId}", result.Serialize(), commandCancel);
+                    _sharedSettings.PostDirect($"{remoteMessage.DownloadUrl.Url}/error/{remoteMessage.MessageId}", result.Serialize(), commandCancel);
                 }
             }
         }

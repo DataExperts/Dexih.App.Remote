@@ -149,13 +149,13 @@ namespace dexih.remote.operations
            {
                // the raw value gets posted separately directly to the remote agent, so avoid sending unencrypted data to central server.
                string value;
-               if (string.IsNullOrEmpty(message.ResponseUrl))
+               if (message.DownloadUrl.DownloadUrlType != EDownloadUrlType.Proxy)
                {
                    value = await _sharedSettings.GetCacheItem<string>(message.MessageId + "-raw");
                }
                else
                {
-                   value = await _sharedSettings.GetAsync<string>(message.ResponseUrl + "/getRaw/" + message.MessageId, cancellationToken);
+                   value = await _sharedSettings.GetAsync<string>(message.DownloadUrl + "/getRaw/" + message.MessageId, cancellationToken);
                }
                
                if (string.IsNullOrEmpty(value))
@@ -1373,12 +1373,12 @@ namespace dexih.remote.operations
             }
         }
         
-        private void StartUploadStream(string messageId, Func<Stream, Task> uploadAction, string responseUrl, string format, string fileName, CancellationToken cancellationToken)
+        private void StartUploadStream(string messageId, Func<Stream, Task> uploadAction, DownloadUrl downloadUrl, string format, string fileName, CancellationToken cancellationToken)
         {
-            if (!string.IsNullOrEmpty(responseUrl))
+            if (downloadUrl.DownloadUrlType == EDownloadUrlType.Proxy)
             {
                 // create url that will download (the client runs the upload)
-                var uploadUrl = $"{responseUrl}/download/{messageId}/{format}/{fileName}";
+                var uploadUrl = $"{downloadUrl}/download/{messageId}/{format}/{fileName}";
                 
                 var uploadDataTask = new UploadDataTask(_httpClient, uploadAction, uploadUrl);
             
@@ -1926,7 +1926,7 @@ namespace dexih.remote.operations
                     }
                 }
 
-                StartUploadStream(message.MessageId, ProcessTask, message.ResponseUrl, "file", fileName, cancellationToken);
+                StartUploadStream(message.MessageId, ProcessTask, message.DownloadUrl, "file", fileName, cancellationToken);
             }
             catch (Exception ex)
             {
@@ -2090,7 +2090,7 @@ namespace dexih.remote.operations
                     }
                 }
 
-                StartUploadStream(message.MessageId, ProcessTask, message.ResponseUrl, "file", fileName, cancellationToken);
+                StartUploadStream(message.MessageId, ProcessTask, message.DownloadUrl, "file", fileName, cancellationToken);
             }
             catch (Exception ex)
             {
@@ -2150,7 +2150,7 @@ namespace dexih.remote.operations
 //                    }
 //                }
 
-                var downloadFilesTask = new DownloadFilesTask(_sharedSettings,message.MessageId,  message.HubKey, connectionTable.connection, connectionTable.flatFile, path, files, message.ResponseUrl, connectionId, reference);
+                var downloadFilesTask = new DownloadFilesTask(_sharedSettings,message.MessageId,  message.HubKey, connectionTable.connection, connectionTable.flatFile, path, files, message.DownloadUrl, connectionId, reference);
 
                 var startDownloadResult = _managedTasks.Add(reference, connectionId,
                     $"Download file: {files[0]} from {path}.", "Download", connectionTable.hubKey, null, 0, downloadFilesTask, null, null, null);
@@ -2181,7 +2181,7 @@ namespace dexih.remote.operations
                 var reference = Guid.NewGuid().ToString();
                
                 var downloadData = new DownloadData(GetTransformSettings(message.HubVariables), cache, downloadObjects, downloadFormat, zipFiles);
-                var downloadDataTask = new DownloadDataTask(_sharedSettings, message.MessageId, message.HubKey, downloadData, message.ResponseUrl, connectionId, reference);
+                var downloadDataTask = new DownloadDataTask(_sharedSettings, message.MessageId, message.HubKey, downloadData, message.DownloadUrl, connectionId, reference);
 
                 var startDownloadResult = _managedTasks.Add(reference, connectionId, $"Download Data File", "Download", cache.HubKey, null, 0, downloadDataTask, null, null, null);
                 return startDownloadResult;

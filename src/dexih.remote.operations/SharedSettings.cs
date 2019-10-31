@@ -53,7 +53,7 @@ namespace dexih.remote.operations
 
         void ResetConnection();
 
-        Task StartDataStream(string key, Stream stream, string responseUrl, string format, string fileName, bool isError, CancellationToken cancellationToken);
+        Task StartDataStream(string key, Stream stream, DownloadUrl downloadUrl, string format, string fileName, bool isError, CancellationToken cancellationToken);
 
         void SetStream(DownloadStream downloadObject, string key);
         Task<T> GetCacheItem<T>(string key);
@@ -530,12 +530,12 @@ namespace dexih.remote.operations
         }
 
         
-        public async Task StartDataStream(string key, Stream stream, string responseUrl, string format, string fileName, bool isError , CancellationToken cancellationToken)
+        public async Task StartDataStream(string key, Stream stream, DownloadUrl downloadUrl, string format, string fileName, bool isError , CancellationToken cancellationToken)
         {
-            if (!string.IsNullOrEmpty(responseUrl))
+            if (downloadUrl.DownloadUrlType == EDownloadUrlType.Proxy)
             {
-                var uploadUrl = $"{responseUrl}/upload/{key}/{format}/{fileName}";
-                var errorUrl = $"{responseUrl}/error/{key}";
+                var uploadUrl = $"{downloadUrl.Url}/upload/{key}/{format}/{fileName}";
+                var errorUrl = $"{downloadUrl.Url}/error/{key}";
                 var downloadDataTask = new PostDataTask(_httpClient, stream, uploadUrl, errorUrl, isError);
             
                 var newManagedTask = new ManagedTask

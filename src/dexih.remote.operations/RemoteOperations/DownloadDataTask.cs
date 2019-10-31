@@ -1,5 +1,6 @@
 using System.Threading;
 using System.Threading.Tasks;
+using dexih.functions;
 using dexih.operations;
 using Dexih.Utils.ManagedTasks;
 using Dexih.Utils.MessageHelpers;
@@ -14,13 +15,13 @@ namespace dexih.remote.operations
     /// </summary>
     public class DownloadDataTask: ManagedObject
     {
-        public DownloadDataTask(ISharedSettings sharedSettings, string messageId, long hubKey, DownloadData downloadData, string responseUrl, string connectionId, string reference)
+        public DownloadDataTask(ISharedSettings sharedSettings, string messageId, long hubKey, DownloadData downloadData, DownloadUrl downloadUrl, string connectionId, string reference)
         {
             _messageId = messageId;
             _sharedSettings = sharedSettings;
             _hubKey = hubKey;
             _downloadData = downloadData;
-            _responseUrl = responseUrl;
+            _downloadUrl = downloadUrl;
             _connectionId = connectionId;
             _reference = reference;
         }
@@ -29,7 +30,7 @@ namespace dexih.remote.operations
         private readonly ISharedSettings _sharedSettings;
         private readonly long _hubKey;
         private readonly DownloadData _downloadData;
-        private readonly string _responseUrl;
+        private readonly DownloadUrl _downloadUrl;
         private readonly string _connectionId;
         private readonly string _reference;
         
@@ -43,8 +44,9 @@ namespace dexih.remote.operations
 
             progress.Report(100, 2, "Download ready...");
 
-            await _sharedSettings.StartDataStream(_reference, stream, _responseUrl, "file", filename, false, cancellationToken);
-            var url = $"{_sharedSettings.RemoteSettings.Network.ProxyUrl}/download/{_reference}";
+            await _sharedSettings.StartDataStream(_reference, stream, _downloadUrl, "file", filename, false, cancellationToken);
+
+            var url = $"{_downloadUrl.Url}/download/{_reference}";
                     
             var downloadMessage = new DownloadReadyMessage()
             {

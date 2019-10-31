@@ -16,7 +16,7 @@ namespace dexih.remote.operations
     public class DownloadFilesTask: ManagedObject
     {
         public DownloadFilesTask(ISharedSettings sharedSettings, string messageId, long hubKey, ConnectionFlatFile connectionFlatFile,
-            FlatFile flatFile, EFlatFilePath path, string[] files, string responseUrl, string connectionId, string reference)
+            FlatFile flatFile, EFlatFilePath path, string[] files, DownloadUrl downloadUrl, string connectionId, string reference)
         {
             _sharedSettings = sharedSettings;
             _messageId = messageId;
@@ -25,7 +25,7 @@ namespace dexih.remote.operations
             _flatFile = flatFile;
             _path = path;
             _files = files;
-            _responseUrl = responseUrl;
+            _downloadUrl = downloadUrl;
             _connectionId = connectionId;
             _reference = reference;
         }
@@ -38,7 +38,7 @@ namespace dexih.remote.operations
         private readonly FlatFile _flatFile;
         private readonly EFlatFilePath _path;
         private readonly string[] _files;
-        private readonly string _responseUrl;
+        private readonly DownloadUrl _downloadUrl;
         private readonly string _connectionId;
         private readonly string _reference;
         
@@ -52,7 +52,7 @@ namespace dexih.remote.operations
 
             progress.Report(100, 2, "Files ready for download...");
 
-            await _sharedSettings.StartDataStream(_messageId, downloadStream, _responseUrl, "file", filename, false, cancellationToken);
+            await _sharedSettings.StartDataStream(_messageId, downloadStream, _downloadUrl, "file", filename, false, cancellationToken);
 
             var url = $"{_sharedSettings.RemoteSettings.Network.ProxyUrl}/download/{_messageId}";
             
