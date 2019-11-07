@@ -493,7 +493,7 @@ namespace dexih.remote.operations
             }
         }
         
-        public void CancelTasks(RemoteMessage message, CancellationToken cancellationToken)
+        public bool CancelTasks(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
             {
@@ -508,6 +508,8 @@ namespace dexih.remote.operations
                         managedTask.Cancel();
                     }
                 }
+
+                return true;
             }
             catch (Exception ex)
             {
@@ -671,7 +673,7 @@ namespace dexih.remote.operations
             }
         }
 
-        public void RunDatajobs(RemoteMessage message, CancellationToken cancellationToken)
+        public bool RunDatajobs(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
             {
@@ -726,7 +728,9 @@ namespace dexih.remote.operations
                 }
 
                 cancellationToken.ThrowIfCancellationRequested();
-			}
+
+                return true;
+            }
             catch (Exception ex)
             {
                 _logger.LogError(40, ex, "Error in RunDatajobs: {0}", ex.Message);
@@ -768,7 +772,7 @@ namespace dexih.remote.operations
             }
 		}
 
-        public void ActivateDatajobs(RemoteMessage message, CancellationToken cancellationToken)
+        public bool ActivateDatajobs(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
             {
@@ -822,6 +826,8 @@ namespace dexih.remote.operations
                 }
 
                 cancellationToken.ThrowIfCancellationRequested();
+
+                return true;
             }
             catch (Exception ex)
             {
