@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Threading.Tasks;
-using dexih.remote.operations;
 using dexih.repository;
 using Dexih.Utils.Crypto;
 using Microsoft.Extensions.Configuration;

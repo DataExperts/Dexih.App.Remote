@@ -4,7 +4,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using dexih.functions;
 using dexih.repository;
-using Dexih.Utils.Crypto;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 

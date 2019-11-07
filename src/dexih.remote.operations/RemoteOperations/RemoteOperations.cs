@@ -24,8 +24,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-using Newtonsoft.Json.Serialization;
-
 namespace dexih.remote.operations
 {
     
@@ -1340,7 +1338,16 @@ namespace dexih.remote.operations
                 var selectQuery = message.Value["selectQuery"].ToObject<SelectQuery>();
                 var inputColumns = message.Value["inputColumns"].ToObject<InputColumn[]>();
                 var parameters =message.Value["inputParameters"]?.ToObject<InputParameters>();
-                selectQuery.AddParameters(parameters);
+                var chartConfig = message.Value["chartConfig"].ToObject<ChartConfig>();
+
+                if (parameters?.Count > 0)
+                {
+                    if (selectQuery == null)
+                    {
+                        selectQuery = new SelectQuery();
+                    }
+                    selectQuery.AddParameters(parameters);
+                }
 
                 //retrieve the source tables into the cache.
                 var settings = GetTransformSettings(message.HubVariables);
@@ -1361,7 +1368,7 @@ namespace dexih.remote.operations
 
                 _logger.LogInformation("Preview for table: " + dbTable.Name + ".");
 
-                return new StreamJsonCompact(dbTable.Name, reader, 1000, selectQuery?.Rows ?? 100);
+                return new StreamJsonCompact(dbTable.Name, reader, 1000, selectQuery?.Rows ?? 100, chartConfig);
                 
                 // return await _sharedSettings.StartDataStream(stream, downloadUrl, "json", "preview_table.json", cancellationToken);
 
@@ -1417,16 +1424,20 @@ namespace dexih.remote.operations
                 var datalinkTransformKey = message.Value["datalinkTransformKey"]?.ToObject<long>() ?? 0;
                 var dbDatalink = message.Value["datalink"].ToObject<DexihDatalink>();
                 var inputColumns = message.Value["inputColumns"].ToObject<InputColumn[]>();
-
+                var chartConfig = message.Value["chartConfig"].ToObject<ChartConfig>();
+                
                 var transformWriterOptions = new TransformWriterOptions()
                 {
                     PreviewMode = true,
                     GlobalSettings = CreateGlobalSettings(cache.CacheEncryptionKey),
-                    SelectQuery = message.Value["selectQuery"].ToObject<SelectQuery>(),
+                    SelectQuery = message.Value["selectQuery"].ToObject<SelectQuery>() ?? new SelectQuery(),
                 };
 
                 var parameters = message.Value["inputParameters"].ToObject<InputParameters>();
-                transformWriterOptions.SelectQuery.AddParameters(parameters);
+                if (parameters?.Count > 0)
+                {
+                    transformWriterOptions.SelectQuery.AddParameters(parameters);
+                }
 
                 var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables, dbDatalink.Parameters));
                 var runPlan = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, inputColumns,
@@ -1441,7 +1452,7 @@ namespace dexih.remote.operations
                 transform.SetCacheMethod(ECacheMethod.DemandCache);
                 transform.SetEncryptionMethod(EEncryptionMethod.MaskSecureFields, "");
 
-                var stream = new StreamJsonCompact(dbDatalink.Name + " " + transform.Name, transform, 1000, transformWriterOptions.SelectQuery.Rows);
+                var stream = new StreamJsonCompact(dbDatalink.Name + " " + transform.Name, transform, 1000, transformWriterOptions.SelectQuery.Rows, chartConfig);
                 return stream;
                 // return await _sharedSettings.StartDataStream(stream, downloadUrl, "json", "preview_transform.json", cancellationToken);
             }
@@ -1553,16 +1564,20 @@ namespace dexih.remote.operations
                 var dbDatalink = cache.Hub.DexihDatalinks.Single(c => c.Key == datalinkKey);
                 var inputColumns = message.Value["inputColumns"].ToObject<InputColumn[]>();
                 var parameters = message.Value["inputParameters"].ToObject<InputParameters>();
+                var chartConfig = message.Value["chartConfig"].ToObject<ChartConfig>();
 
                 var transformWriterOptions = new TransformWriterOptions()
                 {
                     PreviewMode = true,
                     GlobalSettings = CreateGlobalSettings(cache.CacheEncryptionKey),
-                    SelectQuery = message.Value["selectQuery"].ToObject<SelectQuery>()
+                    SelectQuery = message.Value["selectQuery"].ToObject<SelectQuery>() ?? new SelectQuery()
                 };
-                
-                transformWriterOptions.SelectQuery.AddParameters(parameters);
-                
+
+                if (parameters?.Count > 0)
+                {
+                    transformWriterOptions.SelectQuery.AddParameters(parameters);
+                }
+
                 var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables, dbDatalink.Parameters));
                 var runPlan = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, inputColumns, null, null, transformWriterOptions);
                 var transform = runPlan.sourceTransform;
@@ -1575,7 +1590,7 @@ namespace dexih.remote.operations
                 transform.SetCacheMethod(ECacheMethod.DemandCache);
                 transform.SetEncryptionMethod(EEncryptionMethod.MaskSecureFields, "");
 
-                var stream = new StreamJsonCompact(dbDatalink.Name, transform, 1000, transformWriterOptions.SelectQuery.Rows);
+                var stream = new StreamJsonCompact(dbDatalink.Name, transform, 1000, transformWriterOptions.SelectQuery.Rows, chartConfig);
                 return stream;
                 // return await _sharedSettings.StartDataStream(stream, downloadUrl, "json", "preview_datalink.json", cancellationToken);
             }
@@ -1599,11 +1614,14 @@ namespace dexih.remote.operations
             {
                 PreviewMode = true,
                 GlobalSettings = CreateGlobalSettings(cache.CacheEncryptionKey),
-                SelectQuery = message.Value["selectQuery"].ToObject<SelectQuery>()
+                SelectQuery = message.Value["selectQuery"].ToObject<SelectQuery>() ?? new SelectQuery()
             };
-            
-            transformWriterOptions.SelectQuery.AddParameters(parameters);
-                
+
+            if (parameters?.Count > 0)
+            {
+                transformWriterOptions.SelectQuery.AddParameters(parameters);
+            }
+
             var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables, dbDatalink.Parameters));
             var runPlan = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, inputColumns, null, null, transformWriterOptions);
             var transform = runPlan.sourceTransform;

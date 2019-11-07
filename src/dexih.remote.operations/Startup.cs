@@ -3,7 +3,6 @@ using System.IO;
 using System.Threading.Tasks;
 using System.Web;
 using dexih.functions;
-using Dexih.Utils.Crypto;
 using Dexih.Utils.MessageHelpers;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;

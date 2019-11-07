@@ -324,10 +324,13 @@ namespace dexih.remote.operations
                 
                 if(response == null || !response.IsSuccessStatusCode)
                 {
-                    var errorResponse = await response.Content.ReadAsStringAsync();
-                    if (!string.IsNullOrEmpty(errorResponse))
+                    if (response != null)
                     {
-                        _logger.LogError(errorResponse);
+                        var errorResponse = await response.Content.ReadAsStringAsync();
+                        if (!string.IsNullOrEmpty(errorResponse))
+                        {
+                            _logger.LogError(errorResponse);
+                        }
                     }
 
                     if (!retryStarted)

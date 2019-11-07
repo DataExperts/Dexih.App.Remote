@@ -1,14 +1,11 @@
 using System;
-using System.Diagnostics;
 using System.IO;
-using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using dexih.functions;
 using dexih.operations;
 using dexih.repository;
 using dexih.transforms;
-using Dexih.Utils.Crypto;
 using Dexih.Utils.MessageHelpers;
 using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.SignalR.Client;
