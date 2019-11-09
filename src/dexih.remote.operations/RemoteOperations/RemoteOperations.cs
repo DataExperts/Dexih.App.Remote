@@ -778,7 +778,6 @@ namespace dexih.remote.operations
             {
 				var datajobKeys = message.Value["datajobKeys"].ToObject<long[]>();
                 var cache = message.Value["cache"].ToObject<CacheManager>();
-				var connectionId = message.Value["connectionId"].ToString();
 
                 var exceptions = new List<Exception>();
 
