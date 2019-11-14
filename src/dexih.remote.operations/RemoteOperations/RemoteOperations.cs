@@ -309,7 +309,7 @@ namespace dexih.remote.operations
                 
                 foreach (var datalinkKey in datalinkKeys)
                 {
-                    var dbDatalink = cache.Hub.DexihDatalinks.SingleOrDefault(c => c.Key == datalinkKey);
+                    var dbDatalink = cache.Hub.DexihDatalinks.SingleOrDefault(c => c.IsValid && c.Key == datalinkKey);
                     if (dbDatalink == null)
                     {
                         throw new RemoteOperationException($"The datalink with the key {datalinkKey} was not found.");
@@ -536,7 +536,7 @@ namespace dexih.remote.operations
                     {
                         if (cancellationToken.IsCancellationRequested) break;
 
-                        var datalinkTest = cache.Hub.DexihDatalinkTests.Single(c => c.Key == datalinkTestKey);
+                        var datalinkTest = cache.Hub.DexihDatalinkTests.Single(c => c.IsValid && c.Key == datalinkTestKey);
                         var transformWriterOptions = new TransformWriterOptions()
                         {
                             GlobalSettings = CreateGlobalSettings(cache.CacheEncryptionKey),
@@ -616,7 +616,7 @@ namespace dexih.remote.operations
                     {
                         if (cancellationToken.IsCancellationRequested) break;
 
-                        var datalinkTest = cache.Hub.DexihDatalinkTests.Single(c => c.Key == datalinkTestKey);
+                        var datalinkTest = cache.Hub.DexihDatalinkTests.Single(c => c.IsValid && c.Key == datalinkTestKey);
                         var transformWriterOptions = new TransformWriterOptions()
                         {
                             GlobalSettings = CreateGlobalSettings(cache.CacheEncryptionKey),
@@ -704,7 +704,7 @@ namespace dexih.remote.operations
                     {
                         if (cancellationToken.IsCancellationRequested) break;
 
-                        var dbDatajob = cache.Hub.DexihDatajobs.SingleOrDefault(c => c.Key == datajobKey);
+                        var dbDatajob = cache.Hub.DexihDatajobs.SingleOrDefault(c => c.IsValid && c.Key == datajobKey);
                         if (dbDatajob == null)
                         {
                             throw new Exception($"Datajob with key {datajobKey} was not found");
@@ -839,7 +839,7 @@ namespace dexih.remote.operations
         {
             try
             {
-                var dbDatajob = autoStart.Hub.DexihDatajobs.SingleOrDefault(c => c.Key == autoStart.Key);
+                var dbDatajob = autoStart.Hub.DexihDatajobs.SingleOrDefault(c => c.IsValid && c.Key == autoStart.Key);
                 if (dbDatajob == null)
                 {
                     throw new RemoteOperationException($"Datajob with key {autoStart.Key} was not found");
@@ -874,7 +874,7 @@ namespace dexih.remote.operations
                     paths = new List<ManagedTaskFileWatcher>();
                     foreach (var step in dbDatajob.DexihDatalinkSteps)
                     {
-                        var datalink = autoStart.Hub.DexihDatalinks.SingleOrDefault(d => d.Key == step.DatalinkKey);
+                        var datalink = autoStart.Hub.DexihDatalinks.SingleOrDefault(d => d.IsValid && d.Key == step.DatalinkKey);
                         if (datalink != null)
                         {
                             var tables = datalink.GetAllSourceTables(autoStart.Hub);
@@ -883,7 +883,7 @@ namespace dexih.remote.operations
                             {
                                 var dbConnection =
                                     autoStart.Hub.DexihConnections.SingleOrDefault(
-                                        c => c.Key == dbTable.ConnectionKey);
+                                        c => c.IsValid && c.Key == dbTable.ConnectionKey);
 
                                 if (dbConnection == null)
                                 {
@@ -1195,7 +1195,7 @@ namespace dexih.remote.operations
                 {
                     var dbTable = dbTables[i];
 
-                    var dbConnection = cache.Hub.DexihConnections.SingleOrDefault(c => c.Key == dbTable.ConnectionKey);
+                    var dbConnection = cache.Hub.DexihConnections.SingleOrDefault(c => c.IsValid && c.Key == dbTable.ConnectionKey);
                     if (dbConnection == null)
                     {
                         throw new RemoteOperationException($"The connection for the table {dbTable.Name} could not be found.");
@@ -1245,7 +1245,7 @@ namespace dexih.remote.operations
                 {
                     var dbTable = dbTables[i];
 
-                    var dbConnection = cache.Hub.DexihConnections.SingleOrDefault(c => c.Key == dbTable.ConnectionKey);
+                    var dbConnection = cache.Hub.DexihConnections.SingleOrDefault(c => c.IsValid && c.Key == dbTable.ConnectionKey);
                     if (dbConnection == null)
                     {
                         throw new RemoteOperationException($"The connection for the table {dbTable.Name} could not be found.");
@@ -1294,7 +1294,7 @@ namespace dexih.remote.operations
                     {
                         var dbTable = dbTables[i];
 
-                        var dbConnection = cache.Hub.DexihConnections.SingleOrDefault(c => c.Key == dbTable.ConnectionKey);
+                        var dbConnection = cache.Hub.DexihConnections.SingleOrDefault(c => c.IsValid && c.Key == dbTable.ConnectionKey);
                         if (dbConnection == null)
                         {
                             throw new RemoteOperationException($"The connection for the table {dbTable.Name} could not be found.");
@@ -1483,8 +1483,8 @@ namespace dexih.remote.operations
                 var datalinkTransformItem = message.Value["datalinkTransformItem"].ToObject<DexihDatalinkTransformItem>();
 
                 // get the previous datalink transform, which will be used as input for the import function
-                var datalinkTransform = dbDatalink.DexihDatalinkTransforms.Single(c => c.Key == datalinkTransformKey);
-                var previousDatalinkTransform = dbDatalink.DexihDatalinkTransforms.OrderBy(c => c.Position).SingleOrDefault(c => c.Position < datalinkTransform.Position);
+                var datalinkTransform = dbDatalink.DexihDatalinkTransforms.Single(c => c.IsValid && c.Key == datalinkTransformKey);
+                var previousDatalinkTransform = dbDatalink.DexihDatalinkTransforms.OrderBy(c => c.Position).SingleOrDefault(c => c.IsValid && c.Position < datalinkTransform.Position);
 
                 var transformWriterOptions = new TransformWriterOptions()
                 {
@@ -1566,7 +1566,7 @@ namespace dexih.remote.operations
 
                 var cache = message.Value["cache"].ToObject<CacheManager>();
                 var datalinkKey = message.Value["datalinkKey"].ToObject<long>();
-                var dbDatalink = cache.Hub.DexihDatalinks.Single(c => c.Key == datalinkKey);
+                var dbDatalink = cache.Hub.DexihDatalinks.Single(c => c.IsValid && c.Key == datalinkKey);
                 var inputColumns = message.Value["inputColumns"].ToObject<InputColumn[]>();
                 var parameters = message.Value["inputParameters"].ToObject<InputParameters>();
                 var chartConfig = message.Value["chartConfig"].ToObject<ChartConfig>();
@@ -1611,7 +1611,7 @@ namespace dexih.remote.operations
         {
             var cache = message.Value["cache"].ToObject<CacheManager>();
             var datalinkKey = message.Value["datalinkKey"].ToObject<long>();
-            var dbDatalink = cache.Hub.DexihDatalinks.Single(c => c.Key == datalinkKey);
+            var dbDatalink = cache.Hub.DexihDatalinks.Single(c => c.IsValid && c.Key == datalinkKey);
             var inputColumns = message.Value["inputColumns"].ToObject<InputColumn[]>();
             var parameters = message.Value["inputParameters"].ToObject<InputParameters>();
 
@@ -1647,7 +1647,7 @@ namespace dexih.remote.operations
 
                 var cache = message.Value["cache"].ToObject<CacheManager>();
                 var datalinkKey = message.Value["datalinkKey"].ToObject<long>();
-                var dbDatalink = cache.Hub.DexihDatalinks.Single(c => c.Key == datalinkKey);
+                var dbDatalink = cache.Hub.DexihDatalinks.Single(c => c.IsValid && c.Key == datalinkKey);
                
                 var transformWriterOptions = new TransformWriterOptions()
                 {
@@ -1775,7 +1775,7 @@ namespace dexih.remote.operations
             // Import the datalink metadata.
             var cache = message.Value["cache"].ToObject<CacheManager>();
             var dbTable = message.Value["table"]?.ToObject<DexihTable>();
-            var dbConnection =cache.Hub.DexihConnections.SingleOrDefault(c => c.Key == dbTable.ConnectionKey);
+            var dbConnection =cache.Hub.DexihConnections.SingleOrDefault(c => c.IsValid && c.Key == dbTable.ConnectionKey);
 		    var transformSettings = GetTransformSettings(message.HubVariables);
 		    var connection = (ConnectionFlatFile)dbConnection.GetConnection(transformSettings);
             var table = dbTable.GetTable(cache.Hub, connection, transformSettings);
@@ -1886,7 +1886,7 @@ namespace dexih.remote.operations
                     throw new RemoteOperationException("The table could not be found.");
                 }
 
-                var dbConnection = cache.Hub.DexihConnections.SingleOrDefault(c => c.Key == dbTable.ConnectionKey);
+                var dbConnection = cache.Hub.DexihConnections.SingleOrDefault(c => c.IsValid && c.Key == dbTable.ConnectionKey);
                 if(dbConnection == null)
                 {
                     throw new RemoteOperationException("The connection could not be found.");
@@ -2023,7 +2023,7 @@ namespace dexih.remote.operations
                 var formatType = message.Value["formatType"].ToObject<ETypeCode>();
                 var fileName = message.Value["fileName"].ToObject<string>();
                 
-                var dbConnection = cache.Hub.DexihConnections.SingleOrDefault(c => c.Key == connectionKey);
+                var dbConnection = cache.Hub.DexihConnections.SingleOrDefault(c => c.IsValid && c.Key == connectionKey);
                 if (dbConnection == null)
                 {
                     throw new RemoteOperationException($"The connection with the key {connectionKey} could not be found.");
@@ -2032,7 +2032,7 @@ namespace dexih.remote.operations
                 DexihFileFormat dbFileFormat = null;
                 if (fileFormatKey > 0)
                 {
-                    dbFileFormat = cache.Hub.DexihFileFormats.SingleOrDefault(c => c.Key == fileFormatKey);
+                    dbFileFormat = cache.Hub.DexihFileFormats.SingleOrDefault(c => c.IsValid && c.Key == fileFormatKey);
                     if (dbFileFormat == null)
                     {
                         throw new RemoteOperationException(

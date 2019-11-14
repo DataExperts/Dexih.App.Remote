@@ -331,7 +331,7 @@ namespace dexih.remote.operations
         
         public (string securityKey, DexihApi api) ActivateApi(AutoStart autoStart)
         {
-            var dbApi = autoStart.Hub.DexihApis.SingleOrDefault(c => c.Key == autoStart.Key);
+            var dbApi = autoStart.Hub.DexihApis.SingleOrDefault(c => c.IsValid && c.Key == autoStart.Key);
             if (dbApi == null)
             {
                 throw new Exception($"Api with key {autoStart.Key} was not found");
@@ -353,7 +353,7 @@ namespace dexih.remote.operations
             if (dbApi.SourceType == ESourceType.Table)
             {
                 var dbTable = hub.GetTableFromKey((dbApi.SourceTableKey.Value));
-                var dbConnection = hub.DexihConnections.Single(c => c.Key == dbTable.ConnectionKey);
+                var dbConnection = hub.DexihConnections.Single(c => c.IsValid && c.Key == dbTable.ConnectionKey);
 
                 var connection = dbConnection.GetConnection( settings);
                 var table = dbTable.GetTable(hub, connection, settings);
@@ -363,7 +363,7 @@ namespace dexih.remote.operations
             else
             {
                 var dbDatalink =
-                    hub.DexihDatalinks.Single(c => c.Key == dbApi.SourceDatalinkKey.Value);
+                    hub.DexihDatalinks.Single(c => c.IsValid && c.Key == dbApi.SourceDatalinkKey.Value);
                 var transformOperations = new TransformsManager(settings);
                 var runPlan = transformOperations.CreateRunPlan(hub, dbDatalink, null, null, null, null);
                 transform = runPlan.sourceTransform;
