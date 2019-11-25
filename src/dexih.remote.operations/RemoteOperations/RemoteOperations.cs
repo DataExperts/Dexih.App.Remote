@@ -15,6 +15,7 @@ using dexih.functions.Query;
 using dexih.operations;
 using dexih.repository;
 using dexih.transforms;
+using dexih.transforms.Mapping;
 using Dexih.Utils.Crypto;
 using Dexih.Utils.DataType;
 using Dexih.Utils.ManagedTasks;
@@ -420,7 +421,7 @@ namespace dexih.remote.operations
                         if (task == null)
                         {
                             throw new RemoteOperationException(
-                                "The datalink could not be cancelled as it is not runnign.");
+                                "The datalink could not be cancelled as it is not running.");
                         }
 
                         task.Cancel();
@@ -1087,7 +1088,7 @@ namespace dexih.remote.operations
             catch (Exception ex)
             {
                 _logger.LogError(40, ex, "Error in DeactivateApis: {0}", ex.Message);
-                throw new RemoteOperationException("Error deactivating api's.  " + ex.Message, ex);
+                throw new RemoteOperationException("Error deactivating Api's.  " + ex.Message, ex);
             }
         }
         
@@ -1191,7 +1192,7 @@ namespace dexih.remote.operations
                 var cache = message.Value["cache"].ToObject<CacheManager>();
                 var dbTables = message.Value["tables"].ToObject<List<DexihTable>>();
 
-                for(var i = 0; i < dbTables.Count(); i++)
+                for(var i = 0; i < dbTables.Count; i++)
                 {
                     var dbTable = dbTables[i];
 
@@ -1241,7 +1242,7 @@ namespace dexih.remote.operations
                 var dbTables = message.Value["tables"].ToObject<List<DexihTable>>();
                 var dropTables = message.Value["dropTables"]?.ToObject<bool>() ?? false;
 
-                for (var i = 0; i < dbTables.Count(); i++)
+                for (var i = 0; i < dbTables.Count; i++)
                 {
                     var dbTable = dbTables[i];
 
@@ -1288,7 +1289,7 @@ namespace dexih.remote.operations
 
                 var exceptions = new List<Exception>();
 
-                for(var i = 0; i < dbTables.Count(); i++)
+                for(var i = 0; i < dbTables.Count; i++)
                 {
                     try
                     {
@@ -1368,7 +1369,7 @@ namespace dexih.remote.operations
                 
                 var reader = connection.GetTransformReader(table, true);
                 reader = new TransformQuery(reader, selectQuery) {Name = "Preview Query"};
-                await reader.Open(0, null, cancellationToken);
+                // await reader.Open(0, null, cancellationToken);
                 reader.SetEncryptionMethod(EEncryptionMethod.MaskSecureFields, "");
 
                 _logger.LogInformation("Preview for table: " + dbTable.Name + ".");
@@ -1442,6 +1443,7 @@ namespace dexih.remote.operations
                 if (parameters?.Count > 0)
                 {
                     transformWriterOptions.SelectQuery.AddParameters(parameters);
+                    dbDatalink.UpdateParameters(parameters);
                 }
 
                 var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables, dbDatalink.Parameters));
@@ -1581,16 +1583,17 @@ namespace dexih.remote.operations
                 if (parameters?.Count > 0)
                 {
                     transformWriterOptions.SelectQuery.AddParameters(parameters);
+                    dbDatalink.UpdateParameters(parameters);
                 }
 
                 var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables, dbDatalink.Parameters));
                 var runPlan = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, inputColumns, null, null, transformWriterOptions);
                 var transform = runPlan.sourceTransform;
-                var openReturn = await transform.Open(0, null, cancellationToken);
-                if (!openReturn)
-                {
-                    throw new RemoteOperationException("Failed to open the datalink.");
-                }
+                // var openReturn = await transform.Open(0, null, cancellationToken);
+//                if (!openReturn)
+//                {
+//                    throw new RemoteOperationException("Failed to open the datalink.");
+//                }
 
                 transform.SetCacheMethod(ECacheMethod.DemandCache);
                 transform.SetEncryptionMethod(EEncryptionMethod.MaskSecureFields, "");
@@ -1973,7 +1976,7 @@ namespace dexih.remote.operations
                 Description = $"File information for {name}.",
                 FileRootPath = name,
                 FormatType = formatType,
-                FileConfiguration = fileConfiguration
+                FileConfiguration = fileConfiguration,
             };
             
 
@@ -2094,6 +2097,7 @@ namespace dexih.remote.operations
                     {
                         table.ConnectionKey = dbConnection.Key;
                         table.HubKey = message.HubKey;
+                        table.FileFormatKey = dbFileFormat?.Key;
                     }
                     
                     var readyMessage = new FlatFilesReadyMessage()
@@ -2219,6 +2223,107 @@ namespace dexih.remote.operations
         public NamingStandards NamingStandards(RemoteMessage message, CancellationToken cancellationToken)
         {
             return _remoteSettings.NamingStandards;
+        }
+        
+        public async Task<Stream> PreviewListOfValues(RemoteMessage message, CancellationToken cancellationToken)
+        {
+            try
+            {
+                if (!_remoteSettings.Privacy.AllowDataDownload)
+                {
+                    throw new RemoteSecurityException(
+                        "This remote agent's privacy settings does not allow remote data previews.");
+                }
+
+                var cache = message.Value["cache"].ToObject<CacheManager>();
+                var datalinkKey = message.Value["listOfValuesKey"].ToObject<long>();
+                var dbListOfValues = cache.Hub.DexihListOfValues.Single(c => c.IsValid && c.Key == datalinkKey);
+
+                var settings = GetTransformSettings(message.HubVariables);
+                Transform transform;
+
+                TableColumn keyColumn;
+                TableColumn nameColumn;
+                TableColumn descColumn;
+
+                switch (dbListOfValues.SourceType)
+                {
+                    case ELOVObjectType.Datalink:
+                        var dbDatalink = cache.Hub.DexihDatalinks.Single(c => c.IsValid && c.Key == dbListOfValues.SourceDatalinkKey);
+                        var columns = dbDatalink.GetOutputTable().DexihDatalinkColumns;
+                        keyColumn = columns.SingleOrDefault(c => c.Key == dbListOfValues.KeyColumnKey).GetTableColumn(null);
+                        nameColumn = columns.SingleOrDefault(c => c.Key == dbListOfValues.NameColumnKey).GetTableColumn(null);
+                        descColumn = columns.SingleOrDefault(c => c.Key == dbListOfValues.DescriptionColumnKey).GetTableColumn(null);
+                        var transformWriterOptions = new TransformWriterOptions()
+                        {
+                            PreviewMode = true,
+                            GlobalSettings = CreateGlobalSettings(cache.CacheEncryptionKey),
+                            SelectQuery = dbListOfValues.SelectQuery
+                        };
+                        var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables, dbDatalink.Parameters));
+                        var runPlan = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, null, null, null, transformWriterOptions);
+                        transform = runPlan.sourceTransform;
+                        var openReturn = await transform.Open(0, null, cancellationToken);
+                        if (!openReturn)
+                        {
+                            throw new RemoteOperationException("Failed to open the datalink.");
+                        }
+                        transform.SetCacheMethod(ECacheMethod.DemandCache);
+                        transform.SetEncryptionMethod(EEncryptionMethod.MaskSecureFields, "");
+                        break;
+                    case ELOVObjectType.Table:
+                        var dbTable = cache.Hub.DexihTables.Single(c => c.IsValid && c.Key == dbListOfValues.SourceTableKey);
+                        var columns1 = dbTable.DexihTableColumns;
+                        keyColumn = columns1.SingleOrDefault(c => c.Key == dbListOfValues.KeyColumnKey)?.GetTableColumn(null);
+                        nameColumn = columns1.SingleOrDefault(c => c.Key == dbListOfValues.NameColumnKey)?.GetTableColumn(null);
+                        descColumn = columns1.SingleOrDefault(c => c.Key == dbListOfValues.DescriptionColumnKey)?.GetTableColumn(null);
+
+                        var dbConnection = cache.Hub.DexihConnections.SingleOrDefault(c => c.Key == dbTable.ConnectionKey && c.IsValid);
+                        if (dbConnection == null)
+                        {
+                            throw new TransformManagerException($"The connection with the key {dbTable.ConnectionKey} was not found.");
+                        }
+                
+                        var connection = dbConnection.GetConnection(settings);
+                        var table = dbTable.GetTable(cache.Hub, connection, (InputColumn[]) null, settings);
+                
+                        transform = connection.GetTransformReader(table, true);
+                        transform = new TransformQuery(transform, dbListOfValues.SelectQuery);
+                        
+                        break;
+                    default:
+                        throw new RemoteOperationException($"The source type {dbListOfValues.SourceType} is not supported.");
+                }
+                
+                var mappings = new Mappings(false);
+
+                void AddMapping(TableColumn column, string name)
+                {
+                    if (column != null)
+                    {
+                        var outputColumn = column.Copy(false);
+                        outputColumn.Name = name;
+                        outputColumn.LogicalName = name;
+                        outputColumn.DataType = ETypeCode.String;
+                        mappings.Add(new MapColumn(column, outputColumn ));
+                    }
+                }
+
+                AddMapping(keyColumn, "key");
+                AddMapping(nameColumn, "name");
+                AddMapping(descColumn, "description");
+                
+                var lovTransform = new TransformMapping(transform, mappings);
+                await lovTransform.Open(cancellationToken);
+
+                return new StreamJson(lovTransform,  dbListOfValues.SelectQuery?.Rows ?? -1);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(160, ex, "Error in PreviewDatalink: {0}", ex.Message);
+                throw;
+            }
+
         }
     }
 }
