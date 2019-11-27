@@ -2251,9 +2251,9 @@ namespace dexih.remote.operations
                     case ELOVObjectType.Datalink:
                         var dbDatalink = cache.Hub.DexihDatalinks.Single(c => c.IsValid && c.Key == dbListOfValues.SourceDatalinkKey);
                         var columns = dbDatalink.GetOutputTable().DexihDatalinkColumns;
-                        keyColumn = columns.SingleOrDefault(c => c.Key == dbListOfValues.KeyColumnKey).GetTableColumn(null);
-                        nameColumn = columns.SingleOrDefault(c => c.Key == dbListOfValues.NameColumnKey).GetTableColumn(null);
-                        descColumn = columns.SingleOrDefault(c => c.Key == dbListOfValues.DescriptionColumnKey).GetTableColumn(null);
+                        keyColumn = columns.SingleOrDefault(c => c.Name == dbListOfValues.KeyColumn).GetTableColumn(null);
+                        nameColumn = columns.SingleOrDefault(c => c.Name == dbListOfValues.NameColumn).GetTableColumn(null);
+                        descColumn = columns.SingleOrDefault(c => c.Name == dbListOfValues.DescriptionColumn).GetTableColumn(null);
                         var transformWriterOptions = new TransformWriterOptions()
                         {
                             PreviewMode = true,
@@ -2274,9 +2274,9 @@ namespace dexih.remote.operations
                     case ELOVObjectType.Table:
                         var dbTable = cache.Hub.DexihTables.Single(c => c.IsValid && c.Key == dbListOfValues.SourceTableKey);
                         var columns1 = dbTable.DexihTableColumns;
-                        keyColumn = columns1.SingleOrDefault(c => c.Key == dbListOfValues.KeyColumnKey)?.GetTableColumn(null);
-                        nameColumn = columns1.SingleOrDefault(c => c.Key == dbListOfValues.NameColumnKey)?.GetTableColumn(null);
-                        descColumn = columns1.SingleOrDefault(c => c.Key == dbListOfValues.DescriptionColumnKey)?.GetTableColumn(null);
+                        keyColumn = columns1.SingleOrDefault(c => c.Name == dbListOfValues.KeyColumn)?.GetTableColumn(null);
+                        nameColumn = columns1.SingleOrDefault(c => c.Name == dbListOfValues.NameColumn)?.GetTableColumn(null);
+                        descColumn = columns1.SingleOrDefault(c => c.Name == dbListOfValues.DescriptionColumn)?.GetTableColumn(null);
 
                         var dbConnection = cache.Hub.DexihConnections.SingleOrDefault(c => c.Key == dbTable.ConnectionKey && c.IsValid);
                         if (dbConnection == null)
