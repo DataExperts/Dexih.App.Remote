@@ -2320,7 +2320,7 @@ namespace dexih.remote.operations
             }
             catch (Exception ex)
             {
-                _logger.LogError(160, ex, "Error in PreviewDatalink: {0}", ex.Message);
+                _logger.LogError(160, ex, "Error in PreviewListOfValues: {0}", ex.Message);
                 throw;
             }
 
