@@ -1450,11 +1450,11 @@ namespace dexih.remote.operations
                 var runPlan = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, inputColumns,
                     datalinkTransformKey, null, transformWriterOptions);
                 var transform = runPlan.sourceTransform;
-                var openReturn = await transform.Open(0, null, cancellationToken);
-                if (!openReturn)
-                {
-                    throw new RemoteOperationException("Failed to open the transform.");
-                }
+//                var openReturn = await transform.Open(0, null, cancellationToken);
+//                if (!openReturn)
+//                {
+//                    throw new RemoteOperationException("Failed to open the transform.");
+//                }
 
                 transform.SetCacheMethod(ECacheMethod.DemandCache);
                 transform.SetEncryptionMethod(EEncryptionMethod.MaskSecureFields, "");
@@ -1985,7 +1985,7 @@ namespace dexih.remote.operations
 
             if (formatType == ETypeCode.Text)
             {
-                for (var i = 0; i < 20; i++)
+                for (var i = 0; i < 1000; i++)
                 {
                     fileSample.AppendLine(await reader.ReadLineAsync());
 
