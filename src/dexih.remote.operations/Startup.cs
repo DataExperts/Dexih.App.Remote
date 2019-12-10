@@ -85,7 +85,7 @@ namespace dexih.remote.operations
                         catch (Exception e)
                         {
                             var returnValue = new ReturnValue(false, "Set raw call failed: " + e.Message, e);
-                            SendFailedResponse(returnValue);
+                            await SendFailedResponse(returnValue);
                         }
 
                         break;
@@ -127,7 +127,7 @@ namespace dexih.remote.operations
                         catch (Exception e)
                         {
                             var returnValue = new ReturnValue(false, "API call failed: " + e.Message, e);
-                            SendFailedResponse(returnValue);
+                            await SendFailedResponse(returnValue);
                         }
 
                         break;
@@ -181,7 +181,7 @@ namespace dexih.remote.operations
                         catch (Exception e)
                         {
                             var returnValue = new ReturnValue(false, "Remote agent error: " + e.Message, e);
-                            SendFailedResponse(returnValue);
+                            await SendFailedResponse(returnValue);
                         }
                         break;
 
@@ -203,7 +203,7 @@ namespace dexih.remote.operations
                         catch (Exception e)
                         {
                             var returnValue = new ReturnValue(false, "Upload data failed: " + e.Message, e);
-                            SendFailedResponse(returnValue);
+                            await SendFailedResponse(returnValue);
                         }
                         
                         break;

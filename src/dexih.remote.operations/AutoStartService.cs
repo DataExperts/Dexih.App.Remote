@@ -28,11 +28,11 @@ namespace dexih.remote.operations
             _remoteOperations = remoteOperations;
         }
         
-        public async Task StartAsync(CancellationToken cancellationToken)
+        public Task StartAsync(CancellationToken cancellationToken)
         {
             if (cancellationToken.IsCancellationRequested)
             {
-                return; 
+                return Task.CompletedTask; 
             }
 
             var path = _remoteSettings.AutoStartPath();
@@ -44,7 +44,7 @@ namespace dexih.remote.operations
                 try
                 {
                     var fileData = File.ReadAllText(file);
-                    var autoStart = JsonExtensions.Deserialize<AutoStart>(fileData);
+                    var autoStart = fileData.Deserialize<AutoStart>();
                     autoStart.Decrypt(_remoteSettings.AppSettings.EncryptionKey);
                     _logger.LogInformation($"Auto-starting the apn in file {file}");
                     _liveApis.ActivateApi(autoStart);
@@ -62,7 +62,7 @@ namespace dexih.remote.operations
                 try
                 {
                     var fileData = File.ReadAllText(file);
-                    var autoStart = JsonExtensions.Deserialize<AutoStart>(fileData);
+                    var autoStart = fileData.Deserialize<AutoStart>();
                     autoStart.Decrypt(_remoteSettings.AppSettings.EncryptionKey);
                     _logger.LogInformation($"Auto-starting the datajob in file {file}");
                     _remoteOperations.ActivateDatajob(autoStart);
@@ -72,6 +72,8 @@ namespace dexih.remote.operations
                     _logger.LogError(500, ex, "Error auto-starting the file {0}: {1}", file, ex.Message);
                 }
             }
+            
+            return Task.CompletedTask; 
         }
 
         public Task StopAsync(CancellationToken cancellationToken)

@@ -1328,7 +1328,7 @@ namespace dexih.remote.operations
             }
         }
         
-        public async Task<Stream> PreviewTable(RemoteMessage message, CancellationToken cancellationToken)
+        public Stream PreviewTable(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
             {
@@ -1416,7 +1416,7 @@ namespace dexih.remote.operations
             }
         }
 
-        public async Task<Stream> PreviewTransform(RemoteMessage message, CancellationToken cancellationToken)
+        public Stream PreviewTransform(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
             {
@@ -1556,7 +1556,7 @@ namespace dexih.remote.operations
 
         }
         
-        public async Task<Stream> PreviewDatalink(RemoteMessage message, CancellationToken cancellationToken)
+        public Stream PreviewDatalink(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
             {
@@ -1871,7 +1871,7 @@ namespace dexih.remote.operations
         }
 
 
-        public async Task UploadFile(RemoteMessage message, CancellationToken cancellationToken)
+        public void UploadFile(RemoteMessage message, CancellationToken cancellationToken)
         {
              try
             {
@@ -2009,7 +2009,7 @@ namespace dexih.remote.operations
             return newFile;
         }
         
-        public async Task BulkUploadFiles(RemoteMessage message, CancellationToken cancellationToken)
+        public void BulkUploadFiles(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
             {

@@ -79,10 +79,10 @@ namespace dexih.remote.operations
         Task<List<DexihTable>> ImportDatabaseTables(RemoteMessage message, CancellationToken cancellationToken);
         Task<List<DexihTable>> CreateDatabaseTables(RemoteMessage message, CancellationToken cancellationToken);
         Task<bool> ClearDatabaseTables(RemoteMessage message, CancellationToken cancellationToken);
-        Task<Stream> PreviewTable(RemoteMessage message, CancellationToken cancellationToken);
-        Task<Stream> PreviewTransform(RemoteMessage message, CancellationToken cancellationToken);
+        Stream PreviewTable(RemoteMessage message, CancellationToken cancellationToken);
+        Stream PreviewTransform(RemoteMessage message, CancellationToken cancellationToken);
         Task<string[]> ImportFunctionMappings(RemoteMessage message, CancellationToken cancellationToken);
-        Task<Stream> PreviewDatalink(RemoteMessage message, CancellationToken cancellationToken);
+        Stream PreviewDatalink(RemoteMessage message, CancellationToken cancellationToken);
         Task<Stream> GetReaderData(RemoteMessage message, CancellationToken cancellationToken);
         Task<Stream> PreviewProfile(RemoteMessage message, CancellationToken cancellationToken);
         Task<List<TransformWriterResult>> GetAuditResults(RemoteMessage message, CancellationToken cancellationToken);
@@ -91,8 +91,8 @@ namespace dexih.remote.operations
         Task<bool> DeleteFiles(RemoteMessage message, CancellationToken cancellationToken);
         Task<List<DexihFileProperties>> GetFileList(RemoteMessage message, CancellationToken cancellationToken);
         // Task<bool> SaveFile(RemoteMessage message, CancellationToken cancellationToken);
-        Task UploadFile(RemoteMessage message, CancellationToken cancellationToken);
-        Task BulkUploadFiles(RemoteMessage message, CancellationToken cancellationToken);
+        void UploadFile(RemoteMessage message, CancellationToken cancellationToken);
+        void BulkUploadFiles(RemoteMessage message, CancellationToken cancellationToken);
         ManagedTask DownloadFiles(RemoteMessage message, CancellationToken cancellationToken);
         ManagedTask DownloadData(RemoteMessage message, CancellationToken cancellationToken);
 

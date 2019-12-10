@@ -533,7 +533,7 @@ namespace dexih.remote.operations
         }
 
         
-        public async Task StartDataStream(string key, Stream stream, DownloadUrl downloadUrl, string format, string fileName, bool isError , CancellationToken cancellationToken)
+        public Task StartDataStream(string key, Stream stream, DownloadUrl downloadUrl, string format, string fileName, bool isError , CancellationToken cancellationToken)
         {
             if (downloadUrl.DownloadUrlType == EDownloadUrlType.Proxy)
             {
@@ -562,6 +562,8 @@ namespace dexih.remote.operations
                 var downloadObject = new DownloadStream(fileName, format, stream, isError);
                 SetStream(downloadObject, key);
             }
+
+            return Task.CompletedTask;
         }
         
 //        public async Task StartDataStream(Stream stream, string responseUrl, string messageId, string format, string fileName, CancellationToken cancellationToken)

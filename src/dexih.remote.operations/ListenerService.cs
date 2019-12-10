@@ -367,7 +367,7 @@ namespace dexih.remote.operations
                 else
                 {
                     var result = new ReturnValue(false, ex.Message, ex);
-                    _sharedSettings.PostDirect($"{remoteMessage.DownloadUrl.Url}/error/{remoteMessage.MessageId}", result.Serialize(), commandCancel);
+                    await _sharedSettings.PostDirect($"{remoteMessage.DownloadUrl.Url}/error/{remoteMessage.MessageId}", result.Serialize(), commandCancel);
                 }
             }
         }
