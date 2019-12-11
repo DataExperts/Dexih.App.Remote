@@ -533,7 +533,7 @@ namespace dexih.remote.operations
         }
 
         
-        public Task StartDataStream(string key, Stream stream, DownloadUrl downloadUrl, string format, string fileName, bool isError , CancellationToken cancellationToken)
+        public Task StartDataStream(string key, Stream stream, DownloadUrl downloadUrl, string format, string fileName, bool isError, CancellationToken cancellationToken)
         {
             if (downloadUrl.DownloadUrlType == EDownloadUrlType.Proxy)
             {

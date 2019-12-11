@@ -2238,6 +2238,7 @@ namespace dexih.remote.operations
                 var cache = message.Value["cache"].ToObject<CacheManager>();
                 var datalinkKey = message.Value["listOfValuesKey"].ToObject<long>();
                 var dbListOfValues = cache.Hub.DexihListOfValues.Single(c => c.IsValid && c.Key == datalinkKey);
+                var resetCache = message.Value["resetCache"].ToObject<bool>();
 
                 var settings = GetTransformSettings(message.HubVariables);
                 Transform transform;
@@ -2245,6 +2246,19 @@ namespace dexih.remote.operations
                 TableColumn keyColumn;
                 TableColumn nameColumn;
                 TableColumn descColumn;
+
+                if (resetCache = true)
+                {
+                    _memoryCache.Remove(CacheKeys.LookupValues(dbListOfValues.HubKey, dbListOfValues.Key));
+                }
+
+                if (dbListOfValues.Cache)
+                {
+                    if(_memoryCache.TryGetValue<byte[]>(CacheKeys.LookupValues(dbListOfValues.HubKey, dbListOfValues.Key), out var listOfValues))
+                    {
+                        return new MemoryStream(listOfValues);
+                    }
+                }
 
                 switch (dbListOfValues.SourceType)
                 {
@@ -2316,7 +2330,17 @@ namespace dexih.remote.operations
                 var lovTransform = new TransformMapping(transform, mappings);
                 await lovTransform.Open(cancellationToken);
 
-                return new StreamJson(lovTransform,  dbListOfValues.SelectQuery?.Rows ?? -1);
+                var stream = new StreamJson(lovTransform,  dbListOfValues.SelectQuery?.Rows ?? -1);
+
+                if (dbListOfValues.Cache)
+                {
+                    var key = CacheKeys.LookupValues(dbListOfValues.HubKey, dbListOfValues.Key);
+                    return new CacheStream(stream, _memoryCache, key, dbListOfValues.CacheSeconds);
+                }
+                else
+                {
+                    return stream;
+                }
             }
             catch (Exception ex)
             {
