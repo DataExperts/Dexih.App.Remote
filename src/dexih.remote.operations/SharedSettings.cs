@@ -543,7 +543,7 @@ namespace dexih.remote.operations
             
                 var newManagedTask = new ManagedTask
                 {
-                    Reference = Guid.NewGuid().ToString(),
+                    TaskId = Guid.NewGuid().ToString(),
                     OriginatorId = "none",
                     Name = $"Remote Data",
                     Category = "ProxyDownload",

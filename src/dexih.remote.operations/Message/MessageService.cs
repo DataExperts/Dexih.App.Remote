@@ -76,7 +76,7 @@ namespace dexih.remote.operations
             _logger.LogInformation("Message service has stopped.");
         }
 
-        private void TaskProgressChange(object value, ManagedTaskProgressItem progressItem)
+        private void TaskProgressChange(ManagedTask value, ManagedTaskProgressItem progressItem)
         {
             // run as a separate task to minimise delays to core processes.
             if (_sendDatalinkProgress == null || _sendDatalinkProgress.IsCompleted)
@@ -85,7 +85,7 @@ namespace dexih.remote.operations
             }
         }
 
-        private void TaskStatusChange(object value, EManagedTaskStatus managedTaskStatus)
+        private void TaskStatusChange(ManagedTask value, EManagedTaskStatus managedTaskStatus)
         {
             // run as a separate task to minimise delays to core processes.
             if (_sendDatalinkProgress == null || _sendDatalinkProgress.IsCompleted)

@@ -11,6 +11,8 @@ using dexih.remote.config;
 using dexih.remote.operations;
 using dexih.repository;
 using Dexih.Utils.ManagedTasks;
+using MessagePack;
+using MessagePack.Resolvers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -89,9 +91,11 @@ namespace dexih.remote
                 configDirectory = Directory.GetCurrentDirectory();
             }
             
-            MessagePack.Resolvers.CompositeResolver.RegisterAndSetAsDefault(
+            var resolver = CompositeResolver.Create(
                 new[] { MessagePack.Formatters.TypelessFormatter.Instance },
                 new[] { MessagePack.Resolvers.StandardResolver.Instance });
+            var options = MessagePackSerializerOptions.Standard.WithResolver(resolver);
+            MessagePackSerializer.DefaultOptions = options;
 
             
             var settingsFile = Path.Combine(configDirectory, "appsettings.json");

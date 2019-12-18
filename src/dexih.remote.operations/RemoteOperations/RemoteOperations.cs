@@ -376,7 +376,7 @@ namespace dexih.remote.operations
                 
                 var task = new ManagedTask
                 {
-                    Reference = reference,
+                    TaskId = reference,
                     OriginatorId = connectionId,
                     Name = $"Datalink: {datalinkRun.Datalink.Name}.",
                     Category = "Datalink",
@@ -386,7 +386,7 @@ namespace dexih.remote.operations
                     ManagedObject = datalinkRun,
                     Triggers = null,
                     FileWatchers = null,
-                    DependentReferences = dependencies,
+                    DependentTaskIds = dependencies,
                     ConcurrentTaskAction = parentDataJobRun == null ? EConcurrentTaskAction.Abend : EConcurrentTaskAction.Sequence
                 };
 
@@ -739,7 +739,7 @@ namespace dexih.remote.operations
             }
         }
 
-		private void AddDataJobTask(DexihHub dbHub, TransformSettings transformSettings, string connectionId, DexihDatajob dbHubDatajob, TransformWriterOptions transformWriterOptions, IEnumerable<ManagedTaskSchedule> managedTaskSchedules, IEnumerable<ManagedTaskFileWatcher> fileWatchers)
+		private void AddDataJobTask(DexihHub dbHub, TransformSettings transformSettings, string connectionId, DexihDatajob dbHubDatajob, TransformWriterOptions transformWriterOptions, IEnumerable<ManagedTaskTrigger> managedTaskSchedules, IEnumerable<ManagedTaskFileWatcher> fileWatchers)
 		{
             try
             {
@@ -754,7 +754,7 @@ namespace dexih.remote.operations
 
                 var newManagedTask = new ManagedTask
                 {
-                    Reference = Guid.NewGuid().ToString(),
+                    TaskId = Guid.NewGuid().ToString(),
                     OriginatorId = connectionId,
                     Name = $"Datajob: {dbHubDatajob.Name}.",
                     Category = "Datajob",
@@ -860,12 +860,12 @@ namespace dexih.remote.operations
                     PreviewMode = false
                 };
 
-                var triggers = new List<ManagedTaskSchedule>();
+                var triggers = new List<ManagedTaskTrigger>();
 
                 foreach (var trigger in dbDatajob.DexihTriggers)
                 {
-                    var managedTaskSchedule = trigger.CreateManagedTaskSchedule();
-                    triggers.Add(managedTaskSchedule);
+                    var managedTaskTrigger = trigger.CreateManagedTaskTrigger();
+                    triggers.Add(managedTaskTrigger);
                 }
 
                 List<ManagedTaskFileWatcher> paths = null;
@@ -1397,7 +1397,7 @@ namespace dexih.remote.operations
             
                 var newManagedTask = new ManagedTask
                 {
-                    Reference = Guid.NewGuid().ToString(),
+                    TaskId = Guid.NewGuid().ToString(),
                     OriginatorId = "none",
                     Name = $"Remote Data",
                     Category = "ProxyUpload",
@@ -2247,7 +2247,7 @@ namespace dexih.remote.operations
                 TableColumn nameColumn;
                 TableColumn descColumn;
 
-                if (resetCache = true)
+                if (resetCache == true)
                 {
                     _memoryCache.Remove(CacheKeys.LookupValues(dbListOfValues.HubKey, dbListOfValues.Key));
                 }
