@@ -1,4 +1,4 @@
-version: 0.5.{build}
+version: 1.0-rc.{build}
 # image: Visual Studio 2019
 image: Ubuntu
 configuration:
