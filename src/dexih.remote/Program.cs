@@ -91,15 +91,15 @@ namespace dexih.remote
                 configDirectory = Directory.GetCurrentDirectory();
             }
             
-            // var resolver = CompositeResolver.Create(
-            //     new[] { MessagePack.Formatters.TypelessFormatter.Instance },
-            //     new[] { MessagePack.Resolvers.StandardResolver.Instance });
-            // var options = MessagePackSerializerOptions.Standard.WithResolver(resolver);
-            // MessagePackSerializer.DefaultOptions = options;
-
-            MessagePack.Resolvers.CompositeResolver.RegisterAndSetAsDefault(
+            var resolver = CompositeResolver.Create(
                 new[] { MessagePack.Formatters.TypelessFormatter.Instance },
                 new[] { MessagePack.Resolvers.StandardResolver.Instance });
+            var options = MessagePackSerializerOptions.Standard.WithResolver(resolver);
+            MessagePackSerializer.DefaultOptions = options;
+
+            // MessagePack.Resolvers.CompositeResolver.RegisterAndSetAsDefault(
+            //     new[] { MessagePack.Formatters.TypelessFormatter.Instance },
+            //     new[] { MessagePack.Resolvers.StandardResolver.Instance });
 
             
             var settingsFile = Path.Combine(configDirectory, "appsettings.json");
