@@ -14,7 +14,7 @@ using dexih.transforms;
 using dexih.transforms.Transforms;
 using Dexih.Utils.Crypto;
 using Dexih.Utils.ManagedTasks;
-using MessagePack;
+
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -184,9 +184,9 @@ namespace dexih.remote.operations
                         var message = jsonContent.Deserialize<T>();
                         return message;
                     
-                    case "application/x-msgpack":
-                        var result = await MessagePackSerializer.DeserializeAsync<T>(await response.Content.ReadAsStreamAsync());
-                        return result;
+                    // case "application/x-msgpack":
+                    //     var result = await MessagePackSerializer.DeserializeAsync<T>(await response.Content.ReadAsStreamAsync());
+                    //     return result;
 
                     case "text/plain":
                         if (typeof(T) == typeof(string))
@@ -513,7 +513,7 @@ namespace dexih.remote.operations
 
         public async Task<T> GetCacheItem<T>(string key)
         {
-            for (var i = 0; i < 10; i++)
+            for (var i = 0; i < 50; i++)
             {
                 var downloadObject = _memoryCache.Get<T>(key);
                 if (downloadObject != null)

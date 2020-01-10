@@ -1,38 +1,39 @@
 ﻿using System.Collections.Generic;
+using System.Runtime.Serialization;
 using dexih.operations;
 using Dexih.Utils.ManagedTasks;
-using MessagePack;
+
 
 namespace dexih.remote.operations
 {
-    [MessagePackObject]
+    [DataContract]
     public class RemoteAgentStatus
     {
-        [Key(0)]
+        [DataMember(Order = 0)]
         public IEnumerable<ApiData> ActiveApis { get; set; }
 
-        [Key(1)]
+        [DataMember(Order = 1)]
         public IEnumerable<ManagedTask> ActiveDatajobs { get; set; }
         
-        [Key(2)]
+        [DataMember(Order = 2)]
         public IEnumerable<ManagedTask> ActiveDatalinks { get; set; }
         
-        [Key(3)]
+        [DataMember(Order = 3)]
         public IEnumerable<ManagedTask> ActiveDatalinkTests { get; set; }
         
-        [Key(4)]
+        [DataMember(Order = 4)]
         public IEnumerable<ManagedTask> PreviousDatajobs { get; set; }
         
-        [Key(5)]
+        [DataMember(Order = 5)]
         public IEnumerable<ManagedTask> PreviousDatalinks { get; set; }
         
-        [Key(6)]
+        [DataMember(Order = 6)]
         public IEnumerable<ManagedTask> PreviousDatalinkTests { get; set; }
         
-        [Key(7)]
+        [DataMember(Order = 7)]
         public RemoteLibraries RemoteLibraries { get; set; }
         
-        [Key(8)]
+        [DataMember(Order = 8)]
 
         public bool RequiresUpgrade { get; set; }
     }

@@ -1,11 +1,12 @@
 using System;
+using System.Runtime.Serialization;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using dexih.functions.Query;
 using dexih.transforms;
 
-using MessagePack;
+
 
 namespace dexih.remote.operations
 {
@@ -15,7 +16,7 @@ namespace dexih.remote.operations
         Activated = 1, Deactivated
     }
     
-    [MessagePackObject]
+    [DataContract]
     public class ApiData: IDisposable
     {
         public ApiData()
@@ -29,28 +30,28 @@ namespace dexih.remote.operations
         /// </summary>
         private readonly SemaphoreSlim _semaphoreSlim = new SemaphoreSlim(1, 1);
 
-        [Key(1)] public EApiStatus ApiStatus { get; set; }
+        [DataMember(Order = 1)] public EApiStatus ApiStatus { get; set; }
 
-        [Key(2)]
+        [DataMember(Order = 2)]
         public long HubKey { get; set; }
 
-        [Key(3)]
+        [DataMember(Order = 3)]
         public long ApiKey { get; set; }
 
-        [Key(4)]
+        [DataMember(Order = 4)]
         public SelectQuery SelectQuery { get; set; }
 
-        [Key(5)]
+        [DataMember(Order = 5)]
         public string SecurityKey { get; set; }
 
-        [Key(6)]
+        [DataMember(Order = 6)]
         public long SuccessCount { get; set; }
 
-        [Key(7)]
+        [DataMember(Order = 7)]
         public long ErrorCount { get; set; }
 
 
-        [JsonIgnore, IgnoreMember]
+        [JsonIgnore, IgnoreDataMember]
         public Transform Transform { get; set; }
 
         public void IncrementSuccess()
