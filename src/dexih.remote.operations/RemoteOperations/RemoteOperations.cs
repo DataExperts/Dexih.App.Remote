@@ -542,8 +542,8 @@ namespace dexih.remote.operations
                         {
                             GlobalSettings = CreateGlobalSettings(cache.CacheEncryptionKey),
                         };
-                        var datalinkTestRun = new DatalinkTestRun(GetTransformSettings(message.HubVariables), _logger, datalinkTest, cache.Hub, transformWriterOptions);
-                        datalinkTestRun.StartMode = EStartMode.RunTests;
+                        var datalinkTestRun = new DatalinkTestRun(GetTransformSettings(message.HubVariables), _logger,
+                            datalinkTest, cache.Hub, transformWriterOptions) {StartMode = EStartMode.RunTests};
 
 //                        async Task DatalinkTestTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken cancellationToken2)
 //                        {
