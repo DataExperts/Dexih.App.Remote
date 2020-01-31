@@ -192,7 +192,7 @@ namespace dexih.remote
                 .UseConsoleLifetime();
 
             var host = hostBuilder.Build();
-            
+
             try
             {
                 await host.RunAsync();
