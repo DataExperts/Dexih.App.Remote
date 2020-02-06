@@ -34,15 +34,15 @@
     </Content>
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="3.1.0" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.CommandLine" Version="3.1.0" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="3.1.0" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="3.1.0" />
-    <PackageReference Include="Microsoft.Extensions.Configuration" Version="3.1.0" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.FileExtensions" Version="3.1.0" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="3.1.0" />
-    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="3.1.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="3.1.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="3.1.1" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.CommandLine" Version="3.1.1" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="3.1.1" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="3.1.1" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="3.1.1" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.FileExtensions" Version="3.1.1" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="3.1.1" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="3.1.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="3.1.1" />
   </ItemGroup>
   <ItemGroup>
     <None Update=".dockerignore">
@@ -50,25 +50,20 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.db2\dexih.connections.db2.csproj" />
     <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.mongo\dexih.connections.mongo.csproj" />
     <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.functions.builtIn\dexih.functions.builtIn.csproj" />
     <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.functions.external\dexih.functions.external.csproj" />
     <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.functions.financial\dexih.functions.financial.csproj" />
     <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.functions.maths\dexih.functions.maths.csproj" />
     <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.mysql\dexih.connections.mysql.csproj" />
-    <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.oracle\dexih.connections.oracle.csproj" />
     <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.postgressql\dexih.connections.postgressql.csproj" />
     <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.sqlite\dexih.connections.sqlite.csproj" />
     <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.sqlserver\dexih.connections.sqlserver.csproj" />
-    <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.functions.ml\dexih.functions.ml.csproj" />
-    <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.functions\dexih.functions.csproj" />
     <ProjectReference Include="..\..\..\Dexih.App.Operations\src\dexih.operations\dexih.operations.csproj" />
     <ProjectReference Include="..\..\..\Dexih.App.Operations\src\dexih.repository\dexih.repository.csproj" />
     <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.transforms\dexih.transforms.csproj" />
     <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.azure\dexih.connections.azure.csproj" />
     <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.dexih\dexih.connections.dexih.csproj" />
-    <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.excel\dexih.connections.excel.csproj" />
     <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.flatfile\dexih.connections.flatfile.csproj" />
     <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.ftp\dexih.connections.ftp.csproj" />
     <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.sftp\dexih.connections.sftp.csproj" />

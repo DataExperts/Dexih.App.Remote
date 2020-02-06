@@ -89,6 +89,10 @@ namespace dexih.remote
                 configDirectory = Directory.GetCurrentDirectory();
             }
             
+            AppDomain currentDomain = AppDomain.CurrentDomain;
+            currentDomain.AssemblyResolve += LoadAssembly;
+
+            
             // var resolver = CompositeResolver.Create(
             //     new[] { MessagePack.Formatters.TypelessFormatter.Instance },
             //     new[] { MessagePack.Resolvers.StandardResolver.Instance });
@@ -193,6 +197,9 @@ namespace dexih.remote
 
             var host = hostBuilder.Build();
 
+            var sharedSettings = host.Services.GetService<ISharedSettings>();
+            await sharedSettings.RemoteSettings.GetPlugins(logger);
+            
             try
             {
                 await host.RunAsync();
@@ -268,6 +275,28 @@ Welcome to Dexih - The Data Experts Information Hub
                 return "127.0.0.1";
             }
         }
+
+        private static readonly string[] AssemblyPaths = new[]
+        {
+            Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location),
+            Path.Combine(Directory.GetCurrentDirectory(), "plugins", "standard"),
+            Path.Combine(Directory.GetCurrentDirectory(), "plugins", "connections"),
+            Path.Combine(Directory.GetCurrentDirectory(), "plugins", "functions")
+        };
         
+        private static Assembly LoadAssembly(object sender, ResolveEventArgs args)
+        {
+            foreach(var path in AssemblyPaths)
+            {
+                var assemblyPath = Path.Combine(path, new AssemblyName(args.Name).Name + ".dll");
+                if (File.Exists(assemblyPath))
+                {
+                    var assembly = Assembly.LoadFrom(assemblyPath);
+                    return assembly;
+                }
+            }
+            
+            throw new DllNotFoundException($"The assembly {args.Name} was not found.");
+        }
     }
 }
