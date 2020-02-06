@@ -174,6 +174,7 @@ namespace dexih.remote
                 {
                     services.AddMemoryCache();
                     services.AddSingleton<ISharedSettings, SharedSettings>();
+                    services.AddSingleton(programExit);
                     services.AddHostedService<UpgradeService>();
                     services.AddSingleton<IManagedTasks, ManagedTasks>();
 
@@ -184,7 +185,6 @@ namespace dexih.remote
                         return;
                     }
 
-                    services.AddSingleton(programExit);
                     services.AddSingleton<IMessageQueue, MessageQueue>();
                     services.AddSingleton<ILiveApis, LiveApis>();
                     services.AddSingleton<IRemoteOperations, RemoteOperations>();

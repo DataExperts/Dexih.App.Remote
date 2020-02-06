@@ -20,7 +20,7 @@ namespace dexih.remote.operations
     {
         const string remoteBinary = "dexih.remote.zip";
         private const string updateDirectory = "update";
-        
+        private bool updateFound = false;
             
         private Timer _timer;
         private readonly ILogger<UpgradeService> _logger;
@@ -77,8 +77,9 @@ namespace dexih.remote.operations
             {
                 var update = await _remoteSettings.CheckUpgrade();
 
-                if (update)
+                if (update && !updateFound)
                 {
+                    updateFound = true;
                     File.WriteAllText("latest_version.txt",
                         _remoteSettings.Runtime.LatestVersion + "\n" + _remoteSettings.Runtime.LatestDownloadUrl);
                     _logger?.LogWarning($"*****************   UPGRADE AVAILABLE ****************");
