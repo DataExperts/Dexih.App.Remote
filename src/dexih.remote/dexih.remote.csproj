@@ -50,7 +50,6 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.mongo\dexih.connections.mongo.csproj" />
     <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.functions.builtIn\dexih.functions.builtIn.csproj" />
     <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.functions.external\dexih.functions.external.csproj" />
     <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.functions.financial\dexih.functions.financial.csproj" />
