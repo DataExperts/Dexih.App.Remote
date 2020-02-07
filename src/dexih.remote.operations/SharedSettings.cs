@@ -219,27 +219,27 @@ namespace dexih.remote.operations
         
         public async Task<EConnectionResult> WaitForLogin(bool reconnect = false, CancellationToken cancellationToken = default)
         {
-            // check if we are already connected
-            if (!reconnect && _connectionStatus == EConnectionResult.Connected)
-            {
-                return EConnectionResult.Connected;
-            }
-
             try
             {
                 // the login semaphore only allows one login attempt simultaneously
                 await _loginSemaphore.WaitAsync(cancellationToken);
 
+                // check if we are already connected
+                if (!reconnect && _connectionStatus == EConnectionResult.Connected)
+                {
+                    return EConnectionResult.Connected;
+                }
+                
                 _connectionStatus = EConnectionResult.Connecting;
 
-                var connectionResult = EConnectionResult.Disconnected;
+                // var connectionResult = EConnectionResult.Disconnected;
 
                 var retryStarted = false;
 
-                while (connectionResult != EConnectionResult.Connected)
+                while (_connectionStatus != EConnectionResult.Connected)
                 {
-                    connectionResult = await LoginAsync(retryStarted, cancellationToken);
-                    switch (connectionResult)
+                    _connectionStatus = await LoginAsync(retryStarted, cancellationToken);
+                    switch (_connectionStatus)
                     {
                         case EConnectionResult.InvalidCredentials:
                             _logger.LogWarning("Invalid credentials... terminating service.");
@@ -259,7 +259,7 @@ namespace dexih.remote.operations
                         default:
                             if (!retryStarted)
                             {
-                                _logger.LogWarning($"Error:  Login returned {connectionResult}.. retrying...");
+                                _logger.LogWarning($"Error:  Login returned {_connectionStatus}.. retrying...");
                             }
 
                             break;
@@ -271,7 +271,11 @@ namespace dexih.remote.operations
             }
             finally
             {
-                _loginSemaphore.Release();    
+                try
+                {
+                    _loginSemaphore.Release();    
+                }
+                catch(ObjectDisposedException) {}
             }
 
             return EConnectionResult.Connected;

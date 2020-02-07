@@ -78,9 +78,7 @@ namespace dexih.remote.operations
                     if (File.Exists(certificatePath))
                     {
                         // Create a collection object and populate it using the PFX file
-                        using (var cert = new X509Certificate2(
-                            certificatePath,
-                            _remoteSettings.Network.CertificatePassword))
+                        using (var cert = new X509Certificate2(certificatePath, _remoteSettings.Network.CertificatePassword))
                         {
                             var effectiveDate = DateTime.Parse(cert.GetEffectiveDateString());
                             var expiresDate = DateTime.Parse(cert.GetExpirationDateString());

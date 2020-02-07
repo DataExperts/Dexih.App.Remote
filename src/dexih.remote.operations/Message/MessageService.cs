@@ -43,7 +43,7 @@ namespace dexih.remote.operations
             {
                 try
                 {
-                    await _messageQueue.WaitForMessage();
+                    await _messageQueue.WaitForMessage(cancellationToken);
 
                     if (_messageQueue.Count > 0)
                     {
@@ -56,7 +56,8 @@ namespace dexih.remote.operations
                         }
 
                         var returnValue =
-                            await _sharedSettings.PostAsync<List<ResponseMessage>, ReturnValue>("Remote/UpdateResponseMessage", messages,
+                            await _sharedSettings.PostAsync<List<ResponseMessage>, ReturnValue>(
+                                "Remote/UpdateResponseMessage", messages,
                                 cancellationToken);
 
                         if (!returnValue.Success)
@@ -65,7 +66,12 @@ namespace dexih.remote.operations
                                 "A response message failed to send to server.  Message" + returnValue.Message);
                         }
                     }
+
                     await Task.Delay(500, cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
                 }
                 catch (Exception ex)
                 {

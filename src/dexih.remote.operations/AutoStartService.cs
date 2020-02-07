@@ -30,6 +30,8 @@ namespace dexih.remote.operations
         
         public Task StartAsync(CancellationToken cancellationToken)
         {
+            _logger.LogInformation("The auto-start is starting.");
+
             if (cancellationToken.IsCancellationRequested)
             {
                 return Task.CompletedTask; 
@@ -73,12 +75,14 @@ namespace dexih.remote.operations
                 }
             }
             
+            _logger.LogInformation("The auto-start is started.");
+
             return Task.CompletedTask; 
         }
 
         public Task StopAsync(CancellationToken cancellationToken)
         {
-            _logger.LogInformation("AutoStart service has stopped.");
+            _logger.LogInformation("The auto-start service has stopped.");
 
             return Task.CompletedTask;
         }

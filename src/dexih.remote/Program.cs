@@ -59,17 +59,19 @@ namespace dexih.remote
             {"--enableupnp", "Network:EnableUPnP"},
         };
 
-        public static async Task<int> Main(string[] args)
+        public static int Main(string[] args)
         {
             var mutex = new Mutex(true, "dexih.remote", out var createdNew);
-
+    
             if (!createdNew)
             {
                 Console.WriteLine("Only one instance of the remote agent is allowed.");
                 return (int) EExitCode.Terminated;
             }
             
-            var returnValue = await StartAsync(args);
+            var returnValue = StartAsync(args).Result;
+            
+            mutex.ReleaseMutex();
             
             return returnValue;
         }

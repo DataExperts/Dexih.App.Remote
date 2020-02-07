@@ -20,7 +20,7 @@ namespace dexih.remote.operations
     {
         const string remoteBinary = "dexih.remote.zip";
         private const string updateDirectory = "update";
-        private bool updateFound = false;
+        private string updateVersion = null;
             
         private Timer _timer;
         private readonly ILogger<UpgradeService> _logger;
@@ -40,25 +40,27 @@ namespace dexih.remote.operations
         
         public Task StartAsync(CancellationToken cancellationToken)
         {
-            if (!_remoteSettings.AppSettings.AutoUpgrade)
-            {
-                return Task.CompletedTask;
-            }
+            _logger.LogInformation("The upgrade service is starting.");
 
             if (cancellationToken.IsCancellationRequested) { return Task.CompletedTask; }
 
             _timer = new Timer(CheckUpgrade, null, TimeSpan.Zero, 
                 TimeSpan.FromMinutes(5));
             
+            _logger.LogInformation("The upgrade service is started.");
+
             return Task.CompletedTask;
         }
 
         public Task StopAsync(CancellationToken cancellationToken)
         {
+            _logger.LogInformation("The upgrade service is stopping.");
+
+            _timer?.Change(Timeout.Infinite, 0);
+
             // check one last time before exiting.
             CheckUpgrade(null);
             
-            _timer?.Change(Timeout.Infinite, 0);
             _logger.LogInformation("The upgrade service has stopped.");
             return Task.CompletedTask;
         }
@@ -77,9 +79,10 @@ namespace dexih.remote.operations
             {
                 var update = await _remoteSettings.CheckUpgrade();
 
-                if (update && !updateFound)
+                if (update && updateVersion != _remoteSettings.Runtime.LatestVersion)
                 {
-                    updateFound = true;
+                    updateVersion = _remoteSettings.Runtime.LatestVersion;
+                    
                     File.WriteAllText("latest_version.txt",
                         _remoteSettings.Runtime.LatestVersion + "\n" + _remoteSettings.Runtime.LatestDownloadUrl);
                     _logger?.LogWarning($"*****************   UPGRADE AVAILABLE ****************");
@@ -94,67 +97,71 @@ namespace dexih.remote.operations
 //                    _logger?.LogWarning(
 //                        "The application will exit so an upgrade can be completed.  To skip upgrade checks include \"--upgrade=false\" in the command line, or set AutoUpgrade=false in the appsettings.json file.");
 
-                    _logger.LogInformation("Downloading latest binaries...");
-
-                    if (File.Exists(remoteBinary))
+                    if (_remoteSettings.AppSettings.AutoUpgrade)
                     {
-                        File.Delete(remoteBinary);
-                    }
+                        _logger.LogInformation("Downloading latest binaries...");
 
-                    using (var client = new WebClient())
-                    {
-                        try
+                        if (File.Exists(remoteBinary))
                         {
-                            client.DownloadFile(_remoteSettings.Runtime.LatestDownloadUrl, remoteBinary);
+                            File.Delete(remoteBinary);
                         }
-                        catch (Exception ex)
+
+                        using (var client = new WebClient())
                         {
-                            _logger.LogError(ex, $"Could not download the remote agent binary at {_remoteSettings.Runtime.LatestDownloadUrl}");
-                            throw;
-                        }
-                    }
-
-                    _logger.LogInformation("Extracting latest binaries...");
-
-                    if (Directory.Exists(updateDirectory))
-                    {
-                        Directory.Delete(updateDirectory, true);
-                    }
-
-                    ZipFile.ExtractToDirectory(remoteBinary, updateDirectory);
-                    
-                    if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                    {
-                        var remoteAgentPath = Path.Combine(updateDirectory, "dexih.remote");
-                        var process = new Process
-                        {
-                            StartInfo = new ProcessStartInfo
+                            try
                             {
-                                RedirectStandardOutput = true,
-                                UseShellExecute = false,
-                                CreateNoWindow = true,
-                                WindowStyle = ProcessWindowStyle.Hidden,
-                                FileName = "chmod",
-                                Arguments = $"+x {remoteAgentPath}"
+                                client.DownloadFile(_remoteSettings.Runtime.LatestDownloadUrl, remoteBinary);
                             }
-                        };
+                            catch (Exception ex)
+                            {
+                                _logger.LogError(ex,
+                                    $"Could not download the remote agent binary at {_remoteSettings.Runtime.LatestDownloadUrl}");
+                                throw;
+                            }
+                        }
 
-                        process.Start();
-                        process.WaitForExit();
+                        _logger.LogInformation("Extracting latest binaries...");
+
+                        if (Directory.Exists(updateDirectory))
+                        {
+                            Directory.Delete(updateDirectory, true);
+                        }
+
+                        ZipFile.ExtractToDirectory(remoteBinary, updateDirectory);
+
+                        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                        {
+                            var remoteAgentPath = Path.Combine(updateDirectory, "dexih.remote");
+                            var process = new Process
+                            {
+                                StartInfo = new ProcessStartInfo
+                                {
+                                    RedirectStandardOutput = true,
+                                    UseShellExecute = false,
+                                    CreateNoWindow = true,
+                                    WindowStyle = ProcessWindowStyle.Hidden,
+                                    FileName = "chmod",
+                                    Arguments = $"+x {remoteAgentPath}"
+                                }
+                            };
+
+                            process.Start();
+                            process.WaitForExit();
+                        }
+
+                        File.Delete(remoteBinary);
+
+                        _programExit.CompleteUpgrade = true;
+
+                        _logger?.LogWarning(
+                            $"The new version has been downloaded to {Path.GetFullPath(updateDirectory)}.");
+                        _timer?.Change(Timeout.Infinite, 0);
+                        _logger?.LogWarning(
+                            "The application will exit so an upgrade can be completed.  To skip upgrade checks include \"--upgrade=false\" in the command line, or set AutoUpgrade=false in the appsettings.json file.");
+
+                        // if auto upgrade is on, then shutdown the application so an upgrade can be completed.
+                        _applicationLifetime.StopApplication();
                     }
-                    
-                    File.Delete(remoteBinary);
-
-                    _programExit.CompleteUpgrade = true;
-
-                    _logger?.LogWarning(
-                        $"The new version has been downloaded to {Path.GetFullPath(updateDirectory)}.");
-                    _timer?.Change(Timeout.Infinite, 0);
-                    _logger?.LogWarning(
-                        "The application will exit so an upgrade can be completed.  To skip upgrade checks include \"--upgrade=false\" in the command line, or set AutoUpgrade=false in the appsettings.json file.");
-
-                    // if auto upgrade is on, then shutdown the application so an upgrade can be completed.
-                    _applicationLifetime.StopApplication();
                 }
             }
             catch (Exception ex)

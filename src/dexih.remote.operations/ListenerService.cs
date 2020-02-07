@@ -64,6 +64,8 @@ namespace dexih.remote.operations
 
         private HubConnection _hubConnection;
         
+        private readonly CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
+        
         public ListenerService(ISharedSettings sharedSettings, ILogger<ListenerService> logger, IMessageQueue messageQueue, IRemoteOperations remoteOperations, IMemoryCache memoryCache)
         {
             _sharedSettings = sharedSettings;
@@ -74,14 +76,20 @@ namespace dexih.remote.operations
             _memoryCache = memoryCache;
         }
         
-        public Task StartAsync(CancellationToken cancellationToken)
+        public async Task StartAsync(CancellationToken cancellationToken)
         {
-            if (cancellationToken.IsCancellationRequested) { return Task.CompletedTask; }
-            return Connect(cancellationToken);
+            _logger.LogInformation("Listener Service is Starting.");
+
+            if (cancellationToken.IsCancellationRequested) { return; }
+            await Connect(_cancellationTokenSource.Token);
+
+            _logger.LogInformation("Listener Service is Started.");
         }
 
         public async Task StopAsync(CancellationToken cancellationToken)
         {
+            _cancellationTokenSource.Cancel();
+
             _logger.LogInformation("Listener Service is Stopping.");
             if (_hubConnection != null)
             {
@@ -226,10 +234,7 @@ namespace dexih.remote.operations
              {
                  _logger.LogInformation("The listener service is connecting (via Websockets) with the server...");
                  await _hubConnection.StartAsync(cancellationToken);
-                 await _hubConnection.InvokeAsync("Connect", 
-                     GetActiveAgent(),
-                     _sharedSettings.SecurityToken,
-                    cancellationToken: cancellationToken);
+                 await _hubConnection.InvokeAsync("Connect", GetActiveAgent(),                      _sharedSettings.SecurityToken, cancellationToken: cancellationToken);
                  _logger.LogInformation("The listener service is connected.");
 
              }
@@ -393,7 +398,7 @@ namespace dexih.remote.operations
             {
                 try
                 {
-                    var json = JsonExtensions.Serialize(returnMessage);
+                    var json = returnMessage.Serialize();
                     var memoryStream = new MemoryStream();
                     var streamWriter = new StreamWriter(memoryStream);
                     streamWriter.Write(json);

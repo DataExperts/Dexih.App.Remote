@@ -12,7 +12,7 @@ namespace dexih.remote.operations
 
         void AddResponse(string id, RemoteMessage message);
 
-        Task WaitForMessage();
+        Task WaitForMessage(CancellationToken cancellationToken);
         
         int Count { get; }
         
@@ -48,9 +48,9 @@ namespace dexih.remote.operations
         {
             return _messageQueue.TryDequeue(out result);
         }
-        public Task WaitForMessage()
+        public Task WaitForMessage(CancellationToken cancellationToken)
         {
-            return _waitForMessage.WaitAsync();
+            return _waitForMessage.WaitAsync(cancellationToken);
         }
         
         public void Dispose()
