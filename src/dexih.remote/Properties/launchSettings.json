@@ -2,7 +2,7 @@
   "profiles": {
     "dexih.remote": {
       "commandName": "Project",
-      "workingDirectory": "C:\\Users\\gary_\\Source\\Repos\\Dexih.App.Remote\\src\\dexih.remote",
+      "workingDirectory": "C:\\Users\\garyholland\\Source\\Repos\\Dexih.App.Remote\\src\\dexih.remote",
       "environmentVariables": {
         "DEXIH_ENVIRONMENT": "Development",
         "ASPNETCORE_ENVIRONMENT": "Development"
