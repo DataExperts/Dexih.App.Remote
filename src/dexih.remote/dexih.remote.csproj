@@ -34,9 +34,6 @@
     </Content>
   </ItemGroup>
   <ItemGroup>
-    <TrimmerRootAssembly Include="netstandard" />
-  </ItemGroup>
-  <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="3.1.1" />
     <PackageReference Include="Microsoft.Extensions.Configuration.CommandLine" Version="3.1.1" />
     <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="3.1.1" />
