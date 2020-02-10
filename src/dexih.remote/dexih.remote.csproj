@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <Description>Dexih - Remote Agent</Description>
-    <AssemblyTitle>Data Experts Information Hub - Remote Agent</AssemblyTitle>
+    <AssemblyTitle>Data Experts Integration Hub - Remote Agent</AssemblyTitle>
     <VersionPrefix>1.0-rc.0</VersionPrefix>
     <VersionSuffix>00103</VersionSuffix>
     <Authors>Gary</Authors>

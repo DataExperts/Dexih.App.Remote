@@ -307,7 +307,7 @@ namespace dexih.remote.update
 |  '--'  ||  |____  /  .  \  |  | |  |  |  | 
 |_______/ |_______|/__/ \__\ |__| |__|  |__| 
 
-Welcome to Dexih - The Data Experts Information Hub
+Welcome to Dexih - The Data Experts Integration Hub
 ");
         }
     }
