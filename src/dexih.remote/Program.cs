@@ -161,7 +161,7 @@ namespace dexih.remote
                     var namingStandards = remoteSettings.NamingStandards.ToDictionary(c => "NamingStandards:" + c.Key,c => c.Value);
                     configApp.AddInMemoryCollection(namingStandards);
                     
-                    if (remoteSettings.AppSettings.AutoUpgrade && remoteSettings.CheckUpgrade().Result)
+                    if (remoteSettings.AppSettings.AutoUpgrade && remoteSettings.CheckUpgrade(logger).Result)
                     {
                         otherSettings.Add("Runtime:DoUpgrade", "true");
                     }
