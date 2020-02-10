@@ -129,7 +129,7 @@ namespace dexih.remote
                 {"Runtime:LocalIpAddress", LocalIpAddress(logger)},
                 {"Runtime:Version", Assembly.GetEntryAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>().InformationalVersion},
             };
-            
+
             var programExit = new ProgramExit();
             
             var hostBuilder = new HostBuilder()
@@ -160,16 +160,7 @@ namespace dexih.remote
                     remoteSettings.NamingStandards.LoadDefault();
                     var namingStandards = remoteSettings.NamingStandards.ToDictionary(c => "NamingStandards:" + c.Key,c => c.Value);
                     configApp.AddInMemoryCollection(namingStandards);
-                    
-                    if (remoteSettings.AppSettings.AutoUpgrade && remoteSettings.CheckUpgrade(logger).Result)
-                    {
-                        otherSettings.Add("Runtime:DoUpgrade", "true");
-                    }
-                    else
-                    {
-                        configApp.AddUserInput();
-                    }
-                    
+                    configApp.AddUserInput();
                     configApp.AddInMemoryCollection(otherSettings);
                 })
                 .ConfigureServices((hostContext, services) =>
@@ -179,14 +170,6 @@ namespace dexih.remote
                     services.AddSingleton(programExit);
                     services.AddHostedService<UpgradeService>();
                     services.AddSingleton<IManagedTasks, ManagedTasks>();
-
-                    // don't load there other services if an upgrade is pending.
-                    var doUpgrade = hostContext.Configuration.GetValue<bool>("Runtime:DoUpgrade");
-                    if (doUpgrade)
-                    {
-                        return;
-                    }
-
                     services.AddSingleton<IMessageQueue, MessageQueue>();
                     services.AddSingleton<ILiveApis, LiveApis>();
                     services.AddSingleton<IRemoteOperations, RemoteOperations>();
@@ -200,8 +183,18 @@ namespace dexih.remote
             var host = hostBuilder.Build();
 
             var sharedSettings = host.Services.GetService<ISharedSettings>();
+
+            var upgrade = await sharedSettings.RemoteSettings.CheckUpgrade(logger);
+
+            if(upgrade)
+            {
+                await host.StopAsync();
+                host.Dispose();
+                return (int)EExitCode.Upgrade;
+            }
+
             await sharedSettings.RemoteSettings.GetPlugins(logger);
-            
+
             try
             {
                 await host.RunAsync();

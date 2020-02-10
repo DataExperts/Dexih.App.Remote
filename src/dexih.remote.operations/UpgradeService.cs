@@ -77,6 +77,8 @@ namespace dexih.remote.operations
             // if an upgrade is required return the ExitCode.Upgrade value, which will be picked up by executing script to complete upgrade.
             try
             {
+                _logger?.LogTrace("Check upgrade started.");
+
                 var update = await _remoteSettings.CheckUpgrade(_logger);
 
                 if (update && updateVersion != _remoteSettings.Runtime.LatestVersion)
@@ -168,6 +170,9 @@ namespace dexih.remote.operations
             {
                 _logger.LogError(ex, $"There was an error checking for update.  Message: {ex.Message}");
             }
+
+            _logger?.LogTrace("Check upgrade finished.");
+
         }
 
 

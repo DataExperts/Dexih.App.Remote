@@ -11,7 +11,7 @@ namespace dexih.remote.config
     {
         public static IConfigurationBuilder AddUserInput(this IConfigurationBuilder configurationBuilder)
         {
-            const string defaultWebServer = "https://dexih.com";
+            const string defaultWebServer = "https://dexih.dataexpertsgroup.com";
 
             var configBuild = configurationBuilder.Build();
             var remoteSettings = configBuild.Get<RemoteSettings>() ?? new RemoteSettings();
