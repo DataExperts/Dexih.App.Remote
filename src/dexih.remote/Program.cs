@@ -186,7 +186,7 @@ namespace dexih.remote
 
             var upgrade = await sharedSettings.RemoteSettings.CheckUpgrade(logger);
 
-            if(upgrade)
+            if(upgrade & sharedSettings.RemoteSettings.AppSettings.AutoUpgrade)
             {
                 await host.StopAsync();
                 host.Dispose();
