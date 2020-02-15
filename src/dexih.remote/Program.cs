@@ -186,7 +186,7 @@ namespace dexih.remote
 
             var upgrade = await sharedSettings.RemoteSettings.CheckUpgrade(logger);
 
-            if(upgrade & sharedSettings.RemoteSettings.AppSettings.AutoUpgrade)
+            if(upgrade && sharedSettings.RemoteSettings.AppSettings.AutoUpgrade)
             {
                 await host.StopAsync();
                 host.Dispose();
@@ -281,7 +281,13 @@ Welcome to Dexih - The Data Experts Integration Hub
         
         private static Assembly LoadAssembly(object sender, ResolveEventArgs args)
         {
-            foreach(var path in AssemblyPaths)
+            if(File.Exists(args.RequestingAssembly.Location))
+            {
+                var assembly = Assembly.LoadFrom(args.RequestingAssembly.Location);
+                return assembly;
+            }
+
+            foreach (var path in AssemblyPaths)
             {
                 var assemblyPath = Path.Combine(path, new AssemblyName(args.Name).Name + ".dll");
                 if (File.Exists(assemblyPath))

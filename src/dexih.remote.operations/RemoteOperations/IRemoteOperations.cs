@@ -82,7 +82,7 @@ namespace dexih.remote.operations
         Stream PreviewTable(RemoteMessage message, CancellationToken cancellationToken);
         Stream PreviewTransform(RemoteMessage message, CancellationToken cancellationToken);
         Task<string[]> ImportFunctionMappings(RemoteMessage message, CancellationToken cancellationToken);
-        Stream PreviewDatalink(RemoteMessage message, CancellationToken cancellationToken);
+        Task<Stream> PreviewDatalink(RemoteMessage message, CancellationToken cancellationToken);
         Task<Stream> GetReaderData(RemoteMessage message, CancellationToken cancellationToken);
         Task<Stream> PreviewProfile(RemoteMessage message, CancellationToken cancellationToken);
         Task<List<TransformWriterResult>> GetAuditResults(RemoteMessage message, CancellationToken cancellationToken);

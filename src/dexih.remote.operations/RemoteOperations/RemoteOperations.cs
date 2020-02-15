@@ -1556,7 +1556,7 @@ namespace dexih.remote.operations
 
         }
         
-        public Stream PreviewDatalink(RemoteMessage message, CancellationToken cancellationToken)
+        public async Task<Stream> PreviewDatalink(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
             {
@@ -1572,6 +1572,7 @@ namespace dexih.remote.operations
                 var inputColumns = message.Value["inputColumns"].ToObject<InputColumn[]>();
                 var parameters = message.Value["inputParameters"].ToObject<InputParameters>();
                 var chartConfig = message.Value["chartConfig"].ToObject<ChartConfig>();
+                var previewUpdates = message.Value["previewUpdates"].ToObject<bool>();
 
                 var transformWriterOptions = new TransformWriterOptions()
                 {
@@ -1586,14 +1587,32 @@ namespace dexih.remote.operations
                     dbDatalink.UpdateParameters(parameters);
                 }
 
-                var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables, dbDatalink.Parameters));
-                var runPlan = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, inputColumns, null, null, transformWriterOptions);
-                var transform = runPlan.sourceTransform;
-                // var openReturn = await transform.Open(0, null, cancellationToken);
-//                if (!openReturn)
-//                {
-//                    throw new RemoteOperationException("Failed to open the datalink.");
-//                }
+                var transformSettings = GetTransformSettings(message.HubVariables, dbDatalink.Parameters);
+                var transformOperations = new TransformsManager(transformSettings);
+                var (transform, table) = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, inputColumns, null, null, transformWriterOptions);
+
+                if (previewUpdates && dbDatalink.DexihDatalinkTargets.Count > 0)
+                {
+                    var targetTableKey = dbDatalink.DexihDatalinkTargets.First().TableKey;
+                    var dbTargetTable = cache.Hub.GetTableFromKey(targetTableKey);
+                    var dbTargetConnection = cache.Hub.DexihConnections.Single(c => c.Key == dbTargetTable.ConnectionKey);
+                    var targetConnection = dbTargetConnection.GetConnection(transformSettings);
+                    var targetTable = dbTargetTable.GetTable(cache.Hub, targetConnection, transformSettings);
+
+                    var targetReader = targetConnection.GetTransformReader(targetTable);
+
+                    long autoIncrementKey = 0;
+                    // get the last surrogate key it there is one on the table.
+                    var autoIncrement = targetTable.GetColumn(EDeltaType.AutoIncrement);
+                    if (autoIncrement != null)
+                    {
+                        autoIncrementKey = await targetConnection.GetLastKey(targetTable, autoIncrement, cancellationToken);
+                    }
+
+                    transform = new TransformDelta(transform, targetReader, dbDatalink.UpdateStrategy,
+                        autoIncrementKey,
+                        dbDatalink.AddDefaultRow, true, new DeltaValues('C'));
+                }
 
                 transform.SetCacheMethod(ECacheMethod.DemandCache);
                 transform.SetEncryptionMethod(EEncryptionMethod.MaskSecureFields, "");
