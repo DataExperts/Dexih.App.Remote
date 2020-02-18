@@ -1,2 +1,2 @@
-1.0-rc.124
-https://github.com/DataExperts/Dexih.App.Remote/releases/download/1.0-rc.124/dexih.remote.windows_1.0-rc.124.zip
+1.0-rc.126
+https://github.com/DataExperts/Dexih.App.Remote/releases/download/1.0-rc.126/dexih.remote.windows_1.0-rc.126.zip

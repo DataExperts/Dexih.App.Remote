@@ -1589,7 +1589,25 @@ namespace dexih.remote.operations
 
                 var transformSettings = GetTransformSettings(message.HubVariables, dbDatalink.Parameters);
                 var transformOperations = new TransformsManager(transformSettings);
-                var (transform, table) = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, inputColumns, null, null, transformWriterOptions);
+
+                object maxIncremental = null;
+                if(previewUpdates && dbDatalink.AuditConnectionKey > 0 && dbDatalink.DexihDatalinkTargets.Count > 0)
+                {
+                    var auditConnection = cache.Hub.DexihConnections.SingleOrDefault(c => c.IsValid && c.Key == dbDatalink.AuditConnectionKey);
+                    if (auditConnection != null)
+                    {
+                        var connection = auditConnection.GetConnection(transformSettings);
+                        var targetTableKey = dbDatalink.DexihDatalinkTargets.First().TableKey;
+                        var previousResult = await connection.GetPreviousSuccessResult(cache.HubKey, targetTableKey, dbDatalink.Key, cancellationToken);
+                        if(previousResult != null)
+                        {
+                            maxIncremental = previousResult.MaxIncrementalValue;
+                        }
+                    }
+                }
+
+               
+                var (transform, table) = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, inputColumns, null, maxIncremental, transformWriterOptions);
 
                 if (previewUpdates && dbDatalink.DexihDatalinkTargets.Count > 0)
                 {
@@ -1602,6 +1620,7 @@ namespace dexih.remote.operations
                     var targetReader = targetConnection.GetTransformReader(targetTable);
 
                     long autoIncrementKey = 0;
+                    
                     // get the last surrogate key it there is one on the table.
                     var autoIncrement = targetTable.GetColumn(EDeltaType.AutoIncrement);
                     if (autoIncrement != null)
