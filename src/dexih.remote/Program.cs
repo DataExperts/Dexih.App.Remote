@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Threading;
@@ -165,6 +166,7 @@ namespace dexih.remote
                 })
                 .ConfigureServices((hostContext, services) =>
                 {
+                    services.AddHttpClient();
                     services.AddMemoryCache();
                     services.AddSingleton<ISharedSettings, SharedSettings>();
                     services.AddSingleton(programExit);
@@ -183,8 +185,9 @@ namespace dexih.remote
             var host = hostBuilder.Build();
 
             var sharedSettings = host.Services.GetService<ISharedSettings>();
+            var clientFactory = host.Services.GetService<IHttpClientFactory>();
 
-            var upgrade = await sharedSettings.RemoteSettings.CheckUpgrade(logger);
+            var upgrade = await sharedSettings.RemoteSettings.CheckUpgrade(logger, clientFactory);
 
             if(upgrade && sharedSettings.RemoteSettings.AppSettings.AutoUpgrade)
             {
@@ -193,7 +196,7 @@ namespace dexih.remote
                 return (int)EExitCode.Upgrade;
             }
 
-            await sharedSettings.RemoteSettings.GetPlugins(logger);
+            await sharedSettings.RemoteSettings.GetPlugins(logger, clientFactory);
 
             try
             {

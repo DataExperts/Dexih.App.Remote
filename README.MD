@@ -9,7 +9,7 @@ To get started register a new account at [dexih.dataexpertsgroup.com][dexih]
 
 [![][dex-img]][dex]
 
-[dex-img]: https://dataexpertsgroup.com/img/dex_web_logo.png
+[dex-img]: http://dataexpertsgroup.com/assets/img/dex_web_logo.png
 [dex]: https://dataexpertsgroup.com
 [dexih]: https://dexih.dataexpertsgroup.com
 
@@ -20,6 +20,9 @@ To get started register a new account at [dexih.dataexpertsgroup.com][dexih]
     * PostgresSql
     * MySql
     * Sqlite
+    * MongoDB
+    * Oracle
+    * DB2
     * Data files in either delimited, Json or Xml formats
     * Data files located either locally, ftp, sftp, or azure storage
     * Rest based web services
@@ -27,10 +30,11 @@ To get started register a new account at [dexih.dataexpertsgroup.com][dexih]
     * Excel files
 
 * Build in data transformation capabilities:
-    * Column mappings (with over 100 built in functions)
+    * Column mappings (with over 200 built in functions)
     * Custom functions, using c#
     * Grouping and Aggregation (e.g. sum, average etc)
     * Statistical functions (e.g. variance, moving average etc.)
+    * Machine Learning functions (using the ML.Net Library)
     * Row Pivoting
     * Filtering
     * Sorting
@@ -95,10 +99,7 @@ The `appsettings.json` which is contained in the same directory as the
 
 ## Credits
 
-Thanks to the following projects:
-
-* [jvandemo/generator-angular2-library](https://github.com/jvandemo/generator-angular2-library) - used as the baseline to package and distribute this library.
-* [ng2-dnd](https://github.com/akserg/ng2-dnd) - used for the drag and drop and table re-order capabilities.
+See the [dexih.transforms](https://github.com/DataExperts/dexih.transforms) project for additional credits.
 
 ## License
 

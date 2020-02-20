@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Net.Http;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -24,6 +25,7 @@ namespace dexih.remote.operations
     {
         private readonly ISharedSettings _sharedSettings;
         private readonly ILogger<LiveApis> _logger;
+        private readonly IHttpClientFactory _clientFactory;
 
         /// <summary>
         /// Dictionary grouped by HubKeys, then ApiKeys pointing to the securityKey
@@ -39,7 +41,7 @@ namespace dexih.remote.operations
         private readonly ConcurrentDictionary<long, ApiQuery> _apiQueryUpdates;
 
         
-        public LiveApis(ISharedSettings sharedSettings, ILogger<LiveApis> logger)
+        public LiveApis(ISharedSettings sharedSettings, ILogger<LiveApis> logger, IHttpClientFactory clientFactory)
         {
             _sharedSettings = sharedSettings;
             _logger = logger;
@@ -48,6 +50,7 @@ namespace dexih.remote.operations
             _hubs = new ConcurrentDictionary<long, ConcurrentDictionary<long, string>>();
             _apiDataUpdates = new ConcurrentDictionary<long, ApiData>();
             _apiQueryUpdates = new ConcurrentDictionary<long, ApiQuery>();
+            _clientFactory = clientFactory;
         }
 
         
@@ -342,7 +345,8 @@ namespace dexih.remote.operations
             var settings =new TransformSettings()
             {
                 HubVariables = autoStart.HubVariables,
-                RemoteSettings =  _sharedSettings.RemoteSettings
+                RemoteSettings =  _sharedSettings.RemoteSettings,
+                ClientFactory = _clientFactory
             };
 
             var hub = autoStart.Hub;

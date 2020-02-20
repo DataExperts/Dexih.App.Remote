@@ -1,2 +1,2 @@
 1.0-rc.130
-https://github.com/DataExperts/Dexih.App.Remote/releases/download/1.0-rc.130/dexih.remote.windows_1.0-rc.130.zip
+https://github.com/DataExperts/Dexih.App.Remote/releases/download/1.0-rc.130/dexih.remote.osx_1.0-rc.130.zip

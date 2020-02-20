@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Net;
+using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -28,14 +29,16 @@ namespace dexih.remote.operations
         private readonly RemoteSettings _remoteSettings;
         private readonly IApplicationLifetime _applicationLifetime;
         private readonly ProgramExit _programExit;
+        private readonly IHttpClientFactory _clientFactory;
 
-        public UpgradeService(ISharedSettings sharedSettings, ILogger<UpgradeService> logger, IApplicationLifetime applicationLifetime, ProgramExit programExit)
+        public UpgradeService(ISharedSettings sharedSettings, ILogger<UpgradeService> logger, IApplicationLifetime applicationLifetime, ProgramExit programExit, IHttpClientFactory clientFactory)
         {
             _sharedSettings = sharedSettings;
             _remoteSettings = sharedSettings.RemoteSettings;
             _logger = logger;
             _applicationLifetime = applicationLifetime;
             _programExit = programExit;
+            _clientFactory = clientFactory;
         }
         
         public Task StartAsync(CancellationToken cancellationToken)
@@ -79,7 +82,7 @@ namespace dexih.remote.operations
             {
                 _logger?.LogTrace("Check upgrade started.");
 
-                var update = await _remoteSettings.CheckUpgrade(_logger);
+                var update = await _remoteSettings.CheckUpgrade(_logger, _clientFactory);
 
                 if (update && updateVersion != _remoteSettings.Runtime.LatestVersion)
                 {

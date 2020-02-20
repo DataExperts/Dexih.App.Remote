@@ -38,10 +38,9 @@ namespace dexih.remote.operations
         private readonly RemoteSettings _remoteSettings;
         private readonly ISharedSettings _sharedSettings;
         private readonly IHost _host;
-
-        private readonly HttpClient _httpClient; // used for upload/download to proxy server
-
-        public RemoteOperations(ISharedSettings sharedSettings, ILogger<RemoteOperations> logger, IMemoryCache memoryCache, ILiveApis liveApis, IManagedTasks managedTasks, IHost host)
+        private readonly IHttpClientFactory _clientFactory;
+        
+        public RemoteOperations(ISharedSettings sharedSettings, ILogger<RemoteOperations> logger, IMemoryCache memoryCache, ILiveApis liveApis, IManagedTasks managedTasks, IHost host, IHttpClientFactory clientFactory)
         {
             _sharedSettings = sharedSettings;
             
@@ -52,12 +51,11 @@ namespace dexih.remote.operations
             _managedTasks = managedTasks;
             _host = host;
 
-            _httpClient = new HttpClient();
+            _clientFactory = clientFactory;
         }
 
         public void Dispose()
         {
-            _httpClient.Dispose();
         }
 
         public IEnumerable<ManagedTask> GetActiveTasks(string category) => _managedTasks.GetActiveTasks(category);
@@ -80,7 +78,8 @@ namespace dexih.remote.operations
             var globalSettings = new GlobalSettings()
             {
                 EncryptionKey = encryptionKey,
-                FilePermissions = _remoteSettings.Permissions.GetFilePermissions()
+                FilePermissions = _remoteSettings.Permissions.GetFilePermissions(),
+                HttpClientFactory = _clientFactory
             };
 
             return globalSettings;
@@ -93,7 +92,8 @@ namespace dexih.remote.operations
             {
                 HubVariables = hubHubVariables,
                 InputParameters = inputParameters?.ToArray(),
-                RemoteSettings =  _remoteSettings
+                RemoteSettings =  _remoteSettings,
+                ClientFactory = _clientFactory
             };
 
             return settings;
@@ -1393,7 +1393,7 @@ namespace dexih.remote.operations
                 // create url that will download (the client runs the upload)
                 var uploadUrl = $"{downloadUrl}/download/{messageId}/{format}/{fileName}";
                 
-                var uploadDataTask = new UploadDataTask(_httpClient, uploadAction, uploadUrl);
+                var uploadDataTask = new UploadDataTask(_clientFactory, uploadAction, uploadUrl);
             
                 var newManagedTask = new ManagedTask
                 {

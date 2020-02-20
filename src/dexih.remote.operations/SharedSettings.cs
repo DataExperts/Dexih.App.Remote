@@ -67,6 +67,7 @@ namespace dexih.remote.operations
         private readonly IHost _host;
         private readonly IManagedTasks _managedTasks;
         private readonly IMemoryCache _memoryCache;
+        private readonly IHttpClientFactory _clientFactory;
         private readonly string _apiUri;
         private readonly SemaphoreSlim _loginSemaphore;
         private EConnectionResult _connectionStatus = EConnectionResult.Disconnected;
@@ -92,12 +93,13 @@ namespace dexih.remote.operations
         
         public bool CompleteUpgrade { get; set; }
 
-        public SharedSettings(IConfiguration configuration, ILogger<SharedSettings> logger, IHost host, IManagedTasks managedTasks, IMemoryCache memoryCache)
+        public SharedSettings(IConfiguration configuration, ILogger<SharedSettings> logger, IHost host, IManagedTasks managedTasks, IMemoryCache memoryCache, IHttpClientFactory clientFactory)
         {
             _logger = logger;
             _host = host;
             _managedTasks = managedTasks;
             _memoryCache = memoryCache;
+            _clientFactory = clientFactory;
 
             SessionEncryptionKey = EncryptString.GenerateRandomKey();
             RemoteSettings = configuration.Get<RemoteSettings>();
@@ -153,15 +155,7 @@ namespace dexih.remote.operations
                 var response = await PostAsync<In>(uri, data, cancellationToken);
                 return await ProcessHttpResponse<Out>(uri, response);
         }
-
-//        public Task<HttpResponseMessage> PostAsync(string uri, HttpContent content, CancellationToken cancellationToken)
-//        {
-//            var messagesString = content.Serialize();
-//            var jsonContent = new StringContent(messagesString, Encoding.UTF8, "application/json");
-//
-//            return _httpClient.PostAsync(_apiUri + uri, jsonContent, cancellationToken);
-//        }
-
+        
         public async Task PostDirect(string url, string data, CancellationToken cancellationToken)
         {
             await _httpClient.PostAsync(url, new StringContent(data), cancellationToken);
