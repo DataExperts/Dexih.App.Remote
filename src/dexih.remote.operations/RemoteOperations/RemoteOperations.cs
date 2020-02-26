@@ -1450,12 +1450,6 @@ namespace dexih.remote.operations
                 var runPlan = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, inputColumns,
                     datalinkTransformKey, null, transformWriterOptions);
                 var transform = runPlan.sourceTransform;
-//                var openReturn = await transform.Open(0, null, cancellationToken);
-//                if (!openReturn)
-//                {
-//                    throw new RemoteOperationException("Failed to open the transform.");
-//                }
-
                 transform.SetCacheMethod(ECacheMethod.DemandCache);
                 transform.SetEncryptionMethod(EEncryptionMethod.MaskSecureFields, "");
 
@@ -1494,59 +1488,69 @@ namespace dexih.remote.operations
                     GlobalSettings = CreateGlobalSettings(cache.CacheEncryptionKey)
                 };
                 
-                Transform transform;
-                var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables, dbDatalink.Parameters));
-                if(previousDatalinkTransform != null) 
+                Transform transform = null;
+                try
                 {
-                    var runPlan = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, null, previousDatalinkTransform.Key, null, transformWriterOptions);
-                    transform = runPlan.sourceTransform;
-                }
-                else
-                {
-                    var sourceTransform = transformOperations.GetSourceTransform(cache.Hub, dbDatalink.SourceDatalinkTable, null, transformWriterOptions);
-                    transform = sourceTransform.sourceTransform;
-                }
-
-                var openReturn = await transform.Open(0, null, cancellationToken);
-                if (!openReturn)
-                {
-                    throw new RemoteOperationException("Failed to open the transform.");
-                }
-
-                transform.SetCacheMethod(ECacheMethod.DemandCache);
-                transform.SetEncryptionMethod(EEncryptionMethod.MaskSecureFields, "");
-                var hasRow = await transform.ReadAsync(cancellationToken);
-                if (!hasRow)
-                {
-                    throw new RemoteOperationException("Could not import function mappings, as the source contains no data.");
-                }
-
-                var function = datalinkTransformItem.CreateFunctionMethod(cache.Hub, CreateGlobalSettings(cache.CacheEncryptionKey));
-
-                var parameterInfos = function.function.ImportMethod.ParameterInfo;
-                var values = new object[parameterInfos.Length];
-
-                // loop through the import function parameters, and match them to the parameters in the run function.
-                for (var i = 0; i < parameterInfos.Length; i++)
-                {
-                    var parameter = function.parameters.Inputs.SingleOrDefault(c => c.Name == parameterInfos[i].Name) ?? 
-                                    function.parameters.ResultInputs.SingleOrDefault(c => c.Name == parameterInfos[i].Name);
-
-                    if (parameter == null)
+                    var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables, dbDatalink.Parameters));
+                    if (previousDatalinkTransform != null)
                     {
-                        continue;
+                        var runPlan = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, null, previousDatalinkTransform.Key, null, transformWriterOptions);
+                        transform = runPlan.sourceTransform;
                     }
-                    if (parameter is ParameterColumn parameterColumn && parameterColumn.Column != null)
+                    else
                     {
-                        values[i] = transform[parameterColumn.Column.Name];
-                    } 
-                    else 
-                    {
-                        values[i] = parameter.Value;
+                        var sourceTransform = transformOperations.GetSourceTransform(cache.Hub, dbDatalink.SourceDatalinkTable, null, transformWriterOptions);
+                        transform = sourceTransform.sourceTransform;
                     }
+
+                    var openReturn = await transform.Open(0, null, cancellationToken);
+                    if (!openReturn)
+                    {
+                        throw new RemoteOperationException("Failed to open the transform.");
+                    }
+
+                    transform.SetCacheMethod(ECacheMethod.DemandCache);
+                    transform.SetEncryptionMethod(EEncryptionMethod.MaskSecureFields, "");
+                    var hasRow = await transform.ReadAsync(cancellationToken);
+                    if (!hasRow)
+                    {
+                        throw new RemoteOperationException("Could not import function mappings, as the source contains no data.");
+                    }
+
+                    var function = datalinkTransformItem.CreateFunctionMethod(cache.Hub, CreateGlobalSettings(cache.CacheEncryptionKey));
+
+                    var parameterInfos = function.function.ImportMethod.ParameterInfo;
+                    var values = new object[parameterInfos.Length];
+
+                    // loop through the import function parameters, and match them to the parameters in the run function.
+                    for (var i = 0; i < parameterInfos.Length; i++)
+                    {
+                        var parameter = function.parameters.Inputs.SingleOrDefault(c => c.Name == parameterInfos[i].Name) ??
+                                        function.parameters.ResultInputs.SingleOrDefault(c => c.Name == parameterInfos[i].Name);
+
+                        if (parameter == null)
+                        {
+                            continue;
+                        }
+                        if (parameter is ParameterColumn parameterColumn && parameterColumn.Column != null)
+                        {
+                            values[i] = transform[parameterColumn.Column.Name];
+                        }
+                        else
+                        {
+                            values[i] = parameter.Value;
+                        }
+                    }
+                    return function.function.Import(values);
+                }
+                catch
+                {
+                    throw;
+                } finally
+                {
+                    transform?.Close();
                 }
                 
-                return function.function.Import(values);
             }
             catch (Exception ex)
             {
@@ -1619,13 +1623,20 @@ namespace dexih.remote.operations
 
                     var targetReader = targetConnection.GetTransformReader(targetTable);
 
-                    long autoIncrementKey = 0;
+                    var autoIncrementKey = 0L;
                     
                     // get the last surrogate key it there is one on the table.
                     var autoIncrement = targetTable.GetColumn(EDeltaType.AutoIncrement);
                     if (autoIncrement != null)
                     {
-                        autoIncrementKey = await targetConnection.GetLastKey(targetTable, autoIncrement, cancellationToken);
+                        autoIncrementKey = await targetConnection.GetMaxValue<long>(targetTable, autoIncrement, cancellationToken);
+                    }
+
+                    var maxValidFrom = DateTime.MinValue;
+                    if(dbDatalink.UpdateStrategy == EUpdateStrategy.AppendUpdateDeletePreserve || dbDatalink.UpdateStrategy == EUpdateStrategy.AppendUpdatePreserve)
+                    {
+                        var validFrom = targetTable.GetColumn(EDeltaType.ValidFromDate);
+                        maxValidFrom = await targetConnection.GetMaxValue<DateTime>(targetTable, validFrom, cancellationToken);
                     }
 
                     transform = new TransformDelta(transform, targetReader, dbDatalink.UpdateStrategy,
@@ -1670,7 +1681,7 @@ namespace dexih.remote.operations
 
             var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables, dbDatalink.Parameters));
             var runPlan = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, inputColumns, null, null, transformWriterOptions);
-            var transform = runPlan.sourceTransform;
+            using var transform = runPlan.sourceTransform;
             var openReturn = await transform.Open(0, null, cancellationToken);
 
             return transform.GetTransformProperties(true);
@@ -2279,7 +2290,7 @@ namespace dexih.remote.operations
                 var resetCache = message.Value["resetCache"].ToObject<bool>();
 
                 var settings = GetTransformSettings(message.HubVariables);
-                Transform transform;
+                Transform transform = null;
 
                 TableColumn keyColumn;
                 TableColumn nameColumn;
