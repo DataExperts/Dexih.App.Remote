@@ -2,6 +2,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using dexih.functions;
 using dexih.transforms;
+using dexih.transforms.File;
 using Dexih.Utils.ManagedTasks;
 using Dexih.Utils.MessageHelpers;
 

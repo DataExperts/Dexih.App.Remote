@@ -15,6 +15,7 @@ using dexih.functions.Query;
 using dexih.operations;
 using dexih.repository;
 using dexih.transforms;
+using dexih.transforms.File;
 using dexih.transforms.Mapping;
 using Dexih.Utils.Crypto;
 using Dexih.Utils.DataType;
