@@ -284,12 +284,6 @@ Welcome to Dexih - The Data Experts Integration Hub
         
         private static Assembly LoadAssembly(object sender, ResolveEventArgs args)
         {
-            if(File.Exists(args.RequestingAssembly.Location))
-            {
-                var assembly = Assembly.LoadFrom(args.RequestingAssembly.Location);
-                return assembly;
-            }
-
             foreach (var path in AssemblyPaths)
             {
                 var assemblyPath = Path.Combine(path, new AssemblyName(args.Name).Name + ".dll");
@@ -298,6 +292,12 @@ Welcome to Dexih - The Data Experts Integration Hub
                     var assembly = Assembly.LoadFrom(assemblyPath);
                     return assembly;
                 }
+            }
+
+            if(File.Exists(args.RequestingAssembly.Location))
+            {
+                var assembly = Assembly.LoadFrom(args.RequestingAssembly.Location);
+                return assembly;
             }
             
             throw new DllNotFoundException($"The assembly {args.Name} was not found.");

@@ -16,7 +16,7 @@
     <GenerateAssemblyCompanyAttribute>false</GenerateAssemblyCompanyAttribute>
     <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
     <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
-    <LangVersion>7.3</LangVersion>
+    <LangVersion>latestmajor</LangVersion>
     <TargetFramework>netcoreapp3.1</TargetFramework>
     <PackageVersion>1.0-rc.0</PackageVersion>
     <Version>1.0-rc.120</Version>
