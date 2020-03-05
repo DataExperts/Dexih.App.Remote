@@ -156,7 +156,8 @@ namespace dexih.remote
 
                     configApp.AddCommandLine(args, commandlineMappings);
 
-                    var remoteSettings = configApp.Build().Get<RemoteSettings>() ?? new RemoteSettings();
+                    var remoteSettings = configApp.Build().Get<RemoteSettings
+                    >() ?? new RemoteSettings();
                     
                     remoteSettings.NamingStandards.LoadDefault();
                     var namingStandards = remoteSettings.NamingStandards.ToDictionary(c => "NamingStandards:" + c.Key,c => c.Value);

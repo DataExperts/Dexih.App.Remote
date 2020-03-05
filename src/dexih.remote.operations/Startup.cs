@@ -22,6 +22,12 @@ namespace dexih.remote.operations
         {
             // Add Cors
             services.AddCors();
+
+            services.Configure<FormOptions>(x =>
+            {
+                x.ValueLengthLimit = int.MaxValue;
+                x.MultipartBodyLengthLimit = int.MaxValue; // In case of multipart
+            });
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -61,21 +67,38 @@ namespace dexih.remote.operations
                         await writer.FlushAsync().ConfigureAwait(false);
                     }
                 }
-
                 
+                async Task SendInvalidPath()
+                {
+                    var returnValue = new ReturnValue(false, $"Invalid url path.  {context.Request.Path}.", null);
+                    await SendFailedResponse(returnValue);
+                }
+
                 context.Features.Get<IHttpMaxRequestBodySizeFeature>().MaxRequestBodySize = 1_000_000_000;
                 var path = context.Request.Path;
                 var segments = path.Value.Split('/');
 
+                if (segments.Length < 1)
+                {
+                    await SendInvalidPath();
+                    return;
+                }
+                
                 switch (segments[1])
                 {
                     case "ping":
                         context.Response.StatusCode = 200;
                         context.Response.ContentType = "application/json";
-                        await context.Response.WriteAsync("{ \"Status\": \"Alive\"}");
+                        await context.Response.WriteAsync("{ \"status\": \"alive\"}");
                         break;
                     
                     case "setRaw":
+                        if (segments.Length < 3)
+                        {
+                            await SendInvalidPath();
+                            return;
+                        }
+                        
                         try
                         {
                             var key = segments[2];
@@ -90,6 +113,12 @@ namespace dexih.remote.operations
 
                         break;
                     case "api":
+                        if (segments.Length < 2)
+                        {
+                            await SendInvalidPath();
+                            return;
+                        }
+                        
                         try
                         {
                             var key1 = HttpUtility.UrlDecode(segments[2]);
@@ -133,6 +162,12 @@ namespace dexih.remote.operations
                         break;
                     
                     case "download":
+                        if (segments.Length < 2)
+                        {
+                            await SendInvalidPath();
+                            return;
+                        }
+                        
                         try
                         {
                             var key = segments[2];
@@ -186,6 +221,12 @@ namespace dexih.remote.operations
                         break;
 
                     case "upload":
+                        if (segments.Length < 2)
+                        {
+                            await SendInvalidPath();
+                            return;
+                        }
+                        
                         try
                         {
                             var files = context.Request.Form.Files;

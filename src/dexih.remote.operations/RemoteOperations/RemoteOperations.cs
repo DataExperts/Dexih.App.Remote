@@ -2029,6 +2029,8 @@ namespace dexih.remote.operations
                 FileConfiguration = fileConfiguration,
             };
             
+            var memoryStream = new MemoryStream();
+            var writer = new StreamWriter(memoryStream);
 
             var fileSample = new StringBuilder();
             var reader = new StreamReader(stream);
@@ -2037,7 +2039,9 @@ namespace dexih.remote.operations
             {
                 for (var i = 0; i < 1000; i++)
                 {
-                    fileSample.AppendLine(await reader.ReadLineAsync());
+                    var line = await reader.ReadLineAsync();
+                    fileSample.AppendLine(line);
+                    writer.WriteLine(line);
 
                     if (reader.EndOfStream)
                         break;
@@ -2052,9 +2056,11 @@ namespace dexih.remote.operations
 
             var newFile = (FlatFile) await connection.GetSourceTableInfo(file, cancellationToken);
 
-            stream.Position = 0;
+            // create a contact stream that merges the saved memory stream and what's left in the file stream.
+            // this is due to the file stream cannot be reset, and saves memory
+            var concatStream = new ConcatenateStream(new [] {memoryStream, stream});
             
-            await connection.SaveFileStream(newFile, EFlatFilePath.Incoming, fileName, stream);
+            await connection.SaveFileStream(newFile, EFlatFilePath.Incoming, fileName, concatStream);
 
             return newFile;
         }
