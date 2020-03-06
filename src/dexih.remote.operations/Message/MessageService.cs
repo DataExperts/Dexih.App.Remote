@@ -93,6 +93,11 @@ namespace dexih.remote.operations
 
         private void TaskStatusChange(ManagedTask value, EManagedTaskStatus managedTaskStatus)
         {
+            if (managedTaskStatus == EManagedTaskStatus.Error)
+            {
+                _logger.LogWarning(value.Exception, $"The task {value.Name} with referenceId {value.ReferenceId} reported an error: {value.Message} ");    
+            }
+
             // run as a separate task to minimise delays to core processes.
             if (_sendDatalinkProgress == null || _sendDatalinkProgress.IsCompleted)
             {
