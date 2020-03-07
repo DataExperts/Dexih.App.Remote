@@ -176,8 +176,7 @@ namespace dexih.remote.operations
 
                                 if (downloadStream == null)
                                 {
-                                    throw new RemoteException(
-                                        "Remote agent call failed, the response key was not found.");
+                                    throw new RemoteException("Remote agent call failed, the response key was not found.");
                                 }
 
                                 switch (downloadStream.Type)
