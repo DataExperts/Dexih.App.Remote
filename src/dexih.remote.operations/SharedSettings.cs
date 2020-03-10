@@ -516,6 +516,7 @@ namespace dexih.remote.operations
                 var downloadObject = _memoryCache.Get<T>(key);
                 if (downloadObject != null)
                 {
+                    _memoryCache.Remove(key);
                     return downloadObject;
                 }
 
@@ -527,9 +528,8 @@ namespace dexih.remote.operations
 
         public void SetCacheItem<T>(string key, T value)
         {
-            _memoryCache.Set<T>(key, value);
+            _memoryCache.Set(key, value);
         }
-
         
         public Task StartDataStream(string key, Stream stream, DownloadUrl downloadUrl, string format, string fileName, bool isError, CancellationToken cancellationToken)
         {

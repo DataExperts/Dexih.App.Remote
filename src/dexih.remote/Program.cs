@@ -172,7 +172,7 @@ namespace dexih.remote
                     services.AddSingleton<ISharedSettings, SharedSettings>();
                     services.AddSingleton(programExit);
                     services.AddHostedService<UpgradeService>();
-                    services.AddSingleton<IManagedTasks, ManagedTasks>();
+                    services.AddSingleton<IManagedTasks, ManagedTasksService>();
                     services.AddSingleton<IMessageQueue, MessageQueue>();
                     services.AddSingleton<ILiveApis, LiveApis>();
                     services.AddSingleton<IRemoteOperations, RemoteOperations>();
