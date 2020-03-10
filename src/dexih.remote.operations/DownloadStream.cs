@@ -11,7 +11,8 @@ namespace dexih.remote.operations
             AddedDateTime = DateTime.Now;
             FileName = fileName;
             Type = type;
-            Stream = new BufferedStream(stream);
+            // Stream = new BufferedStream(stream); // I think bufferedStream is causing memory issues with large streams.
+            Stream = stream;
             IsError = isError;
         }
         public Stream Stream { get; set; }
@@ -21,27 +22,27 @@ namespace dexih.remote.operations
         
         public bool IsError { get; set; }
 
-        /// <summary>
-        /// Copy the uploaded stream for download.
-        /// </summary>
-        /// <param name="stream">stream to copy to</param>
-        /// <param name="timeout">seconds to wait</param>
-        /// <returns></returns>
-        /// <exception cref="TimeoutException"></exception>
-        public async Task CopyDownLoadStream(Stream stream, int timeout)
-        {
-            var count = 0;
-            var maxCount = timeout * 10;
-            while (Stream == null)
-            {
-                await Task.Delay(100);
-                if (++count > maxCount)
-                {
-                    throw new TimeoutException("Timeout occurred waiting for download stream");
-                }
-            }
-            await Stream.CopyToAsync(stream);
-        }
+        // /// <summary>
+        // /// Copy the uploaded stream for download.
+        // /// </summary>
+        // /// <param name="stream">stream to copy to</param>
+        // /// <param name="timeout">seconds to wait</param>
+        // /// <returns></returns>
+        // /// <exception cref="TimeoutException"></exception>
+        // public async Task CopyDownLoadStream(Stream stream, int timeout)
+        // {
+        //     var count = 0;
+        //     var maxCount = timeout * 10;
+        //     while (Stream == null)
+        //     {
+        //         await Task.Delay(100);
+        //         if (++count > maxCount)
+        //         {
+        //             throw new TimeoutException("Timeout occurred waiting for download stream");
+        //         }
+        //     }
+        //     await Stream.CopyToAsync(stream);
+        // }
         
         public void Dispose()
         {
