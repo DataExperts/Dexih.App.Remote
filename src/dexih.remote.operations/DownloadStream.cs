@@ -11,8 +11,7 @@ namespace dexih.remote.operations
             AddedDateTime = DateTime.Now;
             FileName = fileName;
             Type = type;
-            // Stream = new BufferedStream(stream); // I think bufferedStream is causing memory issues with large streams.
-            Stream = stream;
+            Stream = new BufferedStream(stream);
             IsError = isError;
         }
         public Stream Stream { get; set; }
