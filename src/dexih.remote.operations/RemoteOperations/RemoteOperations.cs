@@ -1459,7 +1459,7 @@ namespace dexih.remote.operations
                 var runPlan = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, inputColumns,
                     datalinkTransformKey, null, transformWriterOptions);
                 var transform = runPlan.sourceTransform;
-                transform.SetCacheMethod(ECacheMethod.DemandCache);
+                // transform.SetCacheMethod(ECacheMethod.DemandCache);
                 transform.SetEncryptionMethod(EEncryptionMethod.MaskSecureFields, "");
 
                 var stream = new StreamJsonCompact(dbDatalink.Name + " " + transform.Name, transform, transformWriterOptions.SelectQuery, 1000, chartConfig);
@@ -1519,7 +1519,7 @@ namespace dexih.remote.operations
                         throw new RemoteOperationException("Failed to open the transform.");
                     }
 
-                    transform.SetCacheMethod(ECacheMethod.DemandCache);
+                    // transform.SetCacheMethod(ECacheMethod.DemandCache);
                     transform.SetEncryptionMethod(EEncryptionMethod.MaskSecureFields, "");
                     var hasRow = await transform.ReadAsync(cancellationToken);
                     if (!hasRow)
@@ -1654,7 +1654,7 @@ namespace dexih.remote.operations
                         dbDatalink.AddDefaultRow, true, new DeltaValues('C'));
                 }
 
-                transform.SetCacheMethod(ECacheMethod.DemandCache);
+                // transform.SetCacheMethod(ECacheMethod.DemandCache);
                 transform.SetEncryptionMethod(EEncryptionMethod.MaskSecureFields, "");
 
                 var stream = new StreamJsonCompact(dbDatalink.Name, transform, transformWriterOptions.SelectQuery, 1000, chartConfig);
@@ -1730,7 +1730,7 @@ namespace dexih.remote.operations
                 //     throw new RemoteOperationException("Failed to open the transform.");
                 // }
 
-                transform.SetCacheMethod(ECacheMethod.DemandCache);
+                // transform.SetCacheMethod(ECacheMethod.DemandCache);
                 transform.SetEncryptionMethod(EEncryptionMethod.MaskSecureFields, "");
 
                 var stream = new StreamCsv(transform, transformWriterOptions.SelectQuery);
@@ -2348,7 +2348,7 @@ namespace dexih.remote.operations
                         // {
                         //     throw new RemoteOperationException("Failed to open the datalink.");
                         // }
-                        transform.SetCacheMethod(ECacheMethod.DemandCache);
+                        // transform.SetCacheMethod(ECacheMethod.DemandCache);
                         transform.SetEncryptionMethod(EEncryptionMethod.MaskSecureFields, "");
                         break;
                     case ELOVObjectType.Table:
