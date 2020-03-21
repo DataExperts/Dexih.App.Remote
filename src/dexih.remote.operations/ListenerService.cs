@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -37,7 +38,7 @@ namespace dexih.remote.operations
             return hubConnection.On(methodName, new Type[1]
             {
                 typeof (T1)
-            }, (Func<object[], Task>) (args => func((T1) args[0])));
+            }, args => func((T1) args[0]));
         }
 
         public static IDisposable On(
@@ -61,12 +62,13 @@ namespace dexih.remote.operations
 
         private readonly RemoteSettings _remoteSettings;
         private readonly IMemoryCache _memoryCache;
+        private readonly IApplicationLifetime _applicationLifetime;
 
         private HubConnection _hubConnection;
         
         private readonly CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
         
-        public ListenerService(ISharedSettings sharedSettings, ILogger<ListenerService> logger, IMessageQueue messageQueue, IRemoteOperations remoteOperations, IMemoryCache memoryCache)
+        public ListenerService(ISharedSettings sharedSettings, ILogger<ListenerService> logger, IMessageQueue messageQueue, IRemoteOperations remoteOperations, IMemoryCache memoryCache, IApplicationLifetime applicationLifetime)
         {
             _sharedSettings = sharedSettings;
             _remoteSettings = _sharedSettings.RemoteSettings;
@@ -74,6 +76,7 @@ namespace dexih.remote.operations
             _remoteOperations = remoteOperations;
             _logger = logger;
             _memoryCache = memoryCache;
+            _applicationLifetime = applicationLifetime;
         }
         
         public async Task StartAsync(CancellationToken cancellationToken)
@@ -109,8 +112,14 @@ namespace dexih.remote.operations
             {
                 _hubConnection = BuildHubConnection(HttpTransportType.WebSockets, cancellationToken);
                 connectionResult = await StartListener(cancellationToken);
+                
             }
 
+            if (connectionResult != EConnectionResult.Connected)
+            {
+                _logger.LogError($"Failed to start web sockets connection.  Reason: {connectionResult}.  Shutting down service.");
+                _applicationLifetime.StopApplication();
+            }
         }
 
         private DexihActiveAgent GetActiveAgent()
@@ -151,6 +160,7 @@ namespace dexih.remote.operations
                  {
                      options.PayloadSerializerOptions.Converters.Add(new JsonObjectConverter());
                      options.PayloadSerializerOptions.Converters.Add(new JsonTimeSpanConverter());
+                     options.PayloadSerializerOptions.Converters.Add(new JsonDateTimeConverter());
                  })
                  .ConfigureLogging(logging => { logging.SetMinimumLevel(_remoteSettings.Logging.LogLevel.Default); })
                  .Build();
@@ -234,7 +244,9 @@ namespace dexih.remote.operations
              {
                  _logger.LogInformation("The listener service is connecting (via Websockets) with the server...");
                  await _hubConnection.StartAsync(cancellationToken);
-                 await _hubConnection.InvokeAsync("Connect", GetActiveAgent(),                      _sharedSettings.SecurityToken, cancellationToken: cancellationToken);
+                 // await _hubConnection.InvokeAsync("Connect", null,_sharedSettings.SecurityToken, cancellationToken: cancellationToken);
+                 var activeAgent = GetActiveAgent();
+                 await _hubConnection.InvokeAsync("Connect", activeAgent,_sharedSettings.SecurityToken, cancellationToken: cancellationToken);
                  _logger.LogInformation("The listener service is connected.");
 
              }
@@ -246,7 +258,6 @@ namespace dexih.remote.operations
 
              return EConnectionResult.Connected;
          }
-         
          
          
         /// <summary>

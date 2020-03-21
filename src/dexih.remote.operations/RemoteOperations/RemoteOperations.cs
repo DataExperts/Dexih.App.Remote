@@ -1840,6 +1840,12 @@ namespace dexih.remote.operations
             var cache = message.Value["cache"].ToObject<CacheManager>();
             var dbTable = message.Value["table"]?.ToObject<DexihTable>();
             var dbConnection =cache.Hub.DexihConnections.SingleOrDefault(c => c.IsValid && c.Key == dbTable.ConnectionKey);
+
+            if (dbConnection == null)
+            {
+                throw new RemoteOperationException($"The connection for the table {dbTable.Name} with connection key {dbTable.ConnectionKey} could not be found.");
+            }
+            
 		    var transformSettings = GetTransformSettings(message.HubVariables);
 		    var connection = (ConnectionFlatFile)dbConnection.GetConnection(transformSettings);
             var table = dbTable.GetTable(cache.Hub, connection, transformSettings);
@@ -2313,7 +2319,7 @@ namespace dexih.remote.operations
                 TableColumn nameColumn;
                 TableColumn descColumn;
 
-                if (resetCache == true)
+                if (resetCache)
                 {
                     _memoryCache.Remove(CacheKeys.LookupValues(dbListOfValues.HubKey, dbListOfValues.Key));
                 }
