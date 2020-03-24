@@ -48,7 +48,7 @@ namespace dexih.remote.operations
         {
             progress.Report(50, 1, "Preparing files...");
 
-            var downloadStream = await _connectionFlatFile.DownloadFiles(_flatFile, _path, _files, _files.Length > 1);
+            var downloadStream = await _connectionFlatFile.DownloadFiles(_flatFile, _path, _files, _files.Length > 1, cancellationToken);
             var filename = _files.Length == 1 ? _files[0] : _flatFile.Name + "_files.zip";
 
             progress.Report(100, 2, "Files ready for download...");

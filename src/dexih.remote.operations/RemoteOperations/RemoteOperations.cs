@@ -1857,7 +1857,7 @@ namespace dexih.remote.operations
             try
             {
  				var connectionTable = GetFlatFile(message);
-                var result = await connectionTable.connection.CreateFilePaths(connectionTable.flatFile);
+                var result = await connectionTable.connection.CreateFilePaths(connectionTable.flatFile, cancellationToken);
                 return result;
             }
             catch (Exception ex)
@@ -1879,7 +1879,7 @@ namespace dexih.remote.operations
 
                 foreach (var file in files)
                 {
-                    var result = await connectionTable.connection.MoveFile(connectionTable.flatFile, file, fromDirectory, toDirectory);
+                    var result = await connectionTable.connection.MoveFile(connectionTable.flatFile, file, fromDirectory, toDirectory, cancellationToken);
                     if (!result)
                     {
                         return false;
@@ -1904,7 +1904,7 @@ namespace dexih.remote.operations
 
                 foreach(var file in files)
                 {
-                    var result = await connectionTable.connection.DeleteFile(connectionTable.flatFile, path, file);
+                    var result = await connectionTable.connection.DeleteFile(connectionTable.flatFile, path, file, cancellationToken);
                     if(!result)
                     {
                         return false;
@@ -1926,9 +1926,13 @@ namespace dexih.remote.operations
 				var connectionTable = GetFlatFile(message);
                 var path = message.Value["path"].ToObject<EFlatFilePath>();
 
-                var fileList = await connectionTable.connection.GetFileList(connectionTable.flatFile, path);
-
-                return fileList;
+                var fileList = connectionTable.connection.GetFileEnumerator(connectionTable.flatFile, path, null, cancellationToken);
+                var files = new List<DexihFileProperties>();
+                await foreach (var file in fileList.WithCancellation(cancellationToken))
+                {
+                    files.Add(file);
+                }
+                return files;
             }
             catch (Exception ex)
             {
@@ -2009,7 +2013,7 @@ namespace dexih.remote.operations
 //                        }
 //                        else
 //                        {
-                            var saveFile = await connection.SaveFiles(flatFile, path, fileName, stream);
+                            var saveFile = await connection.SaveFiles(flatFile, path, fileName, stream, cancellationToken);
 //                        }
                     }
                     catch (Exception ex)
@@ -2077,7 +2081,7 @@ namespace dexih.remote.operations
             // this is due to the file stream cannot be reset, and saves memory
             var concatStream = new ConcatenateStream(new [] {memoryStream, stream});
             
-            await connection.SaveFileStream(newFile, EFlatFilePath.Incoming, fileName, concatStream);
+            await connection.SaveFileStream(newFile, EFlatFilePath.Incoming, fileName, concatStream, cancellationToken);
 
             return newFile;
         }
