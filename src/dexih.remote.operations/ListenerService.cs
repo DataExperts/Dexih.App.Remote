@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using dexih.functions;
@@ -350,14 +351,30 @@ namespace dexih.remote.operations
                     // if method is a stream, then start the stream.
                     } else if (method.ReturnType.IsAssignableFrom(typeof(Stream)))
                     {
-                        stream = (Stream) method.Invoke(_remoteOperations, new object[] {remoteMessage, commandCancel});
+                        try
+                        {
+                            stream = (Stream) method.Invoke(_remoteOperations,
+                                new object[] {remoteMessage, commandCancel});
+                        }
+                        catch (TargetInvocationException ex)
+                        {
+                            throw ex.InnerException ?? ex;
+                        }
                     }
                     
                     // other return types, execute sync.
                     else
                     {
-                        stream = new StreamAction<object>(() =>
-                            method.Invoke(_remoteOperations, new object[] {remoteMessage, commandCancel}));
+                        try
+                        {
+
+                            stream = new StreamAction<object>(() =>
+                                method.Invoke(_remoteOperations, new object[] {remoteMessage, commandCancel}));
+                        }
+                        catch (TargetInvocationException ex)
+                        {
+                            throw ex.InnerException ?? ex;
+                        }
                     }
                     
                     await _sharedSettings.StartDataStream(remoteMessage.MessageId, stream, remoteMessage.DownloadUrl, "json", "", false, commandCancel);

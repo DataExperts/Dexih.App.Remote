@@ -1489,7 +1489,7 @@ namespace dexih.remote.operations
 
                 // get the previous datalink transform, which will be used as input for the import function
                 var datalinkTransform = dbDatalink.DexihDatalinkTransforms.Single(c => c.IsValid && c.Key == datalinkTransformKey);
-                var previousDatalinkTransform = dbDatalink.DexihDatalinkTransforms.OrderBy(c => c.Position).SingleOrDefault(c => c.IsValid && c.Position < datalinkTransform.Position);
+                var previousDatalinkTransform = dbDatalink.DexihDatalinkTransforms.OrderBy(c => c.Position).LastOrDefault(c => c.IsValid && c.Position < datalinkTransform.Position);
 
                 var transformWriterOptions = new TransformWriterOptions()
                 {
