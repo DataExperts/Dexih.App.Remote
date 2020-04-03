@@ -1700,7 +1700,7 @@ namespace dexih.remote.operations
         }
         
         
-        public async Task<Stream> GetReaderData(RemoteMessage message, CancellationToken cancellationToken)
+        public Stream GetReaderData(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
             {
@@ -2301,7 +2301,7 @@ namespace dexih.remote.operations
             return _remoteSettings.NamingStandards;
         }
         
-        public async Task<Stream> PreviewListOfValues(RemoteMessage message, CancellationToken cancellationToken)
+        public Stream PreviewListOfValues(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
             {
