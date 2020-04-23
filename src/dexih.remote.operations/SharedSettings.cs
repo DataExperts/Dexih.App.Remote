@@ -29,10 +29,10 @@ namespace dexih.remote.operations
     public interface ISharedSettings
     {
         Task<HttpResponseMessage> PostAsync<In>(string uri, In data, CancellationToken cancellationToken);
+        
         Task<Out> PostAsync<In, Out>(string uri, In data, CancellationToken cancellationToken);
 
         Task<T> GetAsync<T>(string url, CancellationToken cancellationToken);
-        // Task<HttpResponseMessage> PostAsync(string uri, HttpContent content, CancellationToken cancellationToken);
 
         Task PostDirect(string url, string data, CancellationToken cancellationToken);
         

@@ -47,7 +47,7 @@ namespace dexih.remote.operations
         /// <returns></returns>
         string Decrypt(RemoteMessage message, CancellationToken cancellationToken);
 
-        void ReStart(RemoteMessage message, CancellationToken cancellation);
+        bool ReStart(RemoteMessage message, CancellationToken cancellation);
         IEnumerable<object> TestCustomFunction(RemoteMessage message, CancellationToken cancellationToken);
         Task<RemoteOperations.TestColumnValidationResult> TestColumnValidation(RemoteMessage message, CancellationToken cancellationToken);
         bool RunDatalinks(RemoteMessage message, CancellationToken cancellationToken);

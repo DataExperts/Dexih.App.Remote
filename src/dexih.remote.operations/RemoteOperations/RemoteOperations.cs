@@ -193,15 +193,16 @@ namespace dexih.remote.operations
 			}
 		}
 
-        public void ReStart(RemoteMessage message, CancellationToken cancellation)
+        public bool ReStart(RemoteMessage message, CancellationToken cancellation)
         {
             var force = message?.Value["force"].ToObject<bool>() ?? true;
-
+            
             if (force || _managedTasks.RunningCount == 0)
             {
                 var applicationLifetime = _host.Services.GetService<IApplicationLifetime>();
                 applicationLifetime.StopApplication();
-                return;
+                
+                return true;
             }
 
             throw new Exception(
