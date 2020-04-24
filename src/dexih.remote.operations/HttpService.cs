@@ -244,8 +244,8 @@ namespace dexih.remote.operations
                             // if cert expires in next 14 days, then renew.
                             if (DateTime.Now > effectiveDate && DateTime.Now < expiresDate)
                             {
-                                File.WriteAllBytes(certificatePath,
-                                    certificate);
+                                await File.WriteAllBytesAsync(certificatePath,
+                                    certificate, cancellationToken);
 
                                 _logger.LogInformation(
                                     $"A new Ssl certificate has been successfully created at {certificatePath}.");

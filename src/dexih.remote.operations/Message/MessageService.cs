@@ -138,10 +138,14 @@ namespace dexih.remote.operations
 
                         _logger.LogTrace("Send task results completed in {0}ms.", start.ElapsedMilliseconds);
 
-                        if (result == null || result.Success == false)
+                        if (result == null )
+                        {
+                            _logger.LogError("Update task returned no message");
+                        }
+                        else if (result.Success == false)
                         {
                             _logger.LogError(result.Exception,
-                                "Update task results failed.  Return message was: " + result?.Message);
+                                "Update task results failed.  Return message was: " + result.Message);
                         }
 
                         // wait a little while for more tasks results to arrive.

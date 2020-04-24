@@ -231,7 +231,7 @@ namespace dexih.remote.operations
                         .Where(c => c.Direction == EParameterDirection.Input).Select(
                             parameter => Operations.Parse(parameter.DataType, parameter.Rank, testValues[i++])).ToArray<object>();
 
-                    var result = createFunction.function.RunFunction(new FunctionVariables(), inputs, out object[] outputs, cancellationToken);
+                    var result = createFunction.function.RunFunction(new FunctionVariables(), inputs, out var outputs, cancellationToken);
                     return new object[] {result.returnValue}.Concat(outputs);
                 }
                 return null;
@@ -249,7 +249,7 @@ namespace dexih.remote.operations
             {
                 var cache = message.Value["cache"].ToObject<CacheManager>();
                 var columnValidation = message.Value["columnValidation"].ToObject<DexihColumnValidation>();
-                object testValue = message.Value["testValue"]?.ToObject<object>();
+                var testValue = message.Value["testValue"]?.ToObject<object>();
 
                 var validationRun =
                     new ColumnValidationRun(GetTransformSettings(message.HubVariables), columnValidation, cache.Hub)
@@ -1109,7 +1109,7 @@ namespace dexih.remote.operations
                 var ipAddress = message.Value["ipAddress"].ToObject<string>();
                 
                 var data = await _liveApis.Query(apiKey, action, parameters, ipAddress, cancellationToken);
-                var byteArray = Encoding.UTF8.GetBytes(data.ToString());
+                var byteArray = Encoding.UTF8.GetBytes(data);
                 var stream = new MemoryStream(byteArray);
 
                 return stream;
@@ -1692,7 +1692,7 @@ namespace dexih.remote.operations
 
             var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables, dbDatalink.Parameters));
             var runPlan = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, inputColumns, null, null, transformWriterOptions);
-            using var transform = runPlan.sourceTransform;
+            await using var transform = runPlan.sourceTransform;
             
             //TODO move Open to stream function to avoid timeouts
             var openReturn = await transform.Open(0, null, cancellationToken);
@@ -2152,7 +2152,7 @@ namespace dexih.remote.operations
                         {
                             var newFileName = fileName.Substring(0, fileName.Length - 3);
 
-                            using (var decompressionStream = new GZipStream(stream, CompressionMode.Decompress))
+                            await using (var decompressionStream = new GZipStream(stream, CompressionMode.Decompress))
                             {
                                 flatFiles.Add(await CreateTable(connection, dbFileFormat, formatType, newFileName, decompressionStream, cancellationToken));
                             }

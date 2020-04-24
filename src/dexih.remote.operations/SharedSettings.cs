@@ -397,8 +397,8 @@ namespace dexih.remote.operations
                             Runtime = null
                         };
 
-                        File.WriteAllText(RemoteSettings.Runtime.AppSettingsPath,
-                            JsonSerializer.Serialize(tmpSettings, new JsonSerializerOptions() { WriteIndented = true}));
+                        await File.WriteAllTextAsync(RemoteSettings.Runtime.AppSettingsPath,
+                            JsonSerializer.Serialize(tmpSettings, new JsonSerializerOptions() { WriteIndented = true}), cancellationToken);
                         _logger.LogInformation(
                             "The appsettings.json file has been updated with the current settings.");
 

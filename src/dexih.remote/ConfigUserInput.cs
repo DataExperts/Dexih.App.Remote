@@ -208,7 +208,7 @@ namespace dexih.remote.config
                     {
                         if (keyInfo.Key == ConsoleKey.Backspace && pass.Length > 0)
                         {
-                            pass = pass.Substring(0, (pass.Length - 1));
+                            pass = pass.Substring(0, pass.Length - 1);
                             Console.Write("\b \b");
                         }
                     }

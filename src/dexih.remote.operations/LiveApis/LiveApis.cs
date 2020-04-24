@@ -73,10 +73,10 @@ namespace dexih.remote.operations
             }
 
             // strip non alphanumeric chars from the key to ensure url compatibility.
-            char[] arr = securityKey.ToCharArray();
-            arr = Array.FindAll<char>(arr, (c => (char.IsLetterOrDigit(c) 
-                                                  || char.IsWhiteSpace(c) 
-                                                  || c == '-')));
+            var arr = securityKey.ToCharArray();
+            arr = Array.FindAll<char>(arr, c => char.IsLetterOrDigit(c) 
+                                                || char.IsWhiteSpace(c) 
+                                                || c == '-');
             securityKey = new string(arr);
             
             if (apiKeys.TryAdd(apiKey, securityKey))
@@ -220,7 +220,7 @@ namespace dexih.remote.operations
                         }
                     }
 
-                    int rows = -1;
+                    var rows = -1;
                     var r = parameters["r"];
                     if(r != null) 
                     {
@@ -356,7 +356,7 @@ namespace dexih.remote.operations
                         
             if (dbApi.SourceType == ESourceType.Table)
             {
-                var dbTable = hub.GetTableFromKey((dbApi.SourceTableKey.Value));
+                var dbTable = hub.GetTableFromKey(dbApi.SourceTableKey.Value);
                 var dbConnection = hub.DexihConnections.Single(c => c.IsValid && c.Key == dbTable.ConnectionKey);
 
                 var connection = dbConnection.GetConnection( settings);

@@ -49,7 +49,7 @@ namespace dexih.remote.operations
             if (hubConnection == null)
                 throw new ArgumentNullException(nameof (hubConnection));
             return hubConnection.On(methodName, new Type[0], 
-                 (args => func()));
+                 args => func());
         }
     }
     
@@ -104,7 +104,7 @@ namespace dexih.remote.operations
         private async Task Connect(CancellationToken cancellationToken)
         {
             _logger.LogInformation("The listener service is waiting for authentication from the server...");
-            EConnectionResult connectionResult = EConnectionResult.Disconnected;
+            var connectionResult = EConnectionResult.Disconnected;
 
             connectionResult = await _sharedSettings.WaitForLogin(false, cancellationToken);
 
@@ -342,12 +342,18 @@ namespace dexih.remote.operations
                                 }
                                 await task.ConfigureAwait(false);
                                 var property = task.GetType().GetProperty("Result");
+
+                                if (property == null)
+                                {
+                                    throw new RemoteOperationException($"The method {method.Name} does not return a result.");
+                                }
+                                
                                 return property.GetValue(task);
 
                             });
                         }
 
-                    // if method is a stream, then start the stream.
+                        // if method is a stream, then start the stream.
                     } else if (method.ReturnType.IsAssignableFrom(typeof(Stream)))
                     {
                         try

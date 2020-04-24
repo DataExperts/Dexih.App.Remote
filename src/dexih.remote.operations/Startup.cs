@@ -61,7 +61,7 @@ namespace dexih.remote.operations
                     context.Response.StatusCode = 400;
                     context.Response.ContentType = "application/json";
 
-                    using (var writer = new StreamWriter(context.Response.Body))
+                    await using (var writer = new StreamWriter(context.Response.Body))
                     {
                         await writer.WriteAsync(returnValue.Serialize());
                         await writer.FlushAsync().ConfigureAwait(false);
@@ -126,7 +126,7 @@ namespace dexih.remote.operations
                             if (segments.Length > 3 && segments[3] == "ping")
                             {
                                 var ping = liveApis.Ping(key1);
-                                using (var writer = new StreamWriter(context.Response.Body))
+                                await using (var writer = new StreamWriter(context.Response.Body))
                                 {
                                     await writer.WriteAsync(ping.Serialize());
                                     await writer.FlushAsync().ConfigureAwait(false);
@@ -147,7 +147,7 @@ namespace dexih.remote.operations
 
                             context.Response.StatusCode = 200;
                             context.Response.ContentType = "application/json";
-                            using (var writer = new StreamWriter(context.Response.Body))
+                            await using (var writer = new StreamWriter(context.Response.Body))
                             {
                                 await writer.WriteAsync(data);
                                 await writer.FlushAsync().ConfigureAwait(false);

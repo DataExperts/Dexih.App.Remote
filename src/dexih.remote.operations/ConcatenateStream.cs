@@ -16,11 +16,11 @@ namespace dexih.remote.operations
 
         public override int Read(byte[] buffer, int offset, int count)
         {
-            int totalBytesRead = 0;
+            var totalBytesRead = 0;
 
             while (count > 0 && _streams.Count > 0)
             {
-                int bytesRead = _streams.Peek().Read(buffer, offset, count);
+                var bytesRead = _streams.Peek().Read(buffer, offset, count);
                 if (bytesRead == 0)
                 {
                     _streams.Dequeue().Dispose();

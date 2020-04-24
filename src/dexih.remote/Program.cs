@@ -92,7 +92,7 @@ namespace dexih.remote
                 configDirectory = Directory.GetCurrentDirectory();
             }
             
-            AppDomain currentDomain = AppDomain.CurrentDomain;
+            var currentDomain = AppDomain.CurrentDomain;
             currentDomain.AssemblyResolve += LoadAssembly;
 
             
