@@ -17,6 +17,7 @@ using dexih.repository;
 using dexih.transforms;
 using dexih.transforms.File;
 using dexih.transforms.Mapping;
+using dexih.transforms.View;
 using Dexih.Utils.Crypto;
 using Dexih.Utils.DataType;
 using Dexih.Utils.ManagedTasks;
@@ -1346,7 +1347,7 @@ namespace dexih.remote.operations
                 var selectQuery = message.Value["selectQuery"].ToObject<SelectQuery>();
                 var inputColumns = message.Value["inputColumns"].ToObject<InputColumn[]>();
                 var parameters =message.Value["inputParameters"]?.ToObject<InputParameters>();
-                var chartConfig = message.Value["chartConfig"].ToObject<ChartConfig>();
+                var viewConfig = message.Value["viewConfig"].ToObject<ViewConfig>();
 
                 if (selectQuery == null)
                 {
@@ -1384,7 +1385,7 @@ namespace dexih.remote.operations
 
                 _logger.LogInformation("Preview for table: " + dbTable.Name + ".");
 
-                return new StreamJsonCompact(dbTable.Name, reader, selectQuery, 1000, chartConfig);
+                return new StreamJsonCompact(dbTable.Name, reader, null, 1000, viewConfig);
                 
                 // return await _sharedSettings.StartDataStream(stream, downloadUrl, "json", "preview_table.json", cancellationToken);
 
@@ -1440,7 +1441,7 @@ namespace dexih.remote.operations
                 var datalinkTransformKey = message.Value["datalinkTransformKey"]?.ToObject<long>() ?? 0;
                 var dbDatalink = message.Value["datalink"].ToObject<DexihDatalink>();
                 var inputColumns = message.Value["inputColumns"].ToObject<InputColumn[]>();
-                var chartConfig = message.Value["chartConfig"].ToObject<ChartConfig>();
+                var viewConfig = message.Value["viewConfig"].ToObject<ViewConfig>();
                 
                 var transformWriterOptions = new TransformWriterOptions()
                 {
@@ -1463,7 +1464,7 @@ namespace dexih.remote.operations
                 // transform.SetCacheMethod(ECacheMethod.DemandCache);
                 transform.SetEncryptionMethod(EEncryptionMethod.MaskSecureFields, "");
 
-                var stream = new StreamJsonCompact(dbDatalink.Name + " " + transform.Name, transform, transformWriterOptions.SelectQuery, 1000, chartConfig);
+                var stream = new StreamJsonCompact(dbDatalink.Name + " " + transform.Name, transform, null, 1000, viewConfig);
                 return stream;
                 // return await _sharedSettings.StartDataStream(stream, downloadUrl, "json", "preview_transform.json", cancellationToken);
             }
@@ -1586,7 +1587,7 @@ namespace dexih.remote.operations
                 var dbDatalink = cache.Hub.DexihDatalinks.Single(c => c.IsValid && c.Key == datalinkKey);
                 var inputColumns = message.Value["inputColumns"].ToObject<InputColumn[]>();
                 var parameters = message.Value["inputParameters"].ToObject<InputParameters>();
-                var chartConfig = message.Value["chartConfig"].ToObject<ChartConfig>();
+                var viewConfig = message.Value["viewConfig"].ToObject<ViewConfig>();
                 var previewUpdates = message.Value["previewUpdates"].ToObject<bool>();
 
                 var transformWriterOptions = new TransformWriterOptions()
@@ -1658,7 +1659,7 @@ namespace dexih.remote.operations
                 // transform.SetCacheMethod(ECacheMethod.DemandCache);
                 transform.SetEncryptionMethod(EEncryptionMethod.MaskSecureFields, "");
 
-                var stream = new StreamJsonCompact(dbDatalink.Name, transform, transformWriterOptions.SelectQuery, 1000, chartConfig);
+                var stream = new StreamJsonCompact(dbDatalink.Name, transform, null, 1000, viewConfig);
                 return stream;
                 // return await _sharedSettings.StartDataStream(stream, downloadUrl, "json", "preview_datalink.json", cancellationToken);
             }
@@ -1773,7 +1774,9 @@ namespace dexih.remote.operations
 
                     query.Filters.Add(new Filter(profileTable.GetColumn(EDeltaType.CreateAuditKey), ECompare.IsEqual, auditKey));
                     if (summaryOnly)
+                    {
                         query.Filters.Add(new Filter(profileTable["IsSummary"], ECompare.IsEqual, true));
+                    }
 
                     var reader = connection.GetTransformReader(profileTable);
                     reader = new TransformQuery(reader, query);
@@ -1781,7 +1784,7 @@ namespace dexih.remote.operations
                     reader.SetEncryptionMethod(EEncryptionMethod.MaskSecureFields, "");
 
                     _logger.LogInformation("Preview for profile results: " + profileTable.Name + ".");
-                    var stream = new StreamJsonCompact(profileTable.Name, reader, null, 1000, query.Rows);
+                    var stream = new StreamJsonCompact(profileTable.Name, reader, query, 1000);
                     return stream;
                     // return await _sharedSettings.StartDataStream(stream, downloadUrl, "json", "preview_table.json", cancellationToken);
                 }
