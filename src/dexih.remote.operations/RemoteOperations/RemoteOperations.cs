@@ -1385,7 +1385,7 @@ namespace dexih.remote.operations
 
                 _logger.LogInformation("Preview for table: " + dbTable.Name + ".");
 
-                return new StreamJsonCompact(dbTable.Name, reader, null, 1000, viewConfig);
+                return new StreamJsonCompact(dbTable.Name, reader, selectQuery, 1000, viewConfig);
                 
                 // return await _sharedSettings.StartDataStream(stream, downloadUrl, "json", "preview_table.json", cancellationToken);
 
@@ -1464,7 +1464,7 @@ namespace dexih.remote.operations
                 // transform.SetCacheMethod(ECacheMethod.DemandCache);
                 transform.SetEncryptionMethod(EEncryptionMethod.MaskSecureFields, "");
 
-                var stream = new StreamJsonCompact(dbDatalink.Name + " " + transform.Name, transform, null, 1000, viewConfig);
+                var stream = new StreamJsonCompact(dbDatalink.Name + " " + transform.Name, transform, transformWriterOptions?.SelectQuery, 1000, viewConfig);
                 return stream;
                 // return await _sharedSettings.StartDataStream(stream, downloadUrl, "json", "preview_transform.json", cancellationToken);
             }
@@ -1659,7 +1659,7 @@ namespace dexih.remote.operations
                 // transform.SetCacheMethod(ECacheMethod.DemandCache);
                 transform.SetEncryptionMethod(EEncryptionMethod.MaskSecureFields, "");
 
-                var stream = new StreamJsonCompact(dbDatalink.Name, transform, null, 1000, viewConfig);
+                var stream = new StreamJsonCompact(dbDatalink.Name, transform, transformWriterOptions.SelectQuery, 1000, viewConfig);
                 return stream;
                 // return await _sharedSettings.StartDataStream(stream, downloadUrl, "json", "preview_datalink.json", cancellationToken);
             }
