@@ -1330,6 +1330,23 @@ namespace dexih.remote.operations
                 throw;
             }
         }
+
+        private SelectQuery InitializeSelectQuery(SelectQuery selectQuery)
+        {
+            if (selectQuery == null)
+            {
+                return new SelectQuery() {Rows = _remoteSettings.SystemSettings.DefaultPreviewRows};
+            }
+            else
+            {
+                if (selectQuery.Rows == -1 || selectQuery.Rows > _remoteSettings.SystemSettings.MaxPreviewRows)
+                {
+                    selectQuery.Rows = _remoteSettings.SystemSettings.MaxPreviewRows;
+                }
+            }
+
+            return selectQuery;
+        }
         
         public Stream PreviewTable(RemoteMessage message, CancellationToken cancellationToken)
         {
@@ -1344,25 +1361,13 @@ namespace dexih.remote.operations
                 var cache = message.Value["cache"].ToObject<CacheManager>();
                 var dbTable = cache.Hub.GetTableFromKey(tableKey);
                 var showRejectedData = message.Value["showRejectedData"].ToObject<bool>();
-                var selectQuery = message.Value["selectQuery"].ToObject<SelectQuery>();
+                var selectQuery = InitializeSelectQuery(message.Value["selectQuery"].ToObject<SelectQuery>());
                 var inputColumns = message.Value["inputColumns"].ToObject<InputColumn[]>();
                 var parameters =message.Value["inputParameters"]?.ToObject<InputParameters>();
                 var viewConfig = message.Value["viewConfig"].ToObject<ViewConfig>();
-
-                if (selectQuery == null)
-                {
-                    selectQuery = new SelectQuery()
-                    {
-                        Rows = 100
-                    };
-                }
-
+                
                 if (parameters?.Count > 0)
                 {
-                    if (selectQuery == null)
-                    {
-                        selectQuery = new SelectQuery();
-                    }
                     selectQuery.AddParameters(parameters);
                 }
 
@@ -1447,7 +1452,7 @@ namespace dexih.remote.operations
                 {
                     PreviewMode = true,
                     GlobalSettings = CreateGlobalSettings(cache.CacheEncryptionKey),
-                    SelectQuery = message.Value["selectQuery"].ToObject<SelectQuery>() ?? new SelectQuery() {Rows = 100},
+                    SelectQuery = InitializeSelectQuery(InitializeSelectQuery(message.Value["selectQuery"].ToObject<SelectQuery>())),
                 };
 
                 var parameters = message.Value["inputParameters"].ToObject<InputParameters>();
@@ -1594,7 +1599,7 @@ namespace dexih.remote.operations
                 {
                     PreviewMode = true,
                     GlobalSettings = CreateGlobalSettings(cache.CacheEncryptionKey),
-                    SelectQuery = message.Value["selectQuery"].ToObject<SelectQuery>() ?? new SelectQuery() {Rows = 100}
+                    SelectQuery = InitializeSelectQuery(message.Value["selectQuery"].ToObject<SelectQuery>())
                 };
 
                 if (parameters?.Count > 0)
@@ -1683,7 +1688,7 @@ namespace dexih.remote.operations
             {
                 PreviewMode = true,
                 GlobalSettings = CreateGlobalSettings(cache.CacheEncryptionKey),
-                SelectQuery = message.Value["selectQuery"].ToObject<SelectQuery>() ?? new SelectQuery()
+                SelectQuery = InitializeSelectQuery(message.Value["selectQuery"].ToObject<SelectQuery>())
             };
 
             if (parameters?.Count > 0)

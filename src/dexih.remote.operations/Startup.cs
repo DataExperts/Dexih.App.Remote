@@ -167,7 +167,7 @@ namespace dexih.remote.operations
                             await SendInvalidPath();
                             return;
                         }
-                        
+
                         try
                         {
                             var key = segments[2];
@@ -176,7 +176,8 @@ namespace dexih.remote.operations
 
                                 if (downloadStream == null)
                                 {
-                                    throw new RemoteException("Remote agent call failed, the response key was not found.");
+                                    throw new RemoteException(
+                                        "Remote agent call failed, the response key was not found.");
                                 }
 
                                 switch (downloadStream.Type)
@@ -209,9 +210,13 @@ namespace dexih.remote.operations
                                     context.Response.Headers.Add("Content-Disposition",
                                         "attachment; filename=" + downloadStream.FileName);
                                 }
-                                
+
                                 await downloadStream.Stream.CopyToAsync(context.Response.Body, context.RequestAborted);
                             }
+                        }
+                        catch (OperationCanceledException _)
+                        {
+                            
                         }
                         catch (Exception e)
                         {
