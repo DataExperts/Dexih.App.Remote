@@ -533,6 +533,11 @@ namespace dexih.remote.operations
         
         public Task StartDataStream(string key, Stream stream, DownloadUrl downloadUrl, string format, string fileName, bool isError, CancellationToken cancellationToken)
         {
+            if (downloadUrl == null)
+            {
+                throw new Exception("The start data stream failed as no download url was specified.");
+            }
+            
             if (downloadUrl.DownloadUrlType == EDownloadUrlType.Proxy)
             {
                 var uploadUrl = $"{downloadUrl.Url}/upload/{key}/{format}/{fileName}";
