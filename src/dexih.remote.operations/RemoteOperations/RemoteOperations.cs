@@ -1384,7 +1384,7 @@ namespace dexih.remote.operations
                 var table = showRejectedData ? dbTable.GetRejectedTable(cache.Hub, connection, settings) : dbTable.GetTable(cache.Hub, connection, inputColumns, settings);
                 
                 var reader = connection.GetTransformReader(table, true);
-                reader = new TransformQuery(reader, selectQuery) {Name = "Preview Query"};
+                reader = new TransformQuery(reader, null) {Name = "Preview Query"};
                 // await reader.Open(0, null, cancellationToken);
                 reader.SetEncryptionMethod(EEncryptionMethod.MaskSecureFields, "");
 

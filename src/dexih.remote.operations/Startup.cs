@@ -196,25 +196,17 @@ namespace dexih.remote.operations
                                             $"The type {downloadStream.Type} was not recognized.");
                                 }
 
-                                if (downloadStream.IsError)
-                                {
-                                    context.Response.StatusCode = 400;
-                                }
-                                else
-                                {
-                                    context.Response.StatusCode = 200;
-                                }
+                                context.Response.StatusCode = downloadStream.IsError ? 400 : 200;
 
                                 if (!string.IsNullOrEmpty(downloadStream.FileName))
                                 {
-                                    context.Response.Headers.Add("Content-Disposition",
-                                        "attachment; filename=" + downloadStream.FileName);
+                                    context.Response.Headers.Add("Content-Disposition", "attachment; filename=" + downloadStream.FileName);
                                 }
 
                                 await downloadStream.Stream.CopyToAsync(context.Response.Body, context.RequestAborted);
                             }
                         }
-                        catch (OperationCanceledException _)
+                        catch (OperationCanceledException)
                         {
                             
                         }
