@@ -22,6 +22,8 @@ namespace dexih.remote.operations
         
         public DexihHub Hub { get; set; }
         
+        public string[] AlertEmails { get; set; }
+        
         public DexihHubVariable[] HubVariables { get; set; }
         
         [JsonIgnore]

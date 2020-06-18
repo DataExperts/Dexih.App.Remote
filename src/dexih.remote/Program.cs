@@ -8,8 +8,10 @@ using System.Net.Sockets;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using dexih.operations.Alerts;
 using dexih.remote.config;
 using dexih.remote.operations;
+using dexih.remote.operations.Logger;
 using dexih.repository;
 using Dexih.Utils.ManagedTasks;
 using Microsoft.Extensions.Configuration;
@@ -62,6 +64,7 @@ namespace dexih.remote
 
         public static int Main(string[] args)
         {
+            // mutex used to ensure the remote agent is only running once.
             var mutex = new Mutex(true, "dexih.remote", out var createdNew);
     
             if (!createdNew)
@@ -82,7 +85,7 @@ namespace dexih.remote
             Welcome();
             WriteVersion();
             
-            // create a temporary logger (until the log level settings have been loaded.
+            // create a temporary logger (until the log level settings have been loaded).
             var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
             var logger = loggerFactory.CreateLogger("main");
 
@@ -94,18 +97,6 @@ namespace dexih.remote
             
             var currentDomain = AppDomain.CurrentDomain;
             currentDomain.AssemblyResolve += LoadAssembly;
-
-            
-            // var resolver = CompositeResolver.Create(
-            //     new[] { MessagePack.Formatters.TypelessFormatter.Instance },
-            //     new[] { MessagePack.Resolvers.StandardResolver.Instance });
-            // var options = MessagePackSerializerOptions.Standard.WithResolver(resolver);
-            // MessagePackSerializer.DefaultOptions = options;
-
-            // MessagePack.Resolvers.CompositeResolver.RegisterAndSetAsDefault(
-            //     new[] { MessagePack.Formatters.TypelessFormatter.Instance },
-            //     new[] { MessagePack.Resolvers.StandardResolver.Instance });
-
             
             var settingsFile = Path.Combine(configDirectory, "appsettings.json");
             if (args.Length >= 2 && args[0] == "-appsettings")
@@ -174,12 +165,22 @@ namespace dexih.remote
                     services.AddHostedService<UpgradeService>();
                     services.AddSingleton<IManagedTasks, ManagedTasksService>();
                     services.AddSingleton<IMessageQueue, MessageQueue>();
+                    services.AddSingleton<IAlertQueue, AlertQueue>();
                     services.AddSingleton<ILiveApis, LiveApis>();
                     services.AddSingleton<IRemoteOperations, RemoteOperations>();
                     services.AddHostedService<MessageService>();
+                    services.AddHostedService<AlertService>();
                     services.AddHostedService<HttpService>();
                     services.AddHostedService<ListenerService>();
                     services.AddHostedService<AutoStartService>();
+                })
+                .ConfigureLogging((hostContext, configLogging) =>
+                {
+                    var alerts = hostContext.Configuration.GetSection("Alerts");
+                    if (alerts != null && alerts.GetValue<bool>("AlertOnCritical"))
+                    {
+                        configLogging.AddAlert();
+                    }
                 })
                 .UseConsoleLifetime();
 

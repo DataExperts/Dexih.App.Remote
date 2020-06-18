@@ -10,6 +10,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using dexih.functions;
+using dexih.operations.Alerts;
 using dexih.functions.Parameter;
 using dexih.functions.Query;
 using dexih.operations;
@@ -41,8 +42,9 @@ namespace dexih.remote.operations
         private readonly ISharedSettings _sharedSettings;
         private readonly IHost _host;
         private readonly IHttpClientFactory _clientFactory;
+        private readonly IAlertQueue _alertQueue;
         
-        public RemoteOperations(ISharedSettings sharedSettings, ILogger<RemoteOperations> logger, IMemoryCache memoryCache, ILiveApis liveApis, IManagedTasks managedTasks, IHost host, IHttpClientFactory clientFactory)
+        public RemoteOperations(ISharedSettings sharedSettings, ILogger<RemoteOperations> logger, IMemoryCache memoryCache, ILiveApis liveApis, IManagedTasks managedTasks, IHost host, IHttpClientFactory clientFactory, IAlertQueue alertQueue)
         {
             _sharedSettings = sharedSettings;
             
@@ -54,6 +56,7 @@ namespace dexih.remote.operations
             _host = host;
 
             _clientFactory = clientFactory;
+            _alertQueue = alertQueue;
         }
 
         public void Dispose()
@@ -294,6 +297,7 @@ namespace dexih.remote.operations
                 var cache = message.Value["cache"].ToObject<CacheManager>();
                 // var cache = Json.JTokenToObject<CacheManager>(message.Value["cache"], _sharedSettings.SessionEncryptionKey);
                 var connectionId = message.Value["connectionId"].ToString();
+                var alertEmails = message.Value["alertEmails"].ToObject<string[]>();
                 
                 _logger.LogDebug($"Running datalinks.  Progress sent to connection {connectionId}, keys: {message.Value["datalinkKeys"]}");
 
@@ -321,7 +325,7 @@ namespace dexih.remote.operations
 
                     dbDatalink.UpdateParameters(inputParameters);
                     var datalinkInputs = inputColumns?.Where(c => c.DatalinkKey == dbDatalink.Key).ToArray();
-                    var datalinkRun = new DatalinkRun(GetTransformSettings(message.HubVariables, dbDatalink.Parameters), _logger, 0, dbDatalink, cache.Hub, datalinkInputs, transformWriterOptions);
+                    var datalinkRun = new DatalinkRun(GetTransformSettings(message.HubVariables, dbDatalink.Parameters), _logger, 0, dbDatalink, cache.Hub, datalinkInputs, transformWriterOptions, _alertQueue, alertEmails);
                     var runReturn = RunDataLink(connectionId, cache.HubKey, datalinkRun, null, null);
                 }
                 
@@ -394,12 +398,6 @@ namespace dexih.remote.operations
                 };
 
                 return _managedTasks.Add(task);
-//                if (newTask != null)
-//                {
-//                    return newTask;
-//                }
-//
-//                throw new RemoteOperationException($"Task not successfully created.", null);
             }
             catch (Exception ex)
             {
@@ -529,7 +527,7 @@ namespace dexih.remote.operations
                 var datalinkTestKeys = message.Value["datalinkTestKeys"].ToObject<long[]>();
                 var cache = message.Value["cache"].ToObject<CacheManager>();
                 var connectionId = message.Value["connectionId"].ToString();
-
+                var alertEmails = message.Value["alertEmails"].ToObject<string[]>();
                 var exceptions = new List<Exception>();
                 
                 foreach (var datalinkTestKey in datalinkTestKeys)
@@ -546,7 +544,7 @@ namespace dexih.remote.operations
                             GlobalSettings = CreateGlobalSettings(cache.CacheEncryptionKey),
                         };
                         var datalinkTestRun = new DatalinkTestRun(GetTransformSettings(message.HubVariables), _logger,
-                            datalinkTest, cache.Hub, transformWriterOptions) {StartMode = EStartMode.RunTests};
+                            datalinkTest, cache.Hub, transformWriterOptions, _alertQueue, alertEmails) {StartMode = EStartMode.RunTests};
 
 //                        async Task DatalinkTestTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken cancellationToken2)
 //                        {
@@ -609,7 +607,7 @@ namespace dexih.remote.operations
                 var datalinkTestKeys = message.Value["datalinkTestKeys"].ToObject<long[]>();
                 var cache = message.Value["cache"].ToObject<CacheManager>();
                 var connectionId = message.Value["connectionId"].ToString();
-
+                var alertEmails = message.Value["alertEmails"].ToObject<string[]>();
                 var exceptions = new List<Exception>();
                 
                 foreach (var datalinkTestKey in datalinkTestKeys)
@@ -626,7 +624,7 @@ namespace dexih.remote.operations
                             GlobalSettings = CreateGlobalSettings(cache.CacheEncryptionKey),
                         };
                         var datalinkTestRun = new DatalinkTestRun(GetTransformSettings(message.HubVariables), _logger,
-                            datalinkTest, cache.Hub, transformWriterOptions) {StartMode = EStartMode.RunSnapshot};
+                            datalinkTest, cache.Hub, transformWriterOptions, _alertQueue, alertEmails) {StartMode = EStartMode.RunSnapshot};
                         //                        ;
 //
 //                        async Task DatalinkTestSnapshotTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken cancellationToken2)
@@ -688,6 +686,7 @@ namespace dexih.remote.operations
                 var resetIncrementalValue = message.Value["resetIncrementalValue"]?.ToObject<object>();
                 var connectionId = message.Value["connectionId"].ToString();
                 var inputParameters = message.Value["inputParameters"]?.ToObject<InputParameters>();
+                var alertEmails = message.Value["alertEmails"].ToObject<string[]>();
                 
                 var transformWriterOptions = new TransformWriterOptions()
                 {
@@ -716,7 +715,7 @@ namespace dexih.remote.operations
                         
                         dbDatajob.UpdateParameters(inputParameters);
 
-                        AddDataJobTask(cache.Hub, GetTransformSettings(message.HubVariables, dbDatajob.Parameters), connectionId, dbDatajob, transformWriterOptions, null, null);
+                        AddDataJobTask(cache.Hub, GetTransformSettings(message.HubVariables, dbDatajob.Parameters), connectionId, dbDatajob, transformWriterOptions, null, null, alertEmails);
                     }
                     catch (Exception ex)
                     {
@@ -742,11 +741,11 @@ namespace dexih.remote.operations
             }
         }
 
-		private void AddDataJobTask(DexihHub dbHub, TransformSettings transformSettings, string connectionId, DexihDatajob dbHubDatajob, TransformWriterOptions transformWriterOptions, IEnumerable<ManagedTaskTrigger> managedTaskSchedules, IEnumerable<ManagedTaskFileWatcher> fileWatchers)
+		private void AddDataJobTask(DexihHub dbHub, TransformSettings transformSettings, string connectionId, DexihDatajob dbHubDatajob, TransformWriterOptions transformWriterOptions, IEnumerable<ManagedTaskTrigger> managedTaskSchedules, IEnumerable<ManagedTaskFileWatcher> fileWatchers, string[] alertEmails)
 		{
             try
             {
-                var datajobRun = new DatajobRun(transformSettings, _logger, dbHubDatajob, dbHub, transformWriterOptions);
+                var datajobRun = new DatajobRun(transformSettings, _logger, dbHubDatajob, dbHub, transformWriterOptions, _alertQueue, alertEmails);
                 
                 void DatalinkStart(DatalinkRun datalinkRun)
                 {
@@ -782,7 +781,7 @@ namespace dexih.remote.operations
             {
 				var datajobKeys = message.Value["datajobKeys"].ToObject<long[]>();
                 var cache = message.Value["cache"].ToObject<CacheManager>();
-
+                var alertEmails = message.Value["alertEmails"].ToObject<string[]>();
                 var exceptions = new List<Exception>();
 
                 foreach (var datajobKey in datajobKeys)
@@ -797,7 +796,8 @@ namespace dexih.remote.operations
                             Key = datajobKey,
                             Hub = cache.Hub,
                             HubVariables = message.HubVariables,
-                            EncryptionKey = cache.CacheEncryptionKey
+                            EncryptionKey = cache.CacheEncryptionKey,
+                            AlertEmails = alertEmails
                         };
 
                         var datajob = ActivateDatajob(package);
@@ -810,7 +810,7 @@ namespace dexih.remote.operations
 //                            var saveCache = new CacheManager(cache.HubKey, cache.CacheEncryptionKey);
 //                            saveCache.AddDatajobs(new [] {datajob.DatajobKey}, cache.Hub);
                             package.Encrypt(_remoteSettings.AppSettings.EncryptionKey);
-                            var saveData = JsonExtensions.Serialize(package);
+                            var saveData = package.Serialize();
                             
                             File.WriteAllText(filePath, saveData);
                         }
@@ -914,7 +914,7 @@ namespace dexih.remote.operations
                 try
                 {
                     AddDataJobTask(autoStart.Hub, GetTransformSettings(autoStart.HubVariables, dbDatajob.Parameters), connectionId,
-                        dbDatajob, transformWriterOptions, triggers, paths);
+                        dbDatajob, transformWriterOptions, triggers, paths, autoStart.AlertEmails);
                 }
                 catch (Exception ex)
                 {
