@@ -4,7 +4,6 @@ using System.Net.Mail;
 using System.Threading;
 using System.Threading.Tasks;
 using dexih.operations.Alerts;
-using Dexih.Utils.ManagedTasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -15,12 +14,9 @@ namespace dexih.remote.operations
         private readonly ILogger<AlertService> _logger;
         private readonly IAlertQueue _alertQueue;
         private readonly ISharedSettings _sharedSettings;
-        private readonly IManagedTasks _managedTasks;
         private readonly SmtpClient _smtpClient;
         private readonly string[] _adminEmails;
         private readonly string _footer;
-
-        private Task _sendDatalinkProgress;
 
         public AlertService(
             ILogger<AlertService> logger, IAlertQueue alertQueue, ISharedSettings sharedSettings)
