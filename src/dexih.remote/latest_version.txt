@@ -1,2 +1,2 @@
-1.0-rc.221
-https://github.com/DataExperts/Dexih.App.Remote/releases/download/1.0-rc.221/dexih.remote.osx_1.0-rc.221.zip
+1.0-rc.223
+https://github.com/DataExperts/Dexih.App.Remote/releases/download/1.0-rc.223/dexih.remote.osx_1.0-rc.223.zip
