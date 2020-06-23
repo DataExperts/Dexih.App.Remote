@@ -50,7 +50,6 @@ namespace dexih.remote.operations
                         _logger.LogError(e.Error, $"There was an error sending an alert email.");
                     }
                 };
-
                 
                 _footer = $"Remote Agent Name: {_sharedSettings.RemoteSettings.AppSettings.Name}";
 
