@@ -291,8 +291,6 @@ namespace dexih.remote.operations
         {
             try
             {
-                var timer = Stopwatch.StartNew();
-
                 var datalinkKeys = message.Value["datalinkKeys"].ToObject<long[]>();
                 var cache = message.Value["cache"].ToObject<CacheManager>();
                 // var cache = Json.JTokenToObject<CacheManager>(message.Value["cache"], _sharedSettings.SessionEncryptionKey);
@@ -1195,18 +1193,27 @@ namespace dexih.remote.operations
                 var cache = message.Value["cache"].ToObject<CacheManager>();
                 var dbTables = message.Value["tables"].ToObject<List<DexihTable>>();
 
-                for(var i = 0; i < dbTables.Count; i++)
+                foreach (var dbTable in dbTables)
                 {
-                    var dbTable = dbTables[i];
-
-                    var dbConnection = cache.Hub.DexihConnections.SingleOrDefault(c => c.IsValid && c.Key == dbTable.ConnectionKey);
-                    if (dbConnection == null)
+                    Connection connection;
+                    var transformSettings = GetTransformSettings(message.HubVariables);
+                    var table1 = dbTable;
+                    var dbConnection = cache.Hub.DexihConnections.SingleOrDefault(c => c.IsValid && c.Key == table1.ConnectionKey);
+                    
+                    if (string.IsNullOrEmpty(dbTable.FileSample))
                     {
-                        throw new RemoteOperationException($"The connection for the table {dbTable.Name} could not be found.");
+                        if (dbConnection == null)
+                        {
+                            throw new RemoteOperationException($"The connection for the table {dbTable.Name} could not be found.");
+                        }
+
+                        connection = dbConnection.GetConnection(transformSettings);
+                    }
+                    else
+                    {
+                        connection = new ConnectionFlatFileMemory();
                     }
 
-                    var transformSettings = GetTransformSettings(message.HubVariables);
-                    var connection = dbConnection.GetConnection(transformSettings);
                     var table = dbTable.GetTable(cache.Hub, connection, transformSettings);
 
                     try
@@ -1949,11 +1956,10 @@ namespace dexih.remote.operations
                 throw;
             }
         }
-
-
+        
         public void UploadFile(RemoteMessage message, CancellationToken cancellationToken)
         {
-             try
+            try
             {
                 if (!_remoteSettings.Privacy.AllowDataUpload)
                 {
@@ -1963,6 +1969,7 @@ namespace dexih.remote.operations
                 var cache = message.Value["cache"].ToObject<CacheManager>();
                 var fileName = message.Value["fileName"].ToObject<string>();
                 var path = message.Value["path"].ToObject<EFlatFilePath>();
+                var updateStrategy = message.Value["updateStrategy"].ToObject<EUpdateStrategy>();
                 var dbTable = cache.Hub.DexihTables.FirstOrDefault();
                 if (dbTable == null)
                 {
@@ -1976,63 +1983,62 @@ namespace dexih.remote.operations
                 }
                 
                 var transformSettings = GetTransformSettings(message.HubVariables);
-                var connection = (ConnectionFlatFile)dbConnection.GetConnection(transformSettings);
-                var table = dbTable.GetTable(cache.Hub, connection, transformSettings);
-
-                var flatFile = (FlatFile)table;
+                var connection = dbConnection.GetConnection(transformSettings);
                 
 
-                _logger.LogInformation($"UploadFile for connection: {connection.Name}, Name {flatFile.Name}, FileName {fileName}");
-
-
-                async Task ProcessTask(Stream stream)
+                if (connection is ConnectionFlatFile connectionFlatFile)
                 {
-                    try
-                    {
+                    var table = dbTable.GetTable(cache.Hub, connection, transformSettings);
+                    var flatFile = (FlatFile) table;
 
-//                        if (fileName.EndsWith(".zip"))
-//                        {
-//                            var memoryStream = new MemoryStream();
-//                            await stream.CopyToAsync(memoryStream);
-//                            using (var archive = new ZipArchive(memoryStream, ZipArchiveMode.Read, true))
-//                            {
-//                                foreach (var entry in archive.Entries)
-//                                {
-//                                    var saveArchiveFile = await connection.SaveFileStream(flatFile, EFlatFilePath.Incoming, entry.Name, entry.Open());
-//                                    if (!saveArchiveFile)
-//                                    {
-//                                        throw new RemoteOperationException("The save file stream failed.");
-//                                    }
-//                                }
-//                            }
-//
-//                        }
-//                        else if (fileName.EndsWith(".gz"))
-//                        {
-//                            var newFileName = fileName.Substring(0, fileName.Length - 3);
-//
-//                            using (var decompressionStream = new GZipStream(stream, CompressionMode.Decompress))
-//                            {
-//                                var saveArchiveFile = await connection.SaveFileStream(flatFile, EFlatFilePath.Incoming, newFileName, decompressionStream);
-//                                if (!saveArchiveFile)
-//                                {
-//                                    throw new RemoteOperationException("The save file stream failed.");
-//                                }
-//                            }
-//                        }
-//                        else
-//                        {
-                            var saveFile = await connection.SaveFiles(flatFile, path, fileName, stream, cancellationToken);
-//                        }
-                    }
-                    catch (Exception ex)
+                    _logger.LogInformation(
+                        $"UploadFile for connection: {connection.Name}, Name {flatFile.Name}, FileName {fileName}");
+
+                    async Task ProcessTask(Stream stream)
                     {
-                        _logger.LogError(60, ex, "Error processing uploaded file.  {0}", ex.Message);
-                        throw;
+                        try
+                        {
+                            var saveFile =
+                                await connectionFlatFile.SaveFiles(flatFile, path, fileName, stream, cancellationToken);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(60, ex, "Error processing uploaded file.  {0}", ex.Message);
+                            throw;
+                        }
                     }
+
+                    StartUploadStream(message.MessageId, ProcessTask, message.DownloadUrl, "file", fileName, cancellationToken);
                 }
+                else
+                {
+                    var fileConnection = new ConnectionFlatFileMemory();
+                    var table = dbTable.GetTable(cache.Hub, fileConnection, transformSettings);
+                    var flatFile = (FlatFile) table;
 
-                StartUploadStream(message.MessageId, ProcessTask, message.DownloadUrl, "file", fileName, cancellationToken);
+                    async Task ProcessTask(Stream stream)
+                    {
+                        await fileConnection.SaveFiles(flatFile, EFlatFilePath.Incoming, fileName, stream, cancellationToken);
+                        var fileReader = fileConnection.GetTransformReader(flatFile);
+                        
+                        var transformWriterResult = new TransformWriterResult()
+                        {
+                            AuditConnectionKey = 0,
+                            AuditType = "FileLoad",
+                            HubKey = cache.HubKey,
+                            ReferenceKey = dbTable.Key,
+                            ParentAuditKey = 0,
+                            ReferenceName = dbTable.Name,
+                            SourceTableKey = 0,
+                            SourceTableName = "",
+                        };
+
+                        var transformWriter = new TransformWriterTarget(connection, table, transformWriterResult);
+                        await transformWriter.WriteRecordsAsync(fileReader, updateStrategy, TransformWriterTarget.ETransformWriterMethod.Bulk, cancellationToken);
+                    }
+
+                    StartUploadStream(message.MessageId, ProcessTask, message.DownloadUrl, "file", fileName, cancellationToken);
+                }
             }
             catch (Exception ex)
             {
@@ -2041,7 +2047,7 @@ namespace dexih.remote.operations
             }
         }
         
-        private async Task<FlatFile> CreateTable(ConnectionFlatFile connection, DexihFileFormat fileFormat, ETypeCode formatType, string fileName, Stream stream, CancellationToken cancellationToken)
+        private async Task<FlatFile> CreateTable(long hubKey, Connection connection, DexihFileFormat fileFormat, ETypeCode formatType, string fileName, Stream stream, CancellationToken cancellationToken)
         {
             var name = Path.GetFileNameWithoutExtension(fileName);
 
@@ -2083,14 +2089,46 @@ namespace dexih.remote.operations
             }
 
             file.FileSample = fileSample.ToString();
+            memoryStream.Position = 0;
 
-            var newFile = (FlatFile) await connection.GetSourceTableInfo(file, cancellationToken);
+            FlatFile newFile;
 
-            // create a contact stream that merges the saved memory stream and what's left in the file stream.
-            // this is due to the file stream cannot be reset, and saves memory
-            var concatStream = new ConcatenateStream(new [] {memoryStream, stream});
-            
-            await connection.SaveFileStream(newFile, EFlatFilePath.Incoming, fileName, concatStream, cancellationToken);
+            if (connection is ConnectionFlatFile connectionFlatFile)
+            {
+                newFile = (FlatFile) await connectionFlatFile.GetSourceTableInfo(file, cancellationToken);
+
+                // create a contact stream that merges the saved memory stream and what's left in the file stream.
+                // this is due to the file stream cannot be reset, and saves memory
+                var concatStream = new ConcatenateStream(new[] {memoryStream, stream});
+
+                await connectionFlatFile.SaveFileStream(newFile, EFlatFilePath.Incoming, fileName, concatStream,
+                    cancellationToken);
+            }
+            else
+            {
+                var connectionFlatFileMemory = new ConnectionFlatFileMemory();
+                newFile = (FlatFile) await connectionFlatFileMemory.GetSourceTableInfo(file, cancellationToken);
+                
+                var concatStream = new ConcatenateStream(new[] {memoryStream, stream});
+                
+                await connectionFlatFileMemory.SaveFileStream(newFile, EFlatFilePath.Incoming, fileName, concatStream, cancellationToken);
+                var fileReader = connectionFlatFileMemory.GetTransformReader(newFile);
+                    
+                var transformWriterResult = new TransformWriterResult()
+                {
+                    AuditConnectionKey = 0,
+                    AuditType = "FileLoad",
+                    HubKey = hubKey,
+                    ReferenceKey = 0,
+                    ParentAuditKey = 0,
+                    ReferenceName = file.Name,
+                    SourceTableKey = 0,
+                    SourceTableName = "",
+                };
+
+                var transformWriter = new TransformWriterTarget(connection, newFile, transformWriterResult);
+                await transformWriter.WriteRecordsAsync(fileReader, EUpdateStrategy.Reload, TransformWriterTarget.ETransformWriterMethod.Bulk, cancellationToken);
+            }
 
             return newFile;
         }
@@ -2131,7 +2169,7 @@ namespace dexih.remote.operations
 
                 var transformSettings = GetTransformSettings(message.HubVariables);
                 var transformOperations = new TransformsManager(GetTransformSettings(message.HubVariables));
-                var connection = (ConnectionFlatFile) dbConnection.GetConnection(transformSettings);
+                var connection = dbConnection.GetConnection(transformSettings);
 
                 var reference = message.MessageId;
 
@@ -2152,7 +2190,7 @@ namespace dexih.remote.operations
                             {
                                 foreach (var entry in archive.Entries)
                                 {
-                                    flatFiles.Add(await CreateTable(connection, dbFileFormat, formatType, entry.Name, entry.Open(), cancellationToken));
+                                    flatFiles.Add(await CreateTable(cache.HubKey, connection, dbFileFormat, formatType, entry.Name, entry.Open(), cancellationToken));
                                 }
                             }
                         }
@@ -2162,12 +2200,12 @@ namespace dexih.remote.operations
 
                             await using (var decompressionStream = new GZipStream(stream, CompressionMode.Decompress))
                             {
-                                flatFiles.Add(await CreateTable(connection, dbFileFormat, formatType, newFileName, decompressionStream, cancellationToken));
+                                flatFiles.Add(await CreateTable(cache.HubKey, connection, dbFileFormat, formatType, newFileName, decompressionStream, cancellationToken));
                             }
                         }
                         else
                         {
-                            flatFiles.Add(await CreateTable(connection, dbFileFormat, formatType, fileName, stream, cancellationToken));
+                            flatFiles.Add(await CreateTable(cache.HubKey, connection, dbFileFormat, formatType, fileName, stream, cancellationToken));
                         }
                     }
                     catch (Exception ex)
