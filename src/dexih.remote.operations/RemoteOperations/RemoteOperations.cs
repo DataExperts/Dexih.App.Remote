@@ -2047,7 +2047,7 @@ namespace dexih.remote.operations
             }
         }
         
-        private async Task<FlatFile> CreateTable(long hubKey, Connection connection, DexihFileFormat fileFormat, ETypeCode formatType, string fileName, Stream stream, CancellationToken cancellationToken)
+        private async Task<FlatFile> CreateTable(long hubKey, Connection connection, DexihFileFormat fileFormat, ETypeCode formatType, bool includeFileName, bool includeFileDate, bool includeFileRowNumber, string fileName, Stream stream, CancellationToken cancellationToken)
         {
             var name = Path.GetFileNameWithoutExtension(fileName);
 
@@ -2089,6 +2089,7 @@ namespace dexih.remote.operations
             }
 
             file.FileSample = fileSample.ToString();
+            await writer.FlushAsync();
             memoryStream.Position = 0;
 
             FlatFile newFile;
@@ -2108,6 +2109,19 @@ namespace dexih.remote.operations
             {
                 var connectionFlatFileMemory = new ConnectionFlatFileMemory();
                 newFile = (FlatFile) await connectionFlatFileMemory.GetSourceTableInfo(file, cancellationToken);
+
+                if (!includeFileName)
+                {
+                    newFile.Columns.Remove(EDeltaType.FileName);
+                }
+                if (!includeFileDate)
+                {
+                    newFile.Columns.Remove(EDeltaType.FileDate);
+                }
+                if (!includeFileRowNumber)
+                {
+                    newFile.Columns.Remove(EDeltaType.FileRowNumber);
+                }
                 
                 var concatStream = new ConcatenateStream(new[] {memoryStream, stream});
                 
@@ -2148,6 +2162,9 @@ namespace dexih.remote.operations
                 var connectionKey = message.Value["connectionKey"].ToObject<long>();
                 var fileFormatKey = message.Value["fileFormatKey"].ToObject<long>();
                 var formatType = message.Value["formatType"].ToObject<ETypeCode>();
+                var includeFileName = message.Value["includeFileName"].ToObject<bool>();
+                var includeFileDate = message.Value["includeFileDate"].ToObject<bool>();
+                var includeFileRowNumber = message.Value["includeFileRowNumber"].ToObject<bool>();
                 var fileName = message.Value["fileName"].ToObject<string>();
                 
                 var dbConnection = cache.Hub.DexihConnections.SingleOrDefault(c => c.IsValid && c.Key == connectionKey);
@@ -2190,7 +2207,7 @@ namespace dexih.remote.operations
                             {
                                 foreach (var entry in archive.Entries)
                                 {
-                                    flatFiles.Add(await CreateTable(cache.HubKey, connection, dbFileFormat, formatType, entry.Name, entry.Open(), cancellationToken));
+                                    flatFiles.Add(await CreateTable(cache.HubKey, connection, dbFileFormat, formatType, includeFileName, includeFileDate, includeFileRowNumber, entry.Name, entry.Open(), cancellationToken));
                                 }
                             }
                         }
@@ -2200,12 +2217,12 @@ namespace dexih.remote.operations
 
                             await using (var decompressionStream = new GZipStream(stream, CompressionMode.Decompress))
                             {
-                                flatFiles.Add(await CreateTable(cache.HubKey, connection, dbFileFormat, formatType, newFileName, decompressionStream, cancellationToken));
+                                flatFiles.Add(await CreateTable(cache.HubKey, connection, dbFileFormat, formatType, includeFileName, includeFileDate, includeFileRowNumber, newFileName, decompressionStream, cancellationToken));
                             }
                         }
                         else
                         {
-                            flatFiles.Add(await CreateTable(cache.HubKey, connection, dbFileFormat, formatType, fileName, stream, cancellationToken));
+                            flatFiles.Add(await CreateTable(cache.HubKey, connection, dbFileFormat, formatType, includeFileName, includeFileDate, includeFileRowNumber, fileName, stream, cancellationToken));
                         }
                     }
                     catch (Exception ex)
