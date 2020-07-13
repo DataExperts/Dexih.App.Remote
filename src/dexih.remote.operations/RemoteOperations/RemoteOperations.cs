@@ -1935,7 +1935,7 @@ namespace dexih.remote.operations
             }
         }
 
-        public async Task<List<DexihFileProperties>> GetFileList(RemoteMessage message, CancellationToken cancellationToken)
+        public async Task<List<FileProperties>> GetFileList(RemoteMessage message, CancellationToken cancellationToken)
         {
             try
             {
@@ -1943,7 +1943,7 @@ namespace dexih.remote.operations
                 var path = message.Value["path"].ToObject<EFlatFilePath>();
 
                 var fileList = connectionTable.connection.GetFileEnumerator(connectionTable.flatFile, path, null, cancellationToken);
-                var files = new List<DexihFileProperties>();
+                var files = new List<FileProperties>();
                 await foreach (var file in fileList.WithCancellation(cancellationToken))
                 {
                     files.Add(file);

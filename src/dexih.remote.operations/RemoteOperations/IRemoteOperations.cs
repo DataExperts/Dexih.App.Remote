@@ -7,6 +7,7 @@ using dexih.functions;
 using dexih.operations;
 using dexih.repository;
 using dexih.transforms;
+using dexih.transforms.File;
 using Dexih.Utils.ManagedTasks;
 
 namespace dexih.remote.operations
@@ -89,7 +90,7 @@ namespace dexih.remote.operations
         Task<bool> CreateFilePaths(RemoteMessage message, CancellationToken cancellationToken);
         Task<bool> MoveFiles(RemoteMessage message, CancellationToken cancellationToken);
         Task<bool> DeleteFiles(RemoteMessage message, CancellationToken cancellationToken);
-        Task<List<DexihFileProperties>> GetFileList(RemoteMessage message, CancellationToken cancellationToken);
+        Task<List<FileProperties>> GetFileList(RemoteMessage message, CancellationToken cancellationToken);
         // Task<bool> SaveFile(RemoteMessage message, CancellationToken cancellationToken);
         void UploadFile(RemoteMessage message, CancellationToken cancellationToken);
         void BulkUploadFiles(RemoteMessage message, CancellationToken cancellationToken);
