@@ -118,7 +118,6 @@ namespace dexih.remote.operations
         {
             try 
             {
-
                 var agentInformation = new RemoteAgentStatus
                 {
                     ActiveApis = _liveApis.ActiveApis().ToArray(),
@@ -2098,6 +2097,7 @@ namespace dexih.remote.operations
             {
                 newFile = (FlatFile) await connectionFlatFile.GetSourceTableInfo(file, cancellationToken);
 
+                
                 // create a contact stream that merges the saved memory stream and what's left in the file stream.
                 // this is due to the file stream cannot be reset, and saves memory
                 var concatStream = new ConcatenateStream(new[] {memoryStream, stream});
