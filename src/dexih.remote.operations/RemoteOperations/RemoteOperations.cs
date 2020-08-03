@@ -2093,11 +2093,11 @@ namespace dexih.remote.operations
 
             FlatFile newFile;
 
+            // if it's a file connection, we save the file
             if (connection is ConnectionFlatFile connectionFlatFile)
             {
                 newFile = (FlatFile) await connectionFlatFile.GetSourceTableInfo(file, cancellationToken);
 
-                
                 // create a contact stream that merges the saved memory stream and what's left in the file stream.
                 // this is due to the file stream cannot be reset, and saves memory
                 var concatStream = new ConcatenateStream(new[] {memoryStream, stream});
@@ -2105,6 +2105,7 @@ namespace dexih.remote.operations
                 await connectionFlatFile.SaveFileStream(newFile, EFlatFilePath.Incoming, fileName, concatStream,
                     cancellationToken);
             }
+            // otherwise, we create a table in the database and directly write the records.
             else
             {
                 var connectionFlatFileMemory = new ConnectionFlatFileMemory();
@@ -2114,10 +2115,12 @@ namespace dexih.remote.operations
                 {
                     newFile.Columns.Remove(EDeltaType.FileName);
                 }
+                
                 if (!includeFileDate)
                 {
                     newFile.Columns.Remove(EDeltaType.FileDate);
                 }
+                
                 if (!includeFileRowNumber)
                 {
                     newFile.Columns.Remove(EDeltaType.FileRowNumber);
