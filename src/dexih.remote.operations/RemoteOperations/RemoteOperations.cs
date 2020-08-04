@@ -2046,7 +2046,23 @@ namespace dexih.remote.operations
             }
         }
         
-        private async Task<FlatFile> CreateTable(long hubKey, Connection connection, DexihFileFormat fileFormat, ETypeCode formatType, bool includeFileName, bool includeFileDate, bool includeFileRowNumber, string fileName, Stream stream, CancellationToken cancellationToken)
+        
+        /// <summary>
+        /// This will create the table structure from the incoming stream, and then attempt to load it
+        /// if the load fails, the returnMessage will contain error details.
+        /// </summary>
+        /// <param name="hubKey"></param>
+        /// <param name="connection"></param>
+        /// <param name="fileFormat"></param>
+        /// <param name="formatType"></param>
+        /// <param name="includeFileName"></param>
+        /// <param name="includeFileDate"></param>
+        /// <param name="includeFileRowNumber"></param>
+        /// <param name="fileName"></param>
+        /// <param name="stream"></param>
+        /// <param name="cancellationToken"></param>
+        /// <returns></returns>
+        private async Task<(FlatFile, ReturnValue)> CreateTable(long hubKey, Connection connection, DexihFileFormat fileFormat, ETypeCode formatType, bool loadData, bool includeFileName, bool includeFileDate, bool includeFileRowNumber, string fileName, Stream stream, CancellationToken cancellationToken)
         {
             var name = Path.GetFileNameWithoutExtension(fileName);
 
@@ -2092,18 +2108,29 @@ namespace dexih.remote.operations
             memoryStream.Position = 0;
 
             FlatFile newFile;
+            ReturnValue returnValue = null;
 
             // if it's a file connection, we save the file
             if (connection is ConnectionFlatFile connectionFlatFile)
             {
                 newFile = (FlatFile) await connectionFlatFile.GetSourceTableInfo(file, cancellationToken);
+                if (loadData)
+                {
+                    try
+                    {
+                        // create a contact stream that merges the saved memory stream and what's left in the file stream.
+                        // this is due to the file stream cannot be reset, and saves memory
+                        var concatStream = new ConcatenateStream(new[] {memoryStream, stream});
 
-                // create a contact stream that merges the saved memory stream and what's left in the file stream.
-                // this is due to the file stream cannot be reset, and saves memory
-                var concatStream = new ConcatenateStream(new[] {memoryStream, stream});
-
-                await connectionFlatFile.SaveFileStream(newFile, EFlatFilePath.Incoming, fileName, concatStream,
-                    cancellationToken);
+                        await connectionFlatFile.SaveFileStream(newFile, EFlatFilePath.Incoming, fileName, concatStream,
+                            cancellationToken);
+                    }
+                    catch (Exception ex)
+                    {
+                        returnValue = new ReturnValue(false,
+                            $"Failed to create/load the table {newFile.Name} due to {ex.Message}.", ex);
+                    }
+                }
             }
             // otherwise, we create a table in the database and directly write the records.
             else
@@ -2125,29 +2152,49 @@ namespace dexih.remote.operations
                 {
                     newFile.Columns.Remove(EDeltaType.FileRowNumber);
                 }
-                
-                var concatStream = new ConcatenateStream(new[] {memoryStream, stream});
-                
-                await connectionFlatFileMemory.SaveFileStream(newFile, EFlatFilePath.Incoming, fileName, concatStream, cancellationToken);
-                var fileReader = connectionFlatFileMemory.GetTransformReader(newFile);
-                    
-                var transformWriterResult = new TransformWriterResult()
-                {
-                    AuditConnectionKey = 0,
-                    AuditType = "FileLoad",
-                    HubKey = hubKey,
-                    ReferenceKey = 0,
-                    ParentAuditKey = 0,
-                    ReferenceName = file.Name,
-                    SourceTableKey = 0,
-                    SourceTableName = "",
-                };
 
-                var transformWriter = new TransformWriterTarget(connection, newFile, transformWriterResult);
-                await transformWriter.WriteRecordsAsync(fileReader, EUpdateStrategy.Reload, TransformWriterTarget.ETransformWriterMethod.Bulk, cancellationToken);
+                if (loadData)
+                {
+                    try
+                    {
+
+                        var concatStream = new ConcatenateStream(new[] {memoryStream, stream});
+
+                        await connectionFlatFileMemory.SaveFileStream(newFile, EFlatFilePath.Incoming, fileName,
+                            concatStream, cancellationToken);
+                        var fileReader = connectionFlatFileMemory.GetTransformReader(newFile);
+
+                        var transformWriterResult = new TransformWriterResult()
+                        {
+                            AuditConnectionKey = 0,
+                            AuditType = "FileLoad",
+                            HubKey = hubKey,
+                            ReferenceKey = 0,
+                            ParentAuditKey = 0,
+                            ReferenceName = file.Name,
+                            SourceTableKey = 0,
+                            SourceTableName = "",
+                        };
+
+                        var transformWriter = new TransformWriterTarget(connection, newFile, transformWriterResult);
+                        await transformWriter.WriteRecordsAsync(fileReader, EUpdateStrategy.Reload,
+                            TransformWriterTarget.ETransformWriterMethod.Bulk, cancellationToken);
+                    }
+                    catch (Exception ex)
+                    {
+                        returnValue = new ReturnValue(false,
+                            $"Failed to create/load the table {newFile.Name} due to {ex.Message}.", ex);
+                    }
+                }
+
             }
 
-            return newFile;
+            if (returnValue == null)
+            {
+                returnValue = new ReturnValue(true);
+            }
+
+            return (newFile, returnValue);
         }
         
         public void BulkUploadFiles(RemoteMessage message, CancellationToken cancellationToken)
@@ -2169,6 +2216,7 @@ namespace dexih.remote.operations
                 var includeFileDate = message.Value["includeFileDate"].ToObject<bool>();
                 var includeFileRowNumber = message.Value["includeFileRowNumber"].ToObject<bool>();
                 var fileName = message.Value["fileName"].ToObject<string>();
+                var loadData = message.Value["loadData"].ToObject<bool>();
                 
                 var dbConnection = cache.Hub.DexihConnections.SingleOrDefault(c => c.IsValid && c.Key == connectionKey);
                 if (dbConnection == null)
@@ -2200,6 +2248,8 @@ namespace dexih.remote.operations
                 {
                     var flatFiles = new List<FlatFile>();
 
+                    var returnValues = new ReturnValueMultiple();
+                    
                     try
                     {
                         if (fileName.EndsWith(".zip"))
@@ -2210,7 +2260,14 @@ namespace dexih.remote.operations
                             {
                                 foreach (var entry in archive.Entries)
                                 {
-                                    flatFiles.Add(await CreateTable(cache.HubKey, connection, dbFileFormat, formatType, includeFileName, includeFileDate, includeFileRowNumber, entry.Name, entry.Open(), cancellationToken));
+                                    var (table, returnValue) = await CreateTable(cache.HubKey, connection, dbFileFormat,
+                                        formatType, loadData, includeFileName, includeFileDate, includeFileRowNumber,
+                                        entry.Name, entry.Open(), cancellationToken);
+                                    flatFiles.Add(table);
+                                    if (!returnValue.Success)
+                                    {
+                                        returnValues.Add(returnValue);
+                                    }
                                 }
                             }
                         }
@@ -2220,12 +2277,24 @@ namespace dexih.remote.operations
 
                             await using (var decompressionStream = new GZipStream(stream, CompressionMode.Decompress))
                             {
-                                flatFiles.Add(await CreateTable(cache.HubKey, connection, dbFileFormat, formatType, includeFileName, includeFileDate, includeFileRowNumber, newFileName, decompressionStream, cancellationToken));
+                                var (table, returnValue) = await CreateTable(cache.HubKey, connection, dbFileFormat,
+                                    formatType, loadData, includeFileName, includeFileDate, includeFileRowNumber,
+                                    newFileName, decompressionStream, cancellationToken); 
+                                flatFiles.Add(table);
+                                if (!returnValue.Success)
+                                {
+                                    returnValues.Add(returnValue);
+                                }
                             }
                         }
                         else
                         {
-                            flatFiles.Add(await CreateTable(cache.HubKey, connection, dbFileFormat, formatType, includeFileName, includeFileDate, includeFileRowNumber, fileName, stream, cancellationToken));
+                            var (table, returnValue) = await CreateTable(cache.HubKey, connection, dbFileFormat, formatType, loadData, includeFileName, includeFileDate, includeFileRowNumber, fileName, stream, cancellationToken);
+                            flatFiles.Add(table);
+                            if (!returnValue.Success)
+                            {
+                                returnValues.Add(returnValue);
+                            }
                         }
                     }
                     catch (Exception ex)
@@ -2250,13 +2319,14 @@ namespace dexih.remote.operations
                         SecurityToken = _sharedSettings.SecurityToken,
                         ConnectionId = connectionId,
                         Reference = reference,
-                        Tables = tables
+                        Tables = tables,
+                        Message = returnValues
                     };
                     
-                    var returnValue = await _sharedSettings.PostAsync<FlatFilesReadyMessage, ReturnValue>("Remote/FlatFilesReady", readyMessage, cancellationToken);
-                    if (!returnValue.Success)
+                    var returnValue2 = await _sharedSettings.PostAsync<FlatFilesReadyMessage, ReturnValue>("Remote/FlatFilesReady", readyMessage, cancellationToken);
+                    if (!returnValue2.Success)
                     {
-                        throw new RemoteOperationException($"The bulk upload files did not complete as the http server returned the response {returnValue.Message}.", returnValue.Exception);
+                        throw new RemoteOperationException($"The bulk upload files did not complete as the http server returned the response {returnValue2.Message}.", returnValue2.Exception);
                     }
                 }
 

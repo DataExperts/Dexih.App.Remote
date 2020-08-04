@@ -3,6 +3,7 @@ using System.Runtime.Serialization;
 using dexih.operations;
 using dexih.repository;
 using Dexih.Utils.ManagedTasks;
+using Dexih.Utils.MessageHelpers;
 
 
 namespace dexih.remote.operations
@@ -37,7 +38,9 @@ namespace dexih.remote.operations
     {
         [DataMember(Order = 5)]
         public DexihTable[] Tables { get; set; }
-    
+        
+        [DataMember(Order = 6)]
+        public ReturnValue Message { get; set; }
     }
 
     [DataContract]
