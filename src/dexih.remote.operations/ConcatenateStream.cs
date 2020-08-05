@@ -22,7 +22,7 @@ namespace dexih.remote.operations
             {
                 var bytesRead = _streams.Peek().Read(buffer, offset, count);
 
-                if (bytesRead + totalBytesRead < count)
+                if (bytesRead == 0 || bytesRead + totalBytesRead < count)
                 {
                     _streams.Dequeue().Dispose();
                     // continue;

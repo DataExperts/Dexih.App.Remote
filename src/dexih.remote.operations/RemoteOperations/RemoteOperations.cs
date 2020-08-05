@@ -2081,9 +2081,14 @@ namespace dexih.remote.operations
             };
             
             var memoryStream = new MemoryStream();
+            var streamWriter = new StreamWriter(memoryStream);
 
             if (formatType == ETypeCode.Text)
             {
+                // if we're reading a text file, we take the first 1000 lines in order to determine the file structure.
+                // to allow the file load, we keep the bytes read in a memorySteam which is later joined with
+                // the main steam using the ConcatenateStream class.
+                
                 var line = 0;
                 var bytes = 0;
                 var buffer = new byte[1024];
@@ -2097,14 +2102,17 @@ namespace dexih.remote.operations
                         break;
                     }
 
-                    memoryStream.Write(buffer, 0, 1024);
+                    var data = Encoding.Default.GetString(buffer, 0, bytes);
+                    // store data in a memory stream with will be concatenated with the main stream later
+                    streamWriter.Write(data);
 
-                    var data = System.Text.Encoding.Default.GetString(buffer);
                     line += data.Split('\n').Length;
 
                     fileSample.Append(data);
                 }
-
+                
+                streamWriter.Flush();
+                
                 if (bytes == 0)
                 {
                     file.FileSample = fileSample.ToString();
