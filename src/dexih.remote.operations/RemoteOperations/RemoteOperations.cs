@@ -2081,30 +2081,57 @@ namespace dexih.remote.operations
             };
             
             var memoryStream = new MemoryStream();
-            var writer = new StreamWriter(memoryStream);
-
-            var fileSample = new StringBuilder();
-            var reader = new StreamReader(stream);
 
             if (formatType == ETypeCode.Text)
             {
-                for (var i = 0; i < 1000; i++)
+                var line = 0;
+                var bytes = 0;
+                var buffer = new byte[1024];
+                var fileSample = new StringBuilder();
+                
+                while(line < 1000)
                 {
-                    var line = await reader.ReadLineAsync();
-                    fileSample.AppendLine(line);
-                    writer.WriteLine(line);
-
-                    if (reader.EndOfStream)
+                    bytes = await stream.ReadAsync(buffer, 0, 1024, cancellationToken);
+                    if (bytes == 0)
+                    {
                         break;
+                    }
+
+                    memoryStream.Write(buffer, 0, 1024);
+
+                    var data = System.Text.Encoding.Default.GetString(buffer);
+                    line += data.Split('\n').Length;
+
+                    fileSample.Append(data);
+                }
+
+                if (bytes == 0)
+                {
+                    file.FileSample = fileSample.ToString();
+                }
+                else
+                {
+                    var lastIndex = -1;
+                    for (var i = fileSample.Length - 1; i >= 0; i--)
+                    {
+                        if (fileSample[i] == '\n')
+                        {
+                            lastIndex = i;
+                            break;
+                        }
+                    }
+
+                    file.FileSample = fileSample.ToString(0, lastIndex);
                 }
             }
             else
             {
-                fileSample.AppendLine(await reader.ReadToEndAsync());
+                await stream.CopyToAsync(memoryStream, cancellationToken);
+                memoryStream.Position = 0;
+                var reader = new StreamReader(memoryStream);
+                file.FileSample = await reader.ReadToEndAsync();
             }
-
-            file.FileSample = fileSample.ToString();
-            await writer.FlushAsync();
+            
             memoryStream.Position = 0;
 
             FlatFile newFile;
@@ -2320,7 +2347,7 @@ namespace dexih.remote.operations
                         ConnectionId = connectionId,
                         Reference = reference,
                         Tables = tables,
-                        Message = returnValues
+                        Message = returnValues.ReturnValues.Count == 0 ? new ReturnValue(true) : returnValues 
                     };
                     
                     var returnValue2 = await _sharedSettings.PostAsync<FlatFilesReadyMessage, ReturnValue>("Remote/FlatFilesReady", readyMessage, cancellationToken);

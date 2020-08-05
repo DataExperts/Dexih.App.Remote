@@ -21,10 +21,11 @@ namespace dexih.remote.operations
             while (count > 0 && _streams.Count > 0)
             {
                 var bytesRead = _streams.Peek().Read(buffer, offset, count);
-                if (bytesRead == 0)
+
+                if (bytesRead + totalBytesRead < count)
                 {
                     _streams.Dequeue().Dispose();
-                    continue;
+                    // continue;
                 }
 
                 totalBytesRead += bytesRead;
