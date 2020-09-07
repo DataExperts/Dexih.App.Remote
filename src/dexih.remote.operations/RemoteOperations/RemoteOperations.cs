@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.IO.Compression;
@@ -121,12 +120,12 @@ namespace dexih.remote.operations
                 var agentInformation = new RemoteAgentStatus
                 {
                     ActiveApis = _liveApis.ActiveApis().ToArray(),
-                    ActiveDatajobs = _managedTasks.GetActiveTasks("Datajob").ToArray(),
-                    ActiveDatalinks = _managedTasks.GetActiveTasks("Datalink").ToArray(),
-                    ActiveDatalinkTests = _managedTasks.GetActiveTasks("DatalinkTest").ToArray(),
-                    PreviousDatajobs = _managedTasks.GetCompletedTasks("Datajob").ToArray(),
-                    PreviousDatalinks = _managedTasks.GetCompletedTasks("Datalink").ToArray(),
-                    PreviousDatalinkTests = _managedTasks.GetCompletedTasks("DatalinkTest").ToArray(),
+                    ActiveDatajobs = _managedTasks.GetActiveTasks(Constants.Datajob).Where(c => c.ReferenceKey == message.HubKey).ToArray(),
+                    ActiveDatalinks = _managedTasks.GetActiveTasks(Constants.Datalink).Where(c => c.ReferenceKey == message.HubKey).ToArray(),
+                    ActiveDatalinkTests = _managedTasks.GetActiveTasks(Constants.DatalinkTest).Where(c => c.ReferenceKey == message.HubKey).ToArray(),
+                    PreviousDatajobs = _managedTasks.GetCompletedTasks(Constants.Datajob).Where(c => c.ReferenceKey == message.HubKey).ToArray(),
+                    PreviousDatalinks = _managedTasks.GetCompletedTasks(Constants.Datalink).Where(c => c.ReferenceKey == message.HubKey).ToArray(),
+                    PreviousDatalinkTests = _managedTasks.GetCompletedTasks(Constants.DatalinkTest).Where(c => c.ReferenceKey == message.HubKey).ToArray(),
                     RemoteLibraries = await _sharedSettings.GetRemoteLibraries(cancellationToken)
                 };
 
@@ -232,7 +231,7 @@ namespace dexih.remote.operations
 
                     var inputs = dbDatalinkTransformItem.DexihFunctionParameters
                         .Where(c => c.Direction == EParameterDirection.Input).Select(
-                            parameter => Operations.Parse(parameter.DataType, parameter.Rank, testValues[i++])).ToArray<object>();
+                            parameter => Operations.Parse(parameter.DataType, parameter.Rank, testValues[i++])).ToArray();
 
                     var result = createFunction.function.RunFunction(new FunctionVariables(), inputs, out var outputs, cancellationToken);
                     return new object[] {result.returnValue}.Concat(outputs);
@@ -383,7 +382,7 @@ namespace dexih.remote.operations
                     TaskId = reference,
                     OriginatorId = connectionId,
                     Name = $"Datalink: {datalinkRun.Datalink.Name}.",
-                    Category = "Datalink",
+                    Category = Constants.Datalink,
                     CategoryKey = datalinkRun.Datalink.Key,
                     ReferenceKey = hubKey,
                     ReferenceId = null,
@@ -415,7 +414,7 @@ namespace dexih.remote.operations
                     try
                     {
                         if (cancellationToken.IsCancellationRequested) break;
-                        var task = _managedTasks.GetTask("Datalink", datalinkKey);
+                        var task = _managedTasks.GetTask(Constants.Datalink, datalinkKey);
                         if (task == null)
                         {
                             throw new RemoteOperationException(
@@ -465,7 +464,7 @@ namespace dexih.remote.operations
                     try
                     {
                         if (cancellationToken.IsCancellationRequested) break;
-                        var task = _managedTasks.GetTask("DatalinkTest", key);
+                        var task = _managedTasks.GetTask(Constants.DatalinkTest, key);
                         task.Cancel();
                     }
                     catch (Exception ex)
@@ -642,7 +641,7 @@ namespace dexih.remote.operations
 //                        }
                         
 
-                        var newTask = _managedTasks.Add(reference, connectionId, $"Datalink Test Snapshot: {datalinkTest.Name}.", "DatalinkTestSnapshot", cache.HubKey, null, datalinkTest.Key, datalinkTestRun, null, null, null);
+                        var newTask = _managedTasks.Add(reference, connectionId, $"Datalink Test Snapshot: {datalinkTest.Name}.", Constants.DatalinkTestSnapshot, cache.HubKey, null, datalinkTest.Key, datalinkTestRun, null, null, null);
                         if (newTask == null)
                         {
                             throw new RemoteOperationException("Run datalink test snapshot failed, as the task failed to initialize.");
@@ -756,7 +755,7 @@ namespace dexih.remote.operations
                     TaskId = Guid.NewGuid().ToString(),
                     OriginatorId = connectionId,
                     Name = $"Datajob: {dbHubDatajob.Name}.",
-                    Category = "Datajob",
+                    Category = Constants.Datajob,
                     CategoryKey = dbHubDatajob.Key,
                     ReferenceKey = dbHub.HubKey,
                     ManagedObject = datajobRun,
@@ -941,7 +940,7 @@ namespace dexih.remote.operations
                     try
                     {
                         if (cancellationToken.IsCancellationRequested) break;
-                        var task = _managedTasks.GetTask("Datajob", datajobKey);
+                        var task = _managedTasks.GetTask(Constants.Datajob, datajobKey);
                         task?.Cancel();
                         
                         var path = _remoteSettings.AutoStartPath();

@@ -152,7 +152,7 @@ namespace dexih.remote.operations
         
         public async Task<Out> PostAsync<In, Out>(string uri, In data, CancellationToken cancellationToken)
         {
-                var response = await PostAsync<In>(uri, data, cancellationToken);
+                var response = await PostAsync(uri, data, cancellationToken);
                 return await ProcessHttpResponse<Out>(uri, response);
         }
         

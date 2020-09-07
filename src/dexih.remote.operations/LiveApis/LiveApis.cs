@@ -74,7 +74,7 @@ namespace dexih.remote.operations
 
             // strip non alphanumeric chars from the key to ensure url compatibility.
             var arr = securityKey.ToCharArray();
-            arr = Array.FindAll<char>(arr, c => char.IsLetterOrDigit(c) 
+            arr = Array.FindAll(arr, c => char.IsLetterOrDigit(c) 
                                                 || char.IsWhiteSpace(c) 
                                                 || c == '-');
             securityKey = new string(arr);
@@ -231,7 +231,7 @@ namespace dexih.remote.operations
                     }
 
                     // TODO add EDownloadFormat to api options.
-                    var selectQuery = apiData.SelectQuery == null ? new SelectQuery() : apiData.SelectQuery.CloneProperties<SelectQuery>();
+                    var selectQuery = apiData.SelectQuery == null ? new SelectQuery() : apiData.SelectQuery.CloneProperties();
                     selectQuery.LoadJsonFilters(apiData.Transform.CacheTable, query);
                     selectQuery.LoadJsonInputColumns(inputColumns);
                     selectQuery.LoadJsonParameters(inputParameters);
