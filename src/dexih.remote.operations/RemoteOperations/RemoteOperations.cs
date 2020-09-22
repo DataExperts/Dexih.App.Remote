@@ -2453,7 +2453,7 @@ namespace dexih.remote.operations
                 var zipFiles = message.Value["zipFiles"].ToObject<bool>();
 
                 var reference = Guid.NewGuid().ToString();
-               
+
                 var downloadData = new DownloadData(GetTransformSettings(message.HubVariables), cache, downloadObjects, downloadFormat, zipFiles);
                 var downloadDataTask = new DownloadDataTask(_sharedSettings, message.MessageId, message.HubKey, downloadData, message.DownloadUrl, connectionId, reference);
 
