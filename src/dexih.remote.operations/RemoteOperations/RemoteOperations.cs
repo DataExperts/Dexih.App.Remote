@@ -1658,7 +1658,7 @@ namespace dexih.remote.operations
                     if(dbDatalink.UpdateStrategy == EUpdateStrategy.AppendUpdateDeletePreserve || dbDatalink.UpdateStrategy == EUpdateStrategy.AppendUpdatePreserve)
                     {
                         var validFrom = targetTable.GetColumn(EDeltaType.ValidFromDate);
-                        maxValidFrom = await targetConnection.GetMaxValue<DateTime>(targetTable, validFrom, cancellationToken);
+                        // maxValidFrom = await targetConnection.GetMaxValue<DateTime>(targetTable, validFrom, cancellationToken);
                     }
 
                     transform = new TransformDelta(transform, targetReader, dbDatalink.UpdateStrategy,
