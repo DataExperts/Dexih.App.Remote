@@ -1217,6 +1217,7 @@ namespace dexih.remote.operations
                     try
                     {
                         var sourceTable = await connection.GetSourceTableInfo(table, cancellationToken);
+                        sourceTable.ResetFormats(true);
                         transformOperations.GetDexihTable(sourceTable, dbTable);
                         // dbTable.HubKey = dbConnection.HubKey;
                         dbTable.ConnectionKey = dbConnection.Key;
