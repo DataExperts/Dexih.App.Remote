@@ -135,6 +135,7 @@ namespace dexih.remote.operations
                 InstanceId = _sharedSettings.InstanceId,
                 User =  _remoteSettings.AppSettings.User,
                 UpgradeAvailable = _remoteSettings.UpgradeAvailable(),
+                AutoUpgrade = _remoteSettings.AppSettings.AutoUpgrade,
                 Version = _remoteSettings.Runtime.Version,
                 LatestVersion = _remoteSettings.Runtime.LatestVersion,
                 LatestDownloadUrl = _remoteSettings.Runtime.LatestDownloadUrl,
