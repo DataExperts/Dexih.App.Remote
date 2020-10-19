@@ -62,6 +62,7 @@
     <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.sqlserver\dexih.connections.sqlserver.csproj" />
     <ProjectReference Include="..\..\..\Dexih.App.Operations\src\dexih.operations\dexih.operations.csproj" />
     <ProjectReference Include="..\..\..\Dexih.App.Operations\src\dexih.repository\dexih.repository.csproj" />
+    <ProjectReference Condition=" '$(Configuration)' == 'Debug' " Include="..\..\..\dexih.transforms\src\dexih.functions.ml\dexih.functions.ml.csproj" />
     <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.transforms\dexih.transforms.csproj" />
     <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.azure\dexih.connections.azure.csproj" />
     <ProjectReference Include="..\..\..\dexih.transforms\src\dexih.connections.dexih\dexih.connections.dexih.csproj" />
