@@ -19,10 +19,6 @@ namespace dexih.remote.operations
     [DataContract]
     public class ApiData: IDisposable
     {
-        public ApiData()
-        {
-        }
-        
         private Timer _timer;
         
         /// <summary>

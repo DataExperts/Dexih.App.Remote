@@ -6,16 +6,13 @@ namespace dexih.remote.operations.Logger
 {
     public class AlertLogger : ILogger
     {
-        private readonly string _name;
         private readonly IAlertQueue _alertQueue;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="DebugLogger"/> class.
         /// </summary>
-        /// <param name="name">The name of the logger.</param>
-        public AlertLogger(string name, IAlertQueue alertQueue)
+        public AlertLogger(IAlertQueue alertQueue)
         {
-            _name = name;
             _alertQueue = alertQueue;
         }
 

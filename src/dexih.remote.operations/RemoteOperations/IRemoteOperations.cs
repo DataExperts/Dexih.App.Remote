@@ -22,7 +22,6 @@ namespace dexih.remote.operations
         /// <summary>
         /// creates the global variables which get send to the datalink.
         /// </summary>
-        /// <param name="cache"></param>
         /// <returns></returns>
         GlobalSettings CreateGlobalSettings(string hubEncryptionKey);
 

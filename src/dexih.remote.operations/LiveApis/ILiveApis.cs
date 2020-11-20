@@ -15,21 +15,26 @@ namespace dexih.remote.operations
         /// <summary>
         /// Add a new transform to the live api's
         /// </summary>
+        /// <param name="apiKey"></param>
         /// <param name="transform"></param>
+        /// <param name="hubKey"></param>
+        /// <param name="cacheRefreshInterval"></param>
+        /// <param name="securityKey"></param>
+        /// <param name="selectQuery"></param>
         /// <returns></returns>
         string Add(long hubKey, long apiKey, Transform transform, TimeSpan? cacheRefreshInterval, string securityKey, SelectQuery selectQuery);
 
         /// <summary>
         /// Remove a transform from the live api's
         /// </summary>
-        /// <param name="key"></param>
+        /// <param name="hubKey"></param>
+        /// <param name="apiKey"></param>
         /// <returns></returns>
         void Remove(long hubKey, long apiKey);
 
         /// <summary>
         /// Reset the caching of an existing api
         /// </summary>
-        /// <param name="key"></param>
         /// <returns></returns>
         bool ResetCache(long hubKey, long apiKey);
 

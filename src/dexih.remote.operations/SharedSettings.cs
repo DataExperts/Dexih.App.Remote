@@ -67,7 +67,6 @@ namespace dexih.remote.operations
         private readonly IHost _host;
         private readonly IManagedTasks _managedTasks;
         private readonly IMemoryCache _memoryCache;
-        private readonly IHttpClientFactory _clientFactory;
         private readonly string _apiUri;
         private readonly SemaphoreSlim _loginSemaphore;
         private EConnectionResult _connectionStatus = EConnectionResult.Disconnected;
@@ -93,13 +92,12 @@ namespace dexih.remote.operations
         
         public bool CompleteUpgrade { get; set; }
 
-        public SharedSettings(IConfiguration configuration, ILogger<SharedSettings> logger, IHost host, IManagedTasks managedTasks, IMemoryCache memoryCache, IHttpClientFactory clientFactory)
+        public SharedSettings(IConfiguration configuration, ILogger<SharedSettings> logger, IHost host, IManagedTasks managedTasks, IMemoryCache memoryCache)
         {
             _logger = logger;
             _host = host;
             _managedTasks = managedTasks;
             _memoryCache = memoryCache;
-            _clientFactory = clientFactory;
 
             SessionEncryptionKey = EncryptString.GenerateRandomKey();
             RemoteSettings = configuration.Get<RemoteSettings>();
@@ -278,8 +276,7 @@ namespace dexih.remote.operations
         /// <summary>
         /// Authenticates and logs the user in
         /// </summary>
-        /// <param name="generateUserToken">Create a new user authentication token</param>
-        /// <param name="silentLogin"></param>
+        /// <param name="retryStarted"></param>
         /// <param name="cancellationToken"></param>
         /// <returns>The connection result, and a new user token if generated.</returns>
         private async Task<EConnectionResult> LoginAsync(bool retryStarted, CancellationToken cancellationToken)

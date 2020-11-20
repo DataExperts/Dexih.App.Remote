@@ -26,7 +26,7 @@ namespace dexih.remote.operations
         /// <typeparam name="T1">The first argument type.</typeparam>
         /// <param name="hubConnection">The hub connection.</param>
         /// <param name="methodName">The name of the hub method to define.</param>
-        /// <param name="handler">The handler that will be raised when the hub method is invoked.</param>
+        /// <param name="func"></param>
         /// <returns>A subscription that can be disposed to unsubscribe from the hub method.</returns>
         public static IDisposable On<T1>(
             this HubConnection hubConnection,
@@ -35,7 +35,7 @@ namespace dexih.remote.operations
         {
             if (hubConnection == null)
                 throw new ArgumentNullException(nameof (hubConnection));
-            return hubConnection.On(methodName, new Type[1]
+            return hubConnection.On(methodName, new[]
             {
                 typeof (T1)
             }, args => func((T1) args[0]));
@@ -232,11 +232,10 @@ namespace dexih.remote.operations
         
              return con;
          }
-         
+
          /// <summary>
          /// Open a signalr connection
          /// </summary>
-         /// <param name="ts"></param>
          /// <param name="cancellationToken"></param>
          /// <returns></returns>
          private async Task<EConnectionResult> StartListener(CancellationToken cancellationToken)
@@ -413,20 +412,20 @@ namespace dexih.remote.operations
         
         
             
-            private ReturnValue SendHttpResponseMessage(string messageId, ReturnValue<object> returnMessage)
-            {
-                try
-                {
-                    var responseMessage = new ResponseMessage(_sharedSettings.SecurityToken, messageId, returnMessage);
-                    _messageQueue.Add(responseMessage);
-
-                    return new ReturnValue(true);
-                }
-                catch (Exception ex)
-                {
-                    return new ReturnValue(false, "Error occurred sending remote message: " + ex.Message, ex);
-                }
-            }
+            // private ReturnValue SendHttpResponseMessage(string messageId, ReturnValue<object> returnMessage)
+            // {
+            //     try
+            //     {
+            //         var responseMessage = new ResponseMessage(_sharedSettings.SecurityToken, messageId, returnMessage);
+            //         _messageQueue.Add(responseMessage);
+            //
+            //         return new ReturnValue(true);
+            //     }
+            //     catch (Exception ex)
+            //     {
+            //         return new ReturnValue(false, "Error occurred sending remote message: " + ex.Message, ex);
+            //     }
+            // }
 
             private void AddResponseMessage(string messageId, ReturnValue<object> returnMessage)
             {

@@ -23,7 +23,7 @@ namespace dexih.remote
 {
     public class Program
     {
-        private static readonly Dictionary<string, string> commandlineMappings = new Dictionary<string, string>()
+        private static readonly Dictionary<string, string> CommandlineMappings = new Dictionary<string, string>()
         {
             {"-u", "AppSettings:User"},
             {"--user", "AppSettings:User"},
@@ -145,7 +145,7 @@ namespace dexih.remote
                         configApp.AddUserSecrets<Program>();
                     }
 
-                    configApp.AddCommandLine(args, commandlineMappings);
+                    configApp.AddCommandLine(args, CommandlineMappings);
 
                     var remoteSettings = configApp.Build().Get<RemoteSettings
                     >() ?? new RemoteSettings();
@@ -215,7 +215,7 @@ namespace dexih.remote
             {
                 return (int)EExitCode.Upgrade;
             }
-            return (int)EExitCode.Success;;
+            return (int)EExitCode.Success;
         }
 
         private static void Welcome()

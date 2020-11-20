@@ -14,7 +14,7 @@ namespace dexih.remote.operations.Logger
         /// <inheritdoc />
         public ILogger CreateLogger(string name)
         {
-            return new AlertLogger(name, _alertQueue);
+            return new AlertLogger(_alertQueue);
         }
 
         public void Dispose()

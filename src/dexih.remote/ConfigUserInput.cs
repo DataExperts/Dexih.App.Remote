@@ -24,11 +24,8 @@ namespace dexih.remote.config
 
                 var sslConfigureComplete = false;
 
-                var checkSaveSettings = false;
                 if (detailed)
                 {
-                    checkSaveSettings = true;
-                    
                     if (string.IsNullOrEmpty(remoteSettings.AppSettings.EncryptionKey))
                     {
                         Console.WriteLine("Enter the encryption key.");
@@ -174,7 +171,7 @@ namespace dexih.remote.config
                     }
                 }
 
-                checkSaveSettings = true;
+                var checkSaveSettings = true;
                 
                 newSettings["AppSettings:WebServer"] = defaultWebServer;
 

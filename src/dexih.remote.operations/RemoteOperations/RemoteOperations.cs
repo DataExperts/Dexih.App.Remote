@@ -32,7 +32,7 @@ namespace dexih.remote.operations
     
     public class RemoteOperations : IRemoteOperations, IDisposable
     {
-        private ILogger<RemoteOperations> _logger { get; }
+        private ILogger<RemoteOperations> Logger { get; }
         
         private readonly IManagedTasks _managedTasks;
         private readonly IMemoryCache _memoryCache;
@@ -48,7 +48,7 @@ namespace dexih.remote.operations
             _sharedSettings = sharedSettings;
             
             _remoteSettings = _sharedSettings.RemoteSettings;
-            _logger = logger;
+            Logger = logger;
             _memoryCache = memoryCache;
             _liveApis = liveApis;
             _managedTasks = managedTasks;
@@ -69,7 +69,6 @@ namespace dexih.remote.operations
         /// <summary>
         /// creates the global variables which get send to the datalink.
         /// </summary>
-        /// <param name="cache"></param>
         /// <returns></returns>
         public GlobalSettings CreateGlobalSettings(string hubEncryptionKey)
         {
@@ -133,7 +132,7 @@ namespace dexih.remote.operations
 
             } catch (Exception ex)
             {
-                _logger.LogError(51, ex, "Error in GetAgentInformation: {0}", ex.Message);
+                Logger.LogError(51, ex, "Error in GetAgentInformation: {0}", ex.Message);
                 throw;
             }
         }
@@ -169,7 +168,7 @@ namespace dexih.remote.operations
            }
            catch (Exception ex)
            {
-               _logger.LogError(25, ex, "Error in encrypt string: {0}", ex.Message);
+               Logger.LogError(25, ex, "Error in encrypt string: {0}", ex.Message);
                 throw;
            }
         }
@@ -190,7 +189,7 @@ namespace dexih.remote.operations
             }
             catch (Exception ex)
 			{
-				_logger.LogError(25, ex, "Error in encrypt string: {0}", ex.Message);
+				Logger.LogError(25, ex, "Error in encrypt string: {0}", ex.Message);
                 throw;
 			}
 		}
@@ -234,13 +233,13 @@ namespace dexih.remote.operations
                             parameter => Operations.Parse(parameter.DataType, parameter.Rank, testValues[i++])).ToArray();
 
                     var result = createFunction.function.RunFunction(new FunctionVariables(), inputs, out var outputs, cancellationToken);
-                    return new object[] {result.returnValue}.Concat(outputs);
+                    return new[] {result.returnValue}.Concat(outputs);
                 }
                 return null;
             }
             catch (Exception ex)
             {
-                _logger.LogError(25, ex, "Error in TestCustomFunction: {0}", ex.Message);
+                Logger.LogError(25, ex, "Error in TestCustomFunction: {0}", ex.Message);
                 throw;
             }
         }
@@ -273,7 +272,7 @@ namespace dexih.remote.operations
             }
             catch (Exception ex)
             {
-                _logger.LogError(25, ex, "Error in TestColumnValidation: {0}", ex.Message);
+                Logger.LogError(25, ex, "Error in TestColumnValidation: {0}", ex.Message);
                 throw;
             }
         }
@@ -295,7 +294,7 @@ namespace dexih.remote.operations
                 var connectionId = message.Value["connectionId"].ToString();
                 var alertEmails = message.Value["alertEmails"].ToObject<string[]>();
                 
-                _logger.LogDebug($"Running datalinks.  Progress sent to connection {connectionId}, keys: {message.Value["datalinkKeys"]}");
+                Logger.LogDebug($"Running datalinks.  Progress sent to connection {connectionId}, keys: {message.Value["datalinkKeys"]}");
 
                 var transformWriterOptions = new TransformWriterOptions()
                 {
@@ -321,20 +320,21 @@ namespace dexih.remote.operations
 
                     dbDatalink.UpdateParameters(inputParameters);
                     var datalinkInputs = inputColumns?.Where(c => c.DatalinkKey == dbDatalink.Key).ToArray();
-                    var datalinkRun = new DatalinkRun(GetTransformSettings(message.HubVariables, dbDatalink.Parameters), _logger, 0, dbDatalink, cache.Hub, datalinkInputs, transformWriterOptions, _alertQueue, alertEmails);
-                    var runReturn = RunDataLink(connectionId, cache.HubKey, datalinkRun, null, null);
+                    var datalinkRun = new DatalinkRun(GetTransformSettings(message.HubVariables, dbDatalink.Parameters), Logger, 0, dbDatalink, cache.Hub, datalinkInputs, transformWriterOptions, _alertQueue, alertEmails);
+                    RunDataLink(connectionId, cache.HubKey, datalinkRun, null, null);
                 }
                 
                 return true;
             }
             catch (Exception ex)
             {
-                _logger.LogError(25, ex, "Error in RunDatalinks: {0}", ex.Message);
+                Logger.LogError(25, ex, "Error in RunDatalinks: {0}", ex.Message);
                 throw new RemoteOperationException($"Failed to run datalinks: {ex.Message}", ex);
             }
         }
 
-        private  ManagedTask RunDataLink(string connectionId, long hubKey, DatalinkRun datalinkRun, DatajobRun parentDataJobRun, string[] dependencies)
+        private void RunDataLink(string connectionId, long hubKey, DatalinkRun datalinkRun, DatajobRun parentDataJobRun,
+            string[] dependencies)
         {
             try
             {
@@ -393,7 +393,7 @@ namespace dexih.remote.operations
                     ConcurrentTaskAction = parentDataJobRun == null ? EConcurrentTaskAction.Abend : EConcurrentTaskAction.Sequence
                 };
 
-                return _managedTasks.Add(task);
+                _managedTasks.Add(task);
             }
             catch (Exception ex)
             {
@@ -430,7 +430,7 @@ namespace dexih.remote.operations
                     catch (Exception ex)
                     {
                         var error = $"Failed to cancel datalink.  {ex.Message}";
-                        _logger.LogError(error);
+                        Logger.LogError(error);
                         exceptions.Add(ex);
                     }
                 }
@@ -446,7 +446,7 @@ namespace dexih.remote.operations
             }
             catch (Exception ex)
             {
-                _logger.LogError(40, ex, "Error in Cancel DataLinks: {0}", ex.Message);
+                Logger.LogError(40, ex, "Error in Cancel DataLinks: {0}", ex.Message);
                 throw new RemoteOperationException("Error Cancel Datalinks.  " + ex.Message, ex);
             }
         }
@@ -470,7 +470,7 @@ namespace dexih.remote.operations
                     catch (Exception ex)
                     {
                         var error = $"Failed to cancel datalink test.  {ex.Message}";
-                        _logger.LogError(error);
+                        Logger.LogError(error);
                         exceptions.Add(ex);
                     }
                 }
@@ -486,7 +486,7 @@ namespace dexih.remote.operations
             }
             catch (Exception ex)
             {
-                _logger.LogError(40, ex, "Error in Cancel DataLink tests: {0}", ex.Message);
+                Logger.LogError(40, ex, "Error in Cancel DataLink tests: {0}", ex.Message);
                 throw new RemoteOperationException("Error Cancel Datalink tests.  " + ex.Message, ex);
             }
         }
@@ -511,7 +511,7 @@ namespace dexih.remote.operations
             }
             catch (Exception ex)
             {
-                _logger.LogError(30, ex, "Error in CancelTasks: {0}", ex.Message);
+                Logger.LogError(30, ex, "Error in CancelTasks: {0}", ex.Message);
                 throw;
             }
         }
@@ -539,7 +539,7 @@ namespace dexih.remote.operations
                         {
                             GlobalSettings = CreateGlobalSettings(cache.CacheEncryptionKey),
                         };
-                        var datalinkTestRun = new DatalinkTestRun(GetTransformSettings(message.HubVariables), _logger,
+                        var datalinkTestRun = new DatalinkTestRun(GetTransformSettings(message.HubVariables), Logger,
                             datalinkTest, cache.Hub, transformWriterOptions, _alertQueue, alertEmails) {StartMode = EStartMode.RunTests};
 
 //                        async Task DatalinkTestTask(ManagedTask managedTask, ManagedTaskProgress progress, CancellationToken cancellationToken2)
@@ -567,7 +567,7 @@ namespace dexih.remote.operations
                     catch (Exception ex)
                     {
                         var error = $"The datalink test failed.  {ex.Message}";
-                        _logger.LogError(error);
+                        Logger.LogError(error);
                         exceptions.Add(ex);
                     }
                 }
@@ -583,7 +583,7 @@ namespace dexih.remote.operations
 			}
             catch (Exception ex)
             {
-                _logger.LogError(40, ex, "Error in RunDatalinkTests: {0}", ex.Message);
+                Logger.LogError(40, ex, "Error in RunDatalinkTests: {0}", ex.Message);
                 throw new RemoteOperationException("Error running data link tests.  " + ex.Message, ex);
             }
         }
@@ -619,7 +619,7 @@ namespace dexih.remote.operations
                         {
                             GlobalSettings = CreateGlobalSettings(cache.CacheEncryptionKey),
                         };
-                        var datalinkTestRun = new DatalinkTestRun(GetTransformSettings(message.HubVariables), _logger,
+                        var datalinkTestRun = new DatalinkTestRun(GetTransformSettings(message.HubVariables), Logger,
                             datalinkTest, cache.Hub, transformWriterOptions, _alertQueue, alertEmails) {StartMode = EStartMode.RunSnapshot};
                         //                        ;
 //
@@ -650,7 +650,7 @@ namespace dexih.remote.operations
                     catch (Exception ex)
                     {
                         var error = $"The datalink test failed.  {ex.Message}";
-                        _logger.LogError(error);
+                        Logger.LogError(error);
                         exceptions.Add(ex);
                     }
                 }
@@ -666,7 +666,7 @@ namespace dexih.remote.operations
 			}
             catch (Exception ex)
             {
-                _logger.LogError(40, ex, "Error in RunDatalinkTests: {0}", ex.Message);
+                Logger.LogError(40, ex, "Error in RunDatalinkTests: {0}", ex.Message);
                 throw new RemoteOperationException("Error running data link tests.  " + ex.Message, ex);
             }
         }
@@ -716,7 +716,7 @@ namespace dexih.remote.operations
                     catch (Exception ex)
                     {
                         var error = $"The datajob failed.  {ex.Message}";
-                        _logger.LogError(error);
+                        Logger.LogError(error);
                         exceptions.Add(ex);
                     }
                 }
@@ -732,7 +732,7 @@ namespace dexih.remote.operations
             }
             catch (Exception ex)
             {
-                _logger.LogError(40, ex, "Error in RunDatajobs: {0}", ex.Message);
+                Logger.LogError(40, ex, "Error in RunDatajobs: {0}", ex.Message);
                 throw new RemoteOperationException("Error running datajobs.  " + ex.Message, ex);
             }
         }
@@ -741,7 +741,7 @@ namespace dexih.remote.operations
 		{
             try
             {
-                var datajobRun = new DatajobRun(transformSettings, _logger, dbHubDatajob, dbHub, transformWriterOptions, _alertQueue, alertEmails);
+                var datajobRun = new DatajobRun(transformSettings, Logger, dbHubDatajob, dbHub, transformWriterOptions, _alertQueue, alertEmails);
                 
                 void DatalinkStart(DatalinkRun datalinkRun)
                 {
@@ -814,7 +814,7 @@ namespace dexih.remote.operations
                     catch (Exception ex)
                     {
                         var error = $"Failed to activate datajob.  {ex.Message}";
-                        _logger.LogError(error);
+                        Logger.LogError(error);
                         exceptions.Add(ex);
                     }
                 }
@@ -830,7 +830,7 @@ namespace dexih.remote.operations
             }
             catch (Exception ex)
             {
-                _logger.LogError(40, ex, "Error in ActivateDatajobs: {0}", ex.Message);
+                Logger.LogError(40, ex, "Error in ActivateDatajobs: {0}", ex.Message);
                 throw new RemoteOperationException("Error activating datajobs.  " + ex.Message, ex);
             }
         }
@@ -845,7 +845,7 @@ namespace dexih.remote.operations
                     throw new RemoteOperationException($"Datajob with key {autoStart.Key} was not found");
                 }
 
-                _logger.LogInformation("Starting Datajob - {datajob}.", dbDatajob.Name);
+                Logger.LogInformation("Starting Datajob - {datajob}.", dbDatajob.Name);
 
 
                 var transformWriterOptions = new TransformWriterOptions()
@@ -922,7 +922,7 @@ namespace dexih.remote.operations
             catch (Exception ex)
             {
                 var message = $"Error activating datajob: {ex.Message}";
-                _logger.LogError(40, ex, message);
+                Logger.LogError(40, ex, message);
                 throw new RemoteOperationException(message, ex);
             }
         }
@@ -954,7 +954,7 @@ namespace dexih.remote.operations
                     catch (Exception ex)
                     {
                         var error = $"Failed to cancel datajob.  {ex.Message}";
-                        _logger.LogError(error);
+                        Logger.LogError(error);
                         exceptions.Add(ex);
                     }
                 }
@@ -970,7 +970,7 @@ namespace dexih.remote.operations
             }
             catch (Exception ex)
             {
-                _logger.LogError(40, ex, "Error in DeactivateDatajobs: {0}", ex.Message);
+                Logger.LogError(40, ex, "Error in DeactivateDatajobs: {0}", ex.Message);
                 throw new RemoteOperationException("Error DeactivateDatajobs datajobs.  " + ex.Message, ex);
             }
         }
@@ -981,10 +981,6 @@ namespace dexih.remote.operations
             {
 				var apiKeys = message.Value["apiKeys"].ToObject<long[]>();
                 var cache = message.Value["cache"].ToObject<CacheManager>();
-				var connectionId = message.Value["connectionId"].ToString();
-
-                
-               
                 var exceptions = new List<Exception>();
 
                 foreach (var apiKey in apiKeys)
@@ -1021,7 +1017,7 @@ namespace dexih.remote.operations
                     catch (Exception ex)
                     {
                         var error = $"Failed to activate api.  {ex.Message}";
-                        _logger.LogError(error);
+                        Logger.LogError(error);
                         exceptions.Add(ex);
                     }
                 }
@@ -1037,7 +1033,7 @@ namespace dexih.remote.operations
             }
             catch (Exception ex)
             {
-                _logger.LogError(40, ex, "Error in ActivateApis: {0}", ex.Message);
+                Logger.LogError(40, ex, "Error in ActivateApis: {0}", ex.Message);
                 throw new RemoteOperationException("Error activating apis.  " + ex.Message, ex);
             }
         }
@@ -1070,7 +1066,7 @@ namespace dexih.remote.operations
                     catch (Exception ex)
                     {
                         var error = $"Error removing api with key {apiKey}.  {ex.Message}";
-                        _logger.LogError(error);
+                        Logger.LogError(error);
                         exceptions.Add(ex);
                     }
                 }
@@ -1086,7 +1082,7 @@ namespace dexih.remote.operations
             }
             catch (Exception ex)
             {
-                _logger.LogError(40, ex, "Error in DeactivateApis: {0}", ex.Message);
+                Logger.LogError(40, ex, "Error in DeactivateApis: {0}", ex.Message);
                 throw new RemoteOperationException("Error deactivating Api's.  " + ex.Message, ex);
             }
         }
@@ -1118,7 +1114,7 @@ namespace dexih.remote.operations
             }
             catch (Exception ex)
             {
-                _logger.LogError(150, ex, "Error in CallApi: {0}", ex.Message);
+                Logger.LogError(150, ex, "Error in CallApi: {0}", ex.Message);
                 throw;
             }
         }
@@ -1132,13 +1128,13 @@ namespace dexih.remote.operations
                 var connection = dbConnection.GetConnection(GetTransformSettings(message.HubVariables));
                 await connection.CreateDatabase(dbConnection.DefaultDatabase, cancellationToken);
                 
-                _logger.LogInformation("Database created for : {Connection}, with name: {Name}", dbConnection.Name, dbConnection.DefaultDatabase);
+                Logger.LogInformation("Database created for : {Connection}, with name: {Name}", dbConnection.Name, dbConnection.DefaultDatabase);
 
                 return true;
            }
            catch (Exception ex)
            {
-               _logger.LogError(90, ex, "Error in CreateDatabase: {0}", ex.Message);
+               Logger.LogError(90, ex, "Error in CreateDatabase: {0}", ex.Message);
                 throw;
             }
         }
@@ -1152,14 +1148,14 @@ namespace dexih.remote.operations
                 var connection = dbConnection.GetConnection(GetTransformSettings(message.HubVariables));
                 var connectionTest = await connection.GetDatabaseList(cancellationToken);
 
-                _logger.LogInformation("Database  connection tested for :{Connection}", dbConnection.Name);
+                Logger.LogInformation("Database  connection tested for :{Connection}", dbConnection.Name);
 
                 return connectionTest;
 
             }
             catch (Exception ex)
             {
-                _logger.LogError(100, ex, "Error in RefreshConnection: {0}", ex.Message);
+                Logger.LogError(100, ex, "Error in RefreshConnection: {0}", ex.Message);
                 throw;
             }
         }
@@ -1173,12 +1169,12 @@ namespace dexih.remote.operations
 
                 //retrieve the source tables into the cache.
                 var tablesResult = await connection.GetTableList(cancellationToken);
-                _logger.LogInformation("Import database table names for :{Connection}", dbConnection.Name);
+                Logger.LogInformation("Import database table names for :{Connection}", dbConnection.Name);
                 return tablesResult;
             }
             catch (Exception ex)
             {
-                _logger.LogError(110, ex, "Error in DatabaseTableNames: {0}", ex.Message);
+                Logger.LogError(110, ex, "Error in DatabaseTableNames: {0}", ex.Message);
                 throw;
             }
         }
@@ -1229,15 +1225,15 @@ namespace dexih.remote.operations
 //                        dbTable.EntityStatus.Message = ex.Message;
                     }
 
-                    _logger.LogTrace("Import database table for table {table} and connection {connection} completed.", dbTable.Name, dbConnection.Name);
+                    Logger.LogTrace("Import database table for table {table} and connection {connection} completed.", dbTable.Name, dbConnection.Name);
                 }
 
-                _logger.LogInformation("Import database tables completed");
+                Logger.LogInformation("Import database tables completed");
                 return dbTables;
             }
             catch (Exception ex)
             {
-                _logger.LogError(120, ex, "Error in ImportDatabaseTables: {0}", ex.Message);
+                Logger.LogError(120, ex, "Error in ImportDatabaseTables: {0}", ex.Message);
                 throw;
             }
         } 
@@ -1276,15 +1272,15 @@ namespace dexih.remote.operations
                         throw new RemoteOperationException($"Error occurred creating tables: {ex.Message}.", ex);
                     }
 
-                    _logger.LogTrace("Create database table for table {table} and connection {connection} completed.", dbTable.Name, dbConnection.Name);
+                    Logger.LogTrace("Create database table for table {table} and connection {connection} completed.", dbTable.Name, dbConnection.Name);
                 }
 
-                _logger.LogInformation("Create database tables completed");
+                Logger.LogInformation("Create database tables completed");
                 return dbTables;
             }
             catch (Exception ex)
             {
-                _logger.LogError(120, ex, "Error in CreateDatabaseTables: {0}", ex.Message);
+                Logger.LogError(120, ex, "Error in CreateDatabaseTables: {0}", ex.Message);
                 throw;
             }
         }
@@ -1315,7 +1311,7 @@ namespace dexih.remote.operations
                         var table = dbTable.GetTable(cache.Hub, connection, transformSettings);
                         await connection.TruncateTable(table, cancellationToken);
 
-                        _logger.LogTrace("Clear database table for table {table} and connection {connection} completed.", dbTable.Name, dbConnection.Name);
+                        Logger.LogTrace("Clear database table for table {table} and connection {connection} completed.", dbTable.Name, dbConnection.Name);
                     } catch(Exception ex)
                     {
                         exceptions.Add(new RemoteOperationException($"Failed to truncate table {dbTables[i].Name}.  {ex.Message}", ex));
@@ -1327,12 +1323,12 @@ namespace dexih.remote.operations
                     throw new AggregateException(exceptions);
                 }
 
-                _logger.LogInformation("Clear database tables completed");
+                Logger.LogInformation("Clear database tables completed");
                 return true;
             }
             catch (Exception ex)
             {
-                _logger.LogError(120, ex, "Error in ClearDatabaseTables: {0}", ex.Message);
+                Logger.LogError(120, ex, "Error in ClearDatabaseTables: {0}", ex.Message);
                 throw;
             }
         }
@@ -1394,7 +1390,7 @@ namespace dexih.remote.operations
                 // await reader.Open(0, null, cancellationToken);
                 reader.SetEncryptionMethod(EEncryptionMethod.MaskSecureFields, "");
 
-                _logger.LogInformation("Preview for table: " + dbTable.Name + ".");
+                Logger.LogInformation("Preview for table: " + dbTable.Name + ".");
 
                 return new StreamJsonCompact(dbTable.Name, reader, selectQuery, 1000, viewConfig);
                 
@@ -1403,12 +1399,12 @@ namespace dexih.remote.operations
             }
             catch (Exception ex)
             {
-                _logger.LogError(150, ex, "Error in PreviewTable: {0}", ex.Message);
+                Logger.LogError(150, ex, "Error in PreviewTable: {0}", ex.Message);
                 throw;
             }
         }
         
-        private void StartUploadStream(string messageId, Func<Stream, Task> uploadAction, DownloadUrl downloadUrl, string format, string fileName, CancellationToken cancellationToken)
+        private void StartUploadStream(string messageId, Func<Stream, Task> uploadAction, DownloadUrl downloadUrl, string format, string fileName)
         {
             if (downloadUrl.DownloadUrlType == EDownloadUrlType.Proxy)
             {
@@ -1481,7 +1477,7 @@ namespace dexih.remote.operations
             }
             catch (Exception ex)
             {
-                _logger.LogError(160, ex, "Error in PreviewTransform: {0}", ex.Message);
+                Logger.LogError(160, ex, "Error in PreviewTransform: {0}", ex.Message);
                 throw new RemoteOperationException(ex.Message, ex);
             }
         }
@@ -1566,18 +1562,18 @@ namespace dexih.remote.operations
                     }
                     return function.function.Import(values);
                 }
-                catch
+                finally
                 {
-                    throw;
-                } finally
-                {
-                    transform?.Close();
+                    if (transform != null)
+                    {
+                        await transform.CloseAsync();
+                    }
                 }
                 
             }
             catch (Exception ex)
             {
-                _logger.LogError(160, ex, "Error in import function mappings: {0}", ex.Message);
+                Logger.LogError(160, ex, "Error in import function mappings: {0}", ex.Message);
                 throw new RemoteOperationException(ex.Message, ex);
             }
 
@@ -1634,7 +1630,7 @@ namespace dexih.remote.operations
                 }
 
                
-                var (transform, table) = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, inputColumns, null, maxIncremental, transformWriterOptions);
+                var (transform, _) = transformOperations.CreateRunPlan(cache.Hub, dbDatalink, inputColumns, null, maxIncremental, transformWriterOptions);
 
                 if (previewUpdates && dbDatalink.DexihDatalinkTargets.Count > 0)
                 {
@@ -1655,12 +1651,12 @@ namespace dexih.remote.operations
                         autoIncrementKey = await targetConnection.GetMaxValue<long>(targetTable, autoIncrement, cancellationToken);
                     }
 
-                    var maxValidFrom = DateTime.MinValue;
-                    if(dbDatalink.UpdateStrategy == EUpdateStrategy.AppendUpdateDeletePreserve || dbDatalink.UpdateStrategy == EUpdateStrategy.AppendUpdatePreserve)
-                    {
-                        var validFrom = targetTable.GetColumn(EDeltaType.ValidFromDate);
-                        // maxValidFrom = await targetConnection.GetMaxValue<DateTime>(targetTable, validFrom, cancellationToken);
-                    }
+                    // var maxValidFrom = DateTime.MinValue;
+                    // if(dbDatalink.UpdateStrategy == EUpdateStrategy.AppendUpdateDeletePreserve || dbDatalink.UpdateStrategy == EUpdateStrategy.AppendUpdatePreserve)
+                    // {
+                    //     var validFrom = targetTable.GetColumn(EDeltaType.ValidFromDate);
+                    //     // maxValidFrom = await targetConnection.GetMaxValue<DateTime>(targetTable, validFrom, cancellationToken);
+                    // }
 
                     transform = new TransformDelta(transform, targetReader, dbDatalink.UpdateStrategy,
                         autoIncrementKey,
@@ -1676,7 +1672,7 @@ namespace dexih.remote.operations
             }
             catch (Exception ex)
             {
-                _logger.LogError(160, ex, "Error in PreviewDatalink: {0}", ex.Message);
+                Logger.LogError(160, ex, "Error in PreviewDatalink: {0}", ex.Message);
                 throw;
             }
 
@@ -1707,7 +1703,7 @@ namespace dexih.remote.operations
             await using var transform = runPlan.sourceTransform;
             
             //TODO move Open to stream function to avoid timeouts
-            var openReturn = await transform.Open(0, null, cancellationToken);
+            await transform.Open(0, null, cancellationToken);
 
             return transform.GetTransformProperties(true);
         }
@@ -1752,7 +1748,7 @@ namespace dexih.remote.operations
             }
             catch (Exception ex)
             {
-                _logger.LogError(160, ex, "Error in GetReaderData: {0}", ex.Message);
+                Logger.LogError(160, ex, "Error in GetReaderData: {0}", ex.Message);
                 throw;
             }
 
@@ -1794,7 +1790,7 @@ namespace dexih.remote.operations
                     // await reader.Open(0, null, cancellationToken);
                     reader.SetEncryptionMethod(EEncryptionMethod.MaskSecureFields, "");
 
-                    _logger.LogInformation("Preview for profile results: " + profileTable.Name + ".");
+                    Logger.LogInformation("Preview for profile results: " + profileTable.Name + ".");
                     var stream = new StreamJsonCompact(profileTable.Name, reader, query, 1000);
                     return stream;
                     // return await _sharedSettings.StartDataStream(stream, downloadUrl, "json", "preview_table.json", cancellationToken);
@@ -1804,7 +1800,7 @@ namespace dexih.remote.operations
             }
             catch (Exception ex)
             {
-                _logger.LogError(170, ex, "Error in PreviewProfile: {0}", ex.Message);
+                Logger.LogError(170, ex, "Error in PreviewProfile: {0}", ex.Message);
                 throw;
             }
         }
@@ -1844,7 +1840,7 @@ namespace dexih.remote.operations
             }
             catch (Exception ex)
             {
-                _logger.LogError(170, ex, "Error in GetResults: {0}", ex.Message);
+                Logger.LogError(170, ex, "Error in GetResults: {0}", ex.Message);
                 throw;
             }
         }
@@ -1877,7 +1873,7 @@ namespace dexih.remote.operations
             }
             catch (Exception ex)
             {
-                _logger.LogError(200, ex, "Error in CreateFilePaths: {0}", ex.Message);
+                Logger.LogError(200, ex, "Error in CreateFilePaths: {0}", ex.Message);
                 throw;
             }
         }
@@ -1904,7 +1900,7 @@ namespace dexih.remote.operations
             }
             catch (Exception ex)
             {
-                _logger.LogError(210, ex, "Error in MoveFile: {0}", ex.Message);
+                Logger.LogError(210, ex, "Error in MoveFile: {0}", ex.Message);
                 throw;
             }
         }
@@ -1929,7 +1925,7 @@ namespace dexih.remote.operations
             }
             catch (Exception ex)
             {
-                _logger.LogError(220, ex, "Error in DeleteFile: {0}", ex.Message);
+                Logger.LogError(220, ex, "Error in DeleteFile: {0}", ex.Message);
                 throw;
             }
         }
@@ -1951,7 +1947,7 @@ namespace dexih.remote.operations
             }
             catch (Exception ex)
             {
-                _logger.LogError(230, ex, "Error in GetFileList: {0}", ex.Message);
+                Logger.LogError(230, ex, "Error in GetFileList: {0}", ex.Message);
                 throw;
             }
         }
@@ -1990,24 +1986,23 @@ namespace dexih.remote.operations
                     var table = dbTable.GetTable(cache.Hub, connection, transformSettings);
                     var flatFile = (FlatFile) table;
 
-                    _logger.LogInformation(
+                    Logger.LogInformation(
                         $"UploadFile for connection: {connection.Name}, Name {flatFile.Name}, FileName {fileName}");
 
                     async Task ProcessTask(Stream stream)
                     {
                         try
                         {
-                            var saveFile =
-                                await connectionFlatFile.SaveFiles(flatFile, path, fileName, stream, cancellationToken);
+                            await connectionFlatFile.SaveFiles(flatFile, path, fileName, stream, cancellationToken);
                         }
                         catch (Exception ex)
                         {
-                            _logger.LogError(60, ex, "Error processing uploaded file.  {0}", ex.Message);
+                            Logger.LogError(60, ex, "Error processing uploaded file.  {0}", ex.Message);
                             throw;
                         }
                     }
 
-                    StartUploadStream(message.MessageId, ProcessTask, message.DownloadUrl, "file", fileName, cancellationToken);
+                    StartUploadStream(message.MessageId, ProcessTask, message.DownloadUrl, "file", fileName);
                 }
                 else
                 {
@@ -2036,17 +2031,17 @@ namespace dexih.remote.operations
                         await transformWriter.WriteRecordsAsync(fileReader, updateStrategy, TransformWriterTarget.ETransformWriterMethod.Bulk, cancellationToken);
                     }
 
-                    StartUploadStream(message.MessageId, ProcessTask, message.DownloadUrl, "file", fileName, cancellationToken);
+                    StartUploadStream(message.MessageId, ProcessTask, message.DownloadUrl, "file", fileName);
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError(60, ex, "Error in UploadFiles: {0}", ex.Message);
+                Logger.LogError(60, ex, "Error in UploadFiles: {0}", ex.Message);
                 throw new RemoteOperationException($"The file upload did not completed.  {ex.Message}", ex);
             }
         }
-        
-        
+
+
         /// <summary>
         /// This will create the table structure from the incoming stream, and then attempt to load it
         /// if the load fails, the returnMessage will contain error details.
@@ -2055,6 +2050,7 @@ namespace dexih.remote.operations
         /// <param name="connection"></param>
         /// <param name="fileFormat"></param>
         /// <param name="formatType"></param>
+        /// <param name="loadData"></param>
         /// <param name="includeFileName"></param>
         /// <param name="includeFileDate"></param>
         /// <param name="includeFileRowNumber"></param>
@@ -2276,7 +2272,7 @@ namespace dexih.remote.operations
 
                 var reference = message.MessageId;
 
-                _logger.LogInformation(
+                Logger.LogInformation(
                     $"Create files for connection: {connection.Name}, FileName {fileName}");
 
                 async Task ProcessTask(Stream stream)
@@ -2334,7 +2330,7 @@ namespace dexih.remote.operations
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(60, ex, "Error processing uploaded file.  {0}", ex.Message);
+                        Logger.LogError(60, ex, "Error processing uploaded file.  {0}", ex.Message);
                         throw;
                     }
                     
@@ -2365,11 +2361,11 @@ namespace dexih.remote.operations
                     }
                 }
 
-                StartUploadStream(message.MessageId, ProcessTask, message.DownloadUrl, "file", fileName, cancellationToken);
+                StartUploadStream(message.MessageId, ProcessTask, message.DownloadUrl, "file", fileName);
             }
             catch (Exception ex)
             {
-                _logger.LogError(60, ex, "Error in UploadFiles: {0}", ex.Message);
+                Logger.LogError(60, ex, "Error in UploadFiles: {0}", ex.Message);
                 throw new RemoteOperationException($"The file upload did not completed.  {ex.Message}", ex);
             }
         }
@@ -2433,7 +2429,7 @@ namespace dexih.remote.operations
             }
             catch (Exception ex)
             {
-                _logger.LogError(60, ex, "Error in DownloadFiles: {0}", ex.Message);
+                Logger.LogError(60, ex, "Error in DownloadFiles: {0}", ex.Message);
                 throw;
             }
         }
@@ -2456,14 +2452,14 @@ namespace dexih.remote.operations
                 var reference = Guid.NewGuid().ToString();
 
                 var downloadData = new DownloadData(GetTransformSettings(message.HubVariables), cache, downloadObjects, downloadFormat, zipFiles);
-                var downloadDataTask = new DownloadDataTask(_sharedSettings, message.MessageId, message.HubKey, downloadData, message.DownloadUrl, connectionId, reference);
+                var downloadDataTask = new DownloadDataTask(_sharedSettings, message.HubKey, downloadData, message.DownloadUrl, connectionId, reference);
 
                 var startDownloadResult = _managedTasks.Add(reference, connectionId, $"Download Data File", "Download", cache.HubKey, null, 0, downloadDataTask, null, null, null);
                 return startDownloadResult;
             }
             catch (Exception ex)
             {
-                _logger.LogError(60, ex, "Error in Downloading data: {0}", ex.Message);
+                Logger.LogError(60, ex, "Error in Downloading data: {0}", ex.Message);
                 throw;
             }
         }
@@ -2592,7 +2588,7 @@ namespace dexih.remote.operations
             }
             catch (Exception ex)
             {
-                _logger.LogError(160, ex, "Error in PreviewListOfValues: {0}", ex.Message);
+                Logger.LogError(160, ex, "Error in PreviewListOfValues: {0}", ex.Message);
                 throw;
             }
 

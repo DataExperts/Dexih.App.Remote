@@ -19,13 +19,12 @@ namespace dexih.remote.operations
     /// </summary>
     public class UpgradeService: IHostedService, IDisposable
     {
-        const string remoteBinary = "dexih.remote.zip";
-        private const string updateDirectory = "update";
-        private string updateVersion = null;
+        const string RemoteBinary = "dexih.remote.zip";
+        private const string UpdateDirectory = "update";
+        private string _updateVersion;
             
         private Timer _timer;
         private readonly ILogger<UpgradeService> _logger;
-        private readonly ISharedSettings _sharedSettings;
         private readonly RemoteSettings _remoteSettings;
         private readonly IApplicationLifetime _applicationLifetime;
         private readonly ProgramExit _programExit;
@@ -33,7 +32,6 @@ namespace dexih.remote.operations
 
         public UpgradeService(ISharedSettings sharedSettings, ILogger<UpgradeService> logger, IApplicationLifetime applicationLifetime, ProgramExit programExit, IHttpClientFactory clientFactory)
         {
-            _sharedSettings = sharedSettings;
             _remoteSettings = sharedSettings.RemoteSettings;
             _logger = logger;
             _applicationLifetime = applicationLifetime;
@@ -84,9 +82,9 @@ namespace dexih.remote.operations
 
                 var update = await _remoteSettings.CheckUpgrade(_logger, _clientFactory);
 
-                if (update && updateVersion != _remoteSettings.Runtime.LatestVersion)
+                if (update && _updateVersion != _remoteSettings.Runtime.LatestVersion)
                 {
-                    updateVersion = _remoteSettings.Runtime.LatestVersion;
+                    _updateVersion = _remoteSettings.Runtime.LatestVersion;
                     
                     File.WriteAllText("latest_version.txt",
                         _remoteSettings.Runtime.LatestVersion + "\n" + _remoteSettings.Runtime.LatestDownloadUrl);
@@ -106,16 +104,16 @@ namespace dexih.remote.operations
                     {
                         _logger.LogInformation("Downloading latest binaries...");
 
-                        if (File.Exists(remoteBinary))
+                        if (File.Exists(RemoteBinary))
                         {
-                            File.Delete(remoteBinary);
+                            File.Delete(RemoteBinary);
                         }
 
                         using (var client = new WebClient())
                         {
                             try
                             {
-                                client.DownloadFile(_remoteSettings.Runtime.LatestDownloadUrl, remoteBinary);
+                                client.DownloadFile(_remoteSettings.Runtime.LatestDownloadUrl, RemoteBinary);
                             }
                             catch (Exception ex)
                             {
@@ -127,16 +125,16 @@ namespace dexih.remote.operations
 
                         _logger.LogInformation("Extracting latest binaries...");
 
-                        if (Directory.Exists(updateDirectory))
+                        if (Directory.Exists(UpdateDirectory))
                         {
-                            Directory.Delete(updateDirectory, true);
+                            Directory.Delete(UpdateDirectory, true);
                         }
 
-                        ZipFile.ExtractToDirectory(remoteBinary, updateDirectory);
+                        ZipFile.ExtractToDirectory(RemoteBinary, UpdateDirectory);
 
                         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                         {
-                            var remoteAgentPath = Path.Combine(updateDirectory, "dexih.remote");
+                            var remoteAgentPath = Path.Combine(UpdateDirectory, "dexih.remote");
                             var process = new Process
                             {
                                 StartInfo = new ProcessStartInfo
@@ -154,12 +152,12 @@ namespace dexih.remote.operations
                             process.WaitForExit();
                         }
 
-                        File.Delete(remoteBinary);
+                        File.Delete(RemoteBinary);
 
                         _programExit.CompleteUpgrade = true;
 
                         _logger?.LogWarning(
-                            $"The new version has been downloaded to {Path.GetFullPath(updateDirectory)}.");
+                            $"The new version has been downloaded to {Path.GetFullPath(UpdateDirectory)}.");
                         _timer?.Change(Timeout.Infinite, 0);
                         _logger?.LogWarning(
                             "The application will exit so an upgrade can be completed.  To skip upgrade checks include \"--upgrade=false\" in the command line, or set AutoUpgrade=false in the appsettings.json file.");

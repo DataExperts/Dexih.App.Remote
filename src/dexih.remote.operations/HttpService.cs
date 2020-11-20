@@ -80,7 +80,7 @@ namespace dexih.remote.operations
                         // Create a collection object and populate it using the PFX file
                         using (var cert = new X509Certificate2(certificatePath, _remoteSettings.Network.CertificatePassword))
                         {
-                            var effectiveDate = DateTime.Parse(cert.GetEffectiveDateString());
+                            // var effectiveDate = DateTime.Parse(cert.GetEffectiveDateString());
                             var expiresDate = DateTime.Parse(cert.GetExpirationDateString());
 
                             // if cert expires in next 14 days, then renew.

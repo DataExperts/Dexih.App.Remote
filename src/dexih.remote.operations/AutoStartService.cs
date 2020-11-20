@@ -13,16 +13,13 @@ namespace dexih.remote.operations
     {
         private readonly ILiveApis _liveApis;
         private readonly RemoteSettings _remoteSettings;
-        private readonly ISharedSettings _sharedSettings;
         private readonly ILogger<AutoStartService> _logger;
         private readonly IRemoteOperations _remoteOperations;
 
 
         public AutoStartService(ISharedSettings sharedSettings, ILogger<AutoStartService> logger, ILiveApis liveApis, IRemoteOperations remoteOperations)
         {
-            _sharedSettings = sharedSettings;
-            
-            _remoteSettings = _sharedSettings.RemoteSettings;
+            _remoteSettings = sharedSettings.RemoteSettings;
             _logger = logger;
             _liveApis = liveApis;
             _remoteOperations = remoteOperations;

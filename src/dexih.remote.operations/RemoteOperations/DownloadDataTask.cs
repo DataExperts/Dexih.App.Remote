@@ -15,9 +15,8 @@ namespace dexih.remote.operations
     /// </summary>
     public class DownloadDataTask: ManagedObject
     {
-        public DownloadDataTask(ISharedSettings sharedSettings, string messageId, long hubKey, DownloadData downloadData, DownloadUrl downloadUrl, string connectionId, string reference)
+        public DownloadDataTask(ISharedSettings sharedSettings, long hubKey, DownloadData downloadData, DownloadUrl downloadUrl, string connectionId, string reference)
         {
-            _messageId = messageId;
             _sharedSettings = sharedSettings;
             _hubKey = hubKey;
             _downloadData = downloadData;
@@ -26,7 +25,6 @@ namespace dexih.remote.operations
             _reference = reference;
         }
 
-        private string _messageId;
         private readonly ISharedSettings _sharedSettings;
         private readonly long _hubKey;
         private readonly DownloadData _downloadData;
