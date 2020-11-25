@@ -846,8 +846,7 @@ namespace dexih.remote.operations
                 }
 
                 Logger.LogInformation("Starting Datajob - {datajob}.", dbDatajob.Name);
-
-
+                
                 var transformWriterOptions = new TransformWriterOptions()
                 {
                     TargetAction = TransformWriterOptions.ETargetAction.None,
@@ -863,7 +862,7 @@ namespace dexih.remote.operations
 
                 foreach (var trigger in dbDatajob.DexihTriggers)
                 {
-                    var managedTaskTrigger = trigger.CreateManagedTaskTrigger();
+                    var managedTaskTrigger = trigger.CreateManagedTaskTrigger(autoStart.Hub.TimeZone);
                     triggers.Add(managedTaskTrigger);
                 }
 

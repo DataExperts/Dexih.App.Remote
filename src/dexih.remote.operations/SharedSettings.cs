@@ -481,7 +481,6 @@ namespace dexih.remote.operations
                 var transforms = Transforms.GetAllTransforms().Where(c => !globalTransforms.ContainsKey((
                     c.TransformAssemblyName, c.TransformClassName))).ToList();
                 
-                
                 var remoteLibraries = new RemoteLibraries()
                 {
                     Functions = functions,
