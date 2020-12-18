@@ -1609,6 +1609,14 @@ namespace dexih.remote.operations
                     dbDatalink.UpdateParameters(parameters);
                 }
 
+                if (inputColumns?.Length > 0)
+                {
+                    foreach (var inputColumn in inputColumns)
+                    {
+                        inputColumn.Value = parameters.SetParameters(inputColumn.Value, inputColumn.Rank);
+                    }
+                }
+
                 var transformSettings = GetTransformSettings(message.HubVariables, dbDatalink.Parameters);
                 var transformOperations = new TransformsManager(transformSettings);
 
