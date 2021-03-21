@@ -200,7 +200,7 @@ namespace dexih.remote.operations
             
             if (force || _managedTasks.RunningCount == 0)
             {
-                var applicationLifetime = _host.Services.GetService<IApplicationLifetime>();
+                var applicationLifetime = _host.Services.GetService<IHostApplicationLifetime>();
                 applicationLifetime.StopApplication();
                 
                 return true;

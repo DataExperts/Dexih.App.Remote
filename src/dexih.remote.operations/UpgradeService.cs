@@ -26,11 +26,11 @@ namespace dexih.remote.operations
         private Timer _timer;
         private readonly ILogger<UpgradeService> _logger;
         private readonly RemoteSettings _remoteSettings;
-        private readonly IApplicationLifetime _applicationLifetime;
+        private readonly IHostApplicationLifetime _applicationLifetime;
         private readonly ProgramExit _programExit;
         private readonly IHttpClientFactory _clientFactory;
 
-        public UpgradeService(ISharedSettings sharedSettings, ILogger<UpgradeService> logger, IApplicationLifetime applicationLifetime, ProgramExit programExit, IHttpClientFactory clientFactory)
+        public UpgradeService(ISharedSettings sharedSettings, ILogger<UpgradeService> logger, IHostApplicationLifetime applicationLifetime, ProgramExit programExit, IHttpClientFactory clientFactory)
         {
             _remoteSettings = sharedSettings.RemoteSettings;
             _logger = logger;

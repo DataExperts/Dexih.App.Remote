@@ -17,7 +17,7 @@
     <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
     <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
     <LangVersion>latestmajor</LangVersion>
-    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <TargetFramework>net5.0</TargetFramework>
     <PackageVersion>1.0-rc.0</PackageVersion>
     <Version>1.0-rc.120</Version>
   </PropertyGroup>
@@ -35,15 +35,15 @@
     </Content>
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="3.1.10" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.CommandLine" Version="3.1.10" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="3.1.10" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="3.1.10" />
-    <PackageReference Include="Microsoft.Extensions.Configuration" Version="3.1.10" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.FileExtensions" Version="3.1.10" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="3.1.10" />
-    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="3.1.10" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="3.1.10" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="5.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.CommandLine" Version="5.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="5.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="5.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="5.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.FileExtensions" Version="5.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="5.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="5.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="5.0.0" />
   </ItemGroup>
   <ItemGroup>
     <None Update=".dockerignore">

@@ -236,7 +236,7 @@ namespace dexih.remote.operations
                         case EConnectionResult.InvalidCredentials:
                             _logger.LogWarning("Invalid credentials... terminating service.");
 
-                            var applicationLifetime = _host.Services.GetService<IApplicationLifetime>();
+                            var applicationLifetime = _host.Services.GetService<IHostApplicationLifetime>();
                             applicationLifetime.StopApplication();
                             return EConnectionResult.InvalidCredentials;
                         case EConnectionResult.InvalidLocation:

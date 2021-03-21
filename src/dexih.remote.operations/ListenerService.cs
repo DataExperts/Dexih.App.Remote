@@ -62,13 +62,13 @@ namespace dexih.remote.operations
 
         private readonly RemoteSettings _remoteSettings;
         private readonly IMemoryCache _memoryCache;
-        private readonly IApplicationLifetime _applicationLifetime;
+        private readonly IHostApplicationLifetime _applicationLifetime;
 
         private HubConnection _hubConnection;
         
         private readonly CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
         
-        public ListenerService(ISharedSettings sharedSettings, ILogger<ListenerService> logger, IMessageQueue messageQueue, IRemoteOperations remoteOperations, IMemoryCache memoryCache, IApplicationLifetime applicationLifetime)
+        public ListenerService(ISharedSettings sharedSettings, ILogger<ListenerService> logger, IMessageQueue messageQueue, IRemoteOperations remoteOperations, IMemoryCache memoryCache, IHostApplicationLifetime applicationLifetime)
         {
             _sharedSettings = sharedSettings;
             _remoteSettings = _sharedSettings.RemoteSettings;
